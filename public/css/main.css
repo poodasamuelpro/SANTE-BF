@@ -1,0 +1,16 @@
+/* CSS global SantéBF */
+/* TODO: Variables CSS, reset, composants réutilisables */
+:root {
+  --vert:        #1A6B3C;
+  --vert-clair:  #E8F5E9;
+  --bleu:        #1565C0;
+  --rouge:       #B71C1C;
+  --orange:      #E65100;
+  --violet:      #4A148C;
+  --gris:        #F7F8FA;
+  --gris-fonce:  #424242;
+  --bordure:     #E0E0E0;
+  --texte:       #1A1A2E;
+  --blanc:       #FFFFFF;
+}
+/* TODO: Styles dashboard, tableaux, formulaires, badges */

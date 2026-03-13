@@ -1,0 +1,5 @@
+# Copie ce fichier en .dev.vars et remplis les valeurs
+# NE JAMAIS committer .dev.vars sur GitHub !
+
+SUPABASE_URL=https://XXXXX.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...

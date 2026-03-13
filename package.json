@@ -1,0 +1,19 @@
+{
+  "name": "santebf",
+  "version": "1.0.0",
+  "description": "Système National de Santé Numérique — Burkina Faso",
+  "scripts": {
+    "dev": "wrangler pages dev --compatibility-date=2024-01-01 .",
+    "build": "tsc",
+    "deploy": "wrangler pages deploy ."
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "hono": "^4.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.28.0"
+  }
+}
