@@ -8,6 +8,14 @@ import { accueilRoutes } from '../src/routes/accueil'
 import { medecinRoutes } from '../src/routes/medecin'
 import { pharmacienRoutes } from '../src/routes/pharmacien'
 import { caissierRoutes } from '../src/routes/caissier'
+import { patientRoutes } from '../src/routes/patient'
+import { structureRoutes } from '../src/routes/structure'
+import { hospitalisationsRoutes } from '../src/routes/hospitalisations'
+import { vaccinationsRoutes } from '../src/routes/vaccinations'
+import { laboratoireRoutes } from '../src/routes/laboratoire'
+import { radiologieRoutes } from '../src/routes/radiologie'
+import { grossesseRoutes } from '../src/routes/grossesse'
+import { infirmerieRoutes } from '../src/routes/infirmerie'
 
 type Env = {
   Bindings: {
@@ -28,11 +36,19 @@ app.route('/auth',     authRoutes)
 app.route('/dashboard', dashboardRoutes)
 
 // Modules métier
-app.route('/admin',       adminRoutes)
-app.route('/accueil',     accueilRoutes)
-app.route('/medecin',     medecinRoutes)
-app.route('/pharmacien',  pharmacienRoutes)
-app.route('/caissier',    caissierRoutes)
+app.route('/admin',           adminRoutes)
+app.route('/accueil',         accueilRoutes)
+app.route('/medecin',         medecinRoutes)
+app.route('/pharmacien',      pharmacienRoutes)
+app.route('/caissier',        caissierRoutes)
+app.route('/patient',         patientRoutes)
+app.route('/structure',       structureRoutes)
+app.route('/hospitalisations', hospitalisationsRoutes)
+app.route('/vaccinations',    vaccinationsRoutes)
+app.route('/laboratoire',     laboratoireRoutes)
+app.route('/radiologie',      radiologieRoutes)
+app.route('/grossesse',       grossesseRoutes)
+app.route('/infirmerie',      infirmerieRoutes)
 
 // Racine → login
 app.get('/', (c) => c.redirect('/auth/login'))

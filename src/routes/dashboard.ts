@@ -4,6 +4,10 @@ import type { AuthProfile } from '../lib/supabase'
 import { dashboardAdminPage } from '../pages/dashboard-admin'
 import { dashboardMedecinPage } from '../pages/dashboard-medecin'
 import { dashboardAccueilPage } from '../pages/dashboard-accueil'
+import { dashboardPharmacienPage } from '../pages/dashboard-pharmacien'
+import { dashboardCaissierPage } from '../pages/dashboard-caissier'
+import { dashboardPatientPage } from '../pages/dashboard-patient'
+import { dashboardStructurePage } from '../pages/dashboard-structure'
 
 type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
 export const dashboardRoutes = new Hono<{ Bindings: Bindings }>()
