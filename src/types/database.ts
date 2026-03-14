@@ -27,6 +27,7 @@ export type StructStructure = {
   telephone: string | null
   est_public: boolean
   est_actif: boolean
+  logo_url: string | null  // URL du logo (Cloudflare R2)
 }
 
 export type PatientDossier = {
@@ -74,4 +75,32 @@ export type FinanceFacture = {
   montant_patient: number
   montant_assurance: number
   statut: 'impayee'|'partiellement_payee'|'payee'|'annulee'|'remboursee'
+}
+
+// Table paramètres utilisateur
+export type UserSettings = {
+  id: string
+  user_id: string
+  email_notifications: boolean
+  email_rdv_rappel: boolean
+  email_resultats: boolean
+  email_ordonnances: boolean
+  google_calendar_enabled: boolean
+  google_calendar_refresh_token: string | null
+  created_at: string
+  updated_at: string
+}
+
+// Extension auth_profiles pour signature
+export type AuthProfileExtended = {
+  id: string
+  nom: string
+  prenom: string
+  role: string
+  structure_id: string | null
+  est_actif: boolean
+  doit_changer_mdp: boolean
+  signature_url: string | null  // URL signature médecin (Cloudflare R2)
+  ordre_numero: string | null   // Numéro ordre des médecins
+  specialite: string | null     // Spécialité médicale
 }

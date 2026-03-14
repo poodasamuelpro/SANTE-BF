@@ -16,6 +16,8 @@ import { laboratoireRoutes } from '../src/routes/laboratoire'
 import { radiologieRoutes } from '../src/routes/radiologie'
 import { grossesseRoutes } from '../src/routes/grossesse'
 import { infirmerieRoutes } from '../src/routes/infirmerie'
+import { uploadRoutes } from '../src/routes/upload'
+import { parametresRoutes } from '../src/routes/parametres'
 
 type Env = {
   Bindings: {
@@ -49,6 +51,10 @@ app.route('/laboratoire',     laboratoireRoutes)
 app.route('/radiologie',      radiologieRoutes)
 app.route('/grossesse',       grossesseRoutes)
 app.route('/infirmerie',      infirmerieRoutes)
+
+// Services transverses
+app.route('/upload',          uploadRoutes)
+app.route('/parametres',      parametresRoutes)
 
 // Racine → login
 app.get('/', (c) => c.redirect('/auth/login'))
