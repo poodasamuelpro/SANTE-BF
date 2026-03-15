@@ -14,10 +14,10 @@ patientPdfRoutes.use('*', requireAuth)
 patientPdfRoutes.use('*', requireRole(['patient']))
 
 /**
- * GET /patient/ordonnances/:id/pdf
+ * GET /patient-pdf/ordonnance/:id
  * Télécharger ordonnance en PDF
  */
-patientPdfRoutes.get('/ordonnances/:id/pdf', async (c) => {
+patientPdfRoutes.get('/ordonnance/:id', async (c) => {
   const profil = c.get('profil')
   const supabase = c.get('supabase')
   const ordonnanceId = c.req.param('id')
@@ -100,10 +100,10 @@ patientPdfRoutes.get('/ordonnances/:id/pdf', async (c) => {
 })
 
 /**
- * GET /patient/examens/:id/bulletin
+ * GET /patient-pdf/examen/:id
  * Télécharger bulletin d'examen en PDF
  */
-patientPdfRoutes.get('/examens/:id/bulletin', async (c) => {
+patientPdfRoutes.get('/examen/:id', async (c) => {
   const profil = c.get('profil')
   const supabase = c.get('supabase')
   const examenId = c.req.param('id')

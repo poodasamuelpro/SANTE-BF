@@ -58,7 +58,7 @@ app.route('/infirmerie',      infirmerieRoutes)
 // Services transverses
 app.route('/upload',          uploadRoutes)
 app.route('/parametres',      parametresRoutes)
-app.route('/patient',         patientPdfRoutes)  // Routes PDF patient
+app.route('/patient-pdf',     patientPdfRoutes)  // Routes PDF patient
 app.route('/export',          exportRoutes)      // Routes export CSV
 
 // Racine → login
