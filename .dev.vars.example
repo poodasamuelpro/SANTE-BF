@@ -1,5 +1,10 @@
-# Copie ce fichier en .dev.vars et remplis les valeurs
-# NE JAMAIS committer .dev.vars sur GitHub !
+# Supabase Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key-here
 
-SUPABASE_URL=https://ywglhozakxivpuuhahox.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3Z2xob3pha3hpdnB1dWhhaG94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0MjA0MTAsImV4cCI6MjA4ODk5NjQxMH0.5qIZ_vM9Ll0U8EO_qQ_evrEchtIN21QrFSZ24914Lbs
+# Email Service (Resend)
+RESEND_API_KEY=re_your_api_key_here
+
+# Google Calendar OAuth (optional)
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
