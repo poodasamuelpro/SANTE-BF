@@ -10,8 +10,8 @@ import { pharmacienRoutes } from '../src/routes/pharmacien'
 import { caissierRoutes } from '../src/routes/caissier'
 import { patientRoutes } from '../src/routes/patient'
 import { structureRoutes } from '../src/routes/structure'
-import { hospitalisationsRoutes } from '../src/routes/hospitalisations'
-import { vaccinationsRoutes } from '../src/routes/vaccinations'
+import { hospitalisationRoutes } from '../src/routes/hospitalisations'
+import { vaccinationRoutes } from '../src/routes/vaccinations'
 import { laboratoireRoutes } from '../src/routes/laboratoire'
 import { radiologieRoutes } from '../src/routes/radiologie'
 import { grossesseRoutes } from '../src/routes/grossesse'
@@ -48,8 +48,8 @@ app.route('/pharmacien',      pharmacienRoutes)
 app.route('/caissier',        caissierRoutes)
 app.route('/patient',         patientRoutes)
 app.route('/structure',       structureRoutes)
-app.route('/hospitalisations', hospitalisationsRoutes)
-app.route('/vaccinations',    vaccinationsRoutes)
+app.route('/hospitalisations', hospitalisationRoutes)
+app.route('/vaccinations',    vaccinationRoutes)
 app.route('/laboratoire',     laboratoireRoutes)
 app.route('/radiologie',      radiologieRoutes)
 app.route('/grossesse',       grossesseRoutes)

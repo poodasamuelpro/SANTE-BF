@@ -9,6 +9,7 @@ import { Hono } from 'hono'
 import { requireAuth } from '../middleware/auth'
 import { getSupabase } from '../lib/supabase'
 import { pageSkeleton } from './dashboard'
+import type { AuthProfile } from '../lib/supabase'
 import { alertHTML } from '../components/alert'
 
 export const parametresRoutes = new Hono()

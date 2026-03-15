@@ -285,7 +285,7 @@ export function urgencePage(patient: any): string {
 
       <!-- Contacts urgence -->
       <div class="section">
-        <div class="section-title">📞 Contacts d'urgence</div>
+        <div class="section-title">📞 Contacts d\'urgence</div>
         ${(patient?.contacts_urgence && patient.contacts_urgence.length > 0)
           ? patient.contacts_urgence.map((c: any) => `
             <div class="contact-urgence">
@@ -294,7 +294,7 @@ export function urgencePage(patient: any): string {
               <div class="contact-lien">${c.lien || ''}</div>
             </div>
           `).join('')
-          : '<div class="box"><div class="empty">Aucun contact d'urgence enregistré</div></div>'
+          : '<div class="box"><div class="empty">Aucun contact d\'urgence enregistré</div></div>'
         }
       </div>
     </div>

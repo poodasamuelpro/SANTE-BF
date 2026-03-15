@@ -6,7 +6,8 @@
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
 import { getSupabase } from '../lib/supabase'
-import { pageSkeleton, statsGrid, actionCard } from './dashboard'
+import type { AuthProfile } from '../lib/supabase'
+// Note: pageSkeleton, statsGrid, actionCard sont définis localement pour ce module
 import { alertHTML } from '../components/alert'
 
 export const infirmerieRoutes = new Hono()

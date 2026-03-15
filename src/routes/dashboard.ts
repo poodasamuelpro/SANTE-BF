@@ -58,11 +58,19 @@ dashboardRoutes.get('/structure',
     const litsDispos  = litsData.filter((l: any) => l.statut === 'disponible').length
     const litsOccupes = litsData.filter((l: any) => l.statut === 'occupe').length
 
-    return c.html(dashboardStructurePage(profil, structure, {
-      nbPersonnel: personnel.count ?? 0,
-      litsDispos,
-      litsOccupes,
-      litsTotal: litsData.length,
+    return c.html(dashboardStructurePage(profil, {
+      structure: {
+        nom: structure?.nom || 'N/A',
+        type: structure?.type || 'N/A',
+        niveau: structure?.niveau || 1
+      },
+      stats: {
+        personnel: personnel.count ?? 0,
+        patientsJour: 0, // TODO: calculer
+        litsOccupes: litsOccupes,
+        litsTotal: litsData.length,
+        consultationsJour: 0 // TODO: calculer
+      }
     }))
   }
 )
@@ -151,7 +159,23 @@ dashboardRoutes.get('/caissier',
       .filter((f: any) => f.statut === 'payee')
       .reduce((sum: number, f: any) => sum + (f.total_ttc ?? 0), 0)
 
-    return c.html(dashboardCaissierPage(profil, factures ?? [], totalJour))
+    return c.html(dashboardCaissierPage(profil, {
+      factures: (factures ?? []).map((f: any) => ({
+        id: f.id,
+        numero_facture: f.numero_facture,
+        patient: { nom: f.patient_dossiers?.nom || '', prenom: f.patient_dossiers?.prenom || '' },
+        montant_patient: f.total_ttc ?? 0,
+        total_ttc: f.total_ttc ?? 0,
+        statut: f.statut,
+        created_at: f.created_at
+      })),
+      stats: {
+        facturesJour: factures?.length ?? 0,
+        impayees: (factures ?? []).filter((f: any) => f.statut === 'impayee').length,
+        recetteJour: totalJour,
+        attente: (factures ?? []).filter((f: any) => f.statut === 'en_attente').length
+      }
+    }))
   }
 )
 
@@ -202,172 +226,29 @@ dashboardRoutes.get('/patient',
       .eq('statut', 'active')
       .limit(5)
 
-    return c.html(dashboardPatientPage(profil, dossier, ordonnances ?? []))
+    const { data: consultations } = await supabase
+      .from('medical_consultations')
+      .select('id', { count: 'exact', head: true })
+      .eq('patient_id', dossier?.id)
+
+    return c.html(dashboardPatientPage(profil, {
+      dossier: dossier ? {
+        numero_national: dossier.numero_national,
+        groupe_sanguin: dossier.groupe_sanguin,
+        rhesus: dossier.rhesus,
+        allergies: dossier.allergies,
+        maladies_chroniques: dossier.maladies_chroniques
+      } : null,
+      prochainRdv: null, // TODO: récupérer prochain RDV
+      ordonnancesActives: ordonnances?.length ?? 0,
+      consultationsTotal: consultations.count ?? 0
+    }))
   }
 )
 
 // ── Pages internes ─────────────────────────────────────────
-function dashboardStructurePage(profil: AuthProfile, structure: any, stats: any): string {
-  return pageSkeleton(profil, 'Admin Structure', '#1565C0', `
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">👥</div>
-        <div class="stat-val">${stats.nbPersonnel}</div>
-        <div class="stat-lbl">Personnel</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon">🛏️</div>
-        <div class="stat-val">${stats.litsDispos}</div>
-        <div class="stat-lbl">Lits disponibles</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon">🏥</div>
-        <div class="stat-val">${stats.litsOccupes}</div>
-        <div class="stat-lbl">Lits occupés</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon">📊</div>
-        <div class="stat-val">${stats.litsTotal}</div>
-        <div class="stat-lbl">Lits total</div>
-      </div>
-    </div>
-    <div class="actions-grid">
-      <a href="/structure/personnel" class="action-card blue">
-        <span class="ac-icon">👥</span>
-        <span class="ac-lbl">Mon personnel</span>
-      </a>
-      <a href="/structure/lits" class="action-card blue">
-        <span class="ac-icon">🛏️</span>
-        <span class="ac-lbl">État des lits</span>
-      </a>
-      <a href="/structure/stats" class="action-card blue">
-        <span class="ac-icon">📈</span>
-        <span class="ac-lbl">Statistiques</span>
-      </a>
-      <a href="/structure/facturation" class="action-card blue">
-        <span class="ac-icon">💰</span>
-        <span class="ac-lbl">Facturation</span>
-      </a>
-    </div>
-  `)
-}
-
-function dashboardPharmacienPage(profil: AuthProfile, ordonnances: any[]): string {
-  return pageSkeleton(profil, 'Pharmacie', '#E65100', `
-    <div class="actions-grid">
-      <a href="/pharmacien/scanner" class="action-card orange">
-        <span class="ac-icon">📱</span>
-        <span class="ac-lbl">Scanner QR ordonnance</span>
-      </a>
-      <a href="/pharmacien/ordonnances" class="action-card orange">
-        <span class="ac-icon">💊</span>
-        <span class="ac-lbl">Ordonnances actives</span>
-      </a>
-    </div>
-    <div class="section-title">Ordonnances actives récentes</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr>
-          <th>Numéro</th><th>Patient</th><th>Date</th><th>Action</th>
-        </tr></thead>
-        <tbody>
-          ${ordonnances.length === 0
-            ? '<tr><td colspan="4" class="empty">Aucune ordonnance active</td></tr>'
-            : ordonnances.map((o: any) => `
-              <tr>
-                <td><code>${o.numero_ordonnance}</code></td>
-                <td>${(o.patient_dossiers as any)?.prenom} ${(o.patient_dossiers as any)?.nom}</td>
-                <td>${new Date(o.created_at).toLocaleDateString('fr-FR')}</td>
-                <td><a href="/pharmacien/ordonnances/${o.qr_code_verification}" class="btn-sm">Délivrer</a></td>
-              </tr>`).join('')
-          }
-        </tbody>
-      </table>
-    </div>
-  `)
-}
-
-function dashboardCaissierPage(profil: AuthProfile, factures: any[], totalJour: number): string {
-  return pageSkeleton(profil, 'Caisse', '#B71C1C', `
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">💰</div>
-        <div class="stat-val">${new Intl.NumberFormat('fr-FR').format(totalJour)}</div>
-        <div class="stat-lbl">FCFA encaissés aujourd'hui</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon">📋</div>
-        <div class="stat-val">${factures.length}</div>
-        <div class="stat-lbl">Factures du jour</div>
-      </div>
-    </div>
-    <div class="actions-grid">
-      <a href="/caissier/facture/nouvelle" class="action-card rouge">
-        <span class="ac-icon">➕</span>
-        <span class="ac-lbl">Nouvelle facture</span>
-      </a>
-      <a href="/caissier/rapport" class="action-card rouge">
-        <span class="ac-icon">📊</span>
-        <span class="ac-lbl">Rapport de caisse</span>
-      </a>
-    </div>
-    <div class="section-title">Factures du jour</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Numéro</th><th>Patient</th><th>Montant</th><th>Statut</th></tr></thead>
-        <tbody>
-          ${factures.length === 0
-            ? '<tr><td colspan="4" class="empty">Aucune facture aujourd\'hui</td></tr>'
-            : factures.map((f: any) => `
-              <tr>
-                <td><code>${f.numero_facture}</code></td>
-                <td>${(f.patient_dossiers as any)?.prenom} ${(f.patient_dossiers as any)?.nom}</td>
-                <td>${new Intl.NumberFormat('fr-FR').format(f.total_ttc)} FCFA</td>
-                <td><span class="badge-statut ${f.statut}">${f.statut}</span></td>
-              </tr>`).join('')
-          }
-        </tbody>
-      </table>
-    </div>
-  `)
-}
-
-function dashboardPatientPage(profil: AuthProfile, dossier: any, ordonnances: any[]): string {
-  const age = dossier ? Math.floor(
-    (Date.now() - new Date(dossier.date_naissance).getTime()) / (1000*60*60*24*365.25)
-  ) : 0
-  return pageSkeleton(profil, 'Mon Dossier', '#1A6B3C', `
-    ${dossier ? `
-    <div class="patient-card">
-      <div class="patient-info">
-        <span class="groupe-sanguin">🩸 ${dossier.groupe_sanguin}${dossier.rhesus}</span>
-        <span>${age} ans</span>
-        <span>N° ${dossier.numero_national}</span>
-      </div>
-    </div>` : ''}
-    <div class="actions-grid">
-      <a href="/patient/dossier" class="action-card vert">
-        <span class="ac-icon">📁</span>
-        <span class="ac-lbl">Mon dossier médical</span>
-      </a>
-      <a href="/patient/ordonnances" class="action-card vert">
-        <span class="ac-icon">💊</span>
-        <span class="ac-lbl">Mes ordonnances</span>
-      </a>
-      <a href="/patient/rdv" class="action-card vert">
-        <span class="ac-icon">📅</span>
-        <span class="ac-lbl">Mes rendez-vous</span>
-      </a>
-      <a href="/patient/consentements" class="action-card vert">
-        <span class="ac-icon">🔐</span>
-        <span class="ac-lbl">Mes consentements</span>
-      </a>
-    </div>
-  `)
-}
-
-// ── Skeleton HTML partagé par tous les dashboards ──────────
-function pageSkeleton(profil: AuthProfile, titre: string, couleur: string, contenu: string): string {
+// ✅ EXPORTS pour réutilisation dans d'autres modules
+export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string, contenu: string): string {
   const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
   const date  = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })
   return `<!DOCTYPE html>
@@ -645,4 +526,56 @@ function pageSkeleton(profil: AuthProfile, titre: string, couleur: string, conte
   </div>
 </body>
 </html>`
+}
+
+// ✅ Export des helpers UI
+export function statsGrid(stats: { icon: string; value: string | number; label: string; color?: string }[]): string {
+  return `
+    <div class="stats-grid">
+      ${stats.map(s => `
+        <div class="stat-card" ${s.color ? `style="border-top-color:${s.color}"` : ''}>
+          <div class="stat-icon">${s.icon}</div>
+          <div class="stat-val" ${s.color ? `style="color:${s.color}"` : ''}>${s.value}</div>
+          <div class="stat-lbl">${s.label}</div>
+        </div>
+      `).join('')}
+    </div>
+  `
+}
+
+export function actionCard(actions: { href: string; icon: string; label: string; colorClass?: string }[]): string {
+  return `
+    <div class="actions-grid">
+      ${actions.map(a => `
+        <a href="${a.href}" class="action-card ${a.colorClass || ''}">
+          <span class="ac-icon">${a.icon}</span>
+          <span class="ac-lbl">${a.label}</span>
+        </a>
+      `).join('')}
+    </div>
+  `
+}
+
+export function dataTable(headers: string[], rows: string[][]): string {
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            ${headers.map(h => `<th>${h}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.length === 0
+            ? `<tr><td colspan="${headers.length}" class="empty">Aucune donnée disponible</td></tr>`
+            : rows.map(row => `
+              <tr>
+                ${row.map(cell => `<td>${cell}</td>`).join('')}
+              </tr>
+            `).join('')
+          }
+        </tbody>
+      </table>
+    </div>
+  `
 }
