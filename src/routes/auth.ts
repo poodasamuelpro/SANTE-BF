@@ -33,14 +33,21 @@ authRoutes.get('/login', async (c) => {
 
 // ── POST /auth/login ───────────────────────────────────────
 authRoutes.post('/login', async (c) => {
-  const body     = await c.req.parseBody()
-  const email    = String(body.email    ?? '').trim().toLowerCase()
-  const password = String(body.password ?? '').trim()
+  try {
+    const body     = await c.req.parseBody()
+    const email    = String(body.email    ?? '').trim().toLowerCase()
+    const password = String(body.password ?? '').trim()
 
-  if (!email || !password)
-    return c.html(loginPage('Veuillez remplir tous les champs.'))
+    if (!email || !password)
+      return c.html(loginPage('Veuillez remplir tous les champs.'))
 
-  const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+    // Vérifier que les variables d'environnement sont configurées
+    if (!c.env.SUPABASE_URL || !c.env.SUPABASE_ANON_KEY) {
+      console.error('❌ Variables d\'environnement Cloudflare manquantes')
+      return c.html(loginPage('⚠️ Configuration du serveur incomplète. Contactez l\'administrateur.'))
+    }
+
+    const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
   const { data, error } = await sb.auth.signInWithPassword({ email, password })
 
   if (error || !data.user || !data.session) {
@@ -62,6 +69,11 @@ authRoutes.post('/login', async (c) => {
 
   if (profil.doit_changer_mdp) return c.redirect('/auth/changer-mdp')
   return c.redirect(redirectionParRole(profil.role))
+  } catch (err) {
+    console.error('❌ Erreur critique login:', err)
+    const message = err instanceof Error ? err.message : 'Erreur serveur inconnue'
+    return c.html(loginPage(`❌ Erreur serveur: ${message}`))
+  }
 })
 
 // ── GET /auth/changer-mdp ──────────────────────────────────

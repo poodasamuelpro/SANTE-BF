@@ -16,7 +16,10 @@ export type AuthProfile = {
   doit_changer_mdp: boolean
 }
 
-export function getSupabase(url: string, anonKey: string) {
+export function getSupabase(url: string | undefined, anonKey: string | undefined) {
+  if (!url || !anonKey) {
+    throw new Error('Variables d\'environnement Supabase manquantes. Configurez SUPABASE_URL et SUPABASE_ANON_KEY dans Cloudflare Pages.')
+  }
   return createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false }
   })

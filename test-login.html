@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<body>
+<form action="https://sante-bf.pages.dev/auth/login" method="POST">
+  <input name="email" value="test@example.com">
+  <input name="password" type="password" value="Test1234!">
+  <button type="submit">Login</button>
+</form>
+<script>
+fetch('https://sante-bf.pages.dev/auth/login', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+  body: 'email=test@example.com&password=Test1234!'
+}).then(r => {
+  console.log('Status:', r.status);
+  return r.text();
+}).then(t => console.log('Response:', t.substring(0, 500)))
+.catch(e => console.error('Error:', e));
+</script>
+</body>
+</html>
