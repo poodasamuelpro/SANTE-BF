@@ -18,11 +18,14 @@ import { grossesseRoutes } from '../src/routes/grossesse'
 import { infirmerieRoutes } from '../src/routes/infirmerie'
 import { uploadRoutes } from '../src/routes/upload'
 import { parametresRoutes } from '../src/routes/parametres'
+import { patientPdfRoutes } from '../src/routes/patient-pdf'
+import { exportRoutes } from '../src/routes/export'
 
 type Env = {
   Bindings: {
     SUPABASE_URL: string
     SUPABASE_ANON_KEY: string
+    RESEND_API_KEY: string
   }
 }
 
@@ -55,6 +58,8 @@ app.route('/infirmerie',      infirmerieRoutes)
 // Services transverses
 app.route('/upload',          uploadRoutes)
 app.route('/parametres',      parametresRoutes)
+app.route('/patient',         patientPdfRoutes)  // Routes PDF patient
+app.route('/export',          exportRoutes)      // Routes export CSV
 
 // Racine → login
 app.get('/', (c) => c.redirect('/auth/login'))
