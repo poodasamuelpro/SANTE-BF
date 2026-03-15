@@ -342,7 +342,8 @@ export function resetConfirmPage(erreur?: string): string {
 
     ${erreur ? `<div class="alerte">⚠️ ${erreur}</div>` : ''}
 
-    <form method="POST" action="/auth/reset-confirm">
+    <form method="POST" action="/auth/reset-confirm" id="resetForm">
+      <input type="hidden" name="access_token" id="accessToken">
       <div class="field">
         <label>Nouveau mot de passe</label>
         <div class="input-wrap">
@@ -368,6 +369,29 @@ export function resetConfirmPage(erreur?: string): string {
       </div>
       <button type="submit" class="btn">Enregistrer le mot de passe →</button>
     </form>
+    
+    <script>
+      // Extraire le token de récupération depuis l'URL (fragment #access_token=xxx)
+      // Supabase envoie le lien avec le format: /auth/reset-confirm#access_token=xxx&type=recovery
+      (function() {
+        const hash = window.location.hash.substring(1); // Enlever le #
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        
+        if (accessToken) {
+          document.getElementById('accessToken').value = accessToken;
+          console.log('✅ Token de récupération extrait avec succès');
+        } else {
+          console.error('❌ Aucun token trouvé dans l\\'URL');
+          // Afficher un message d'erreur à l'utilisateur
+          const form = document.getElementById('resetForm');
+          const alert = document.createElement('div');
+          alert.className = 'alerte';
+          alert.innerHTML = '⚠️ Lien invalide. Veuillez refaire une demande de réinitialisation.';
+          form.parentElement.insertBefore(alert, form);
+        }
+      })();
+    </script>
 
   </div>
 </body>

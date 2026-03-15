@@ -383,12 +383,43 @@ export function loginPage(erreur?: string, resetOk?: boolean): string {
       i.type = i.type === 'password' ? 'text' : 'password'
       b.textContent = i.type === 'password' ? '👁️' : '🙈'
     }
+    
+    // Timeout de 30 secondes pour la connexion
+    let loginTimeout = null;
+    
     document.getElementById('loginForm').addEventListener('submit', () => {
       const btn = document.getElementById('btnLogin')
-      document.getElementById('spinner').style.display = 'block'
-      document.getElementById('btnText').textContent = 'Connexion...'
+      const spinner = document.getElementById('spinner')
+      const btnText = document.getElementById('btnText')
+      
+      spinner.style.display = 'block'
+      btnText.textContent = 'Connexion...'
       btn.disabled = true
+      
+      // Timeout de 30 secondes
+      loginTimeout = setTimeout(() => {
+        spinner.style.display = 'none'
+        btnText.textContent = 'Se connecter'
+        btn.disabled = false
+        
+        // Afficher une alerte d'erreur
+        const form = document.getElementById('loginForm')
+        let alert = document.getElementById('timeoutAlert')
+        if (!alert) {
+          alert = document.createElement('div')
+          alert.id = 'timeoutAlert'
+          alert.className = 'alerte'
+          alert.innerHTML = '⚠️ La connexion prend trop de temps. Vérifiez votre connexion internet ou contactez l\\'administrateur.'
+          form.parentElement.insertBefore(alert, form)
+        }
+      }, 30000) // 30 secondes
     })
+    
+    // Nettoyer le timeout si la page est déchargée
+    window.addEventListener('beforeunload', () => {
+      if (loginTimeout) clearTimeout(loginTimeout)
+    })
+    
     document.getElementById('email').focus()
   </script>
 </body>
