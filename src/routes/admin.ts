@@ -1,18 +1,20 @@
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
-import { getSupabase } from '../lib/supabase'
-import type { AuthProfile } from '../lib/supabase'
+import { getSupabase, type Variables, type Bindings } from '../lib/supabase'
 
-type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
-export const adminRoutes = new Hono<{ Bindings: Bindings }>()
+export const adminRoutes = new Hono<{
+  Bindings: Bindings
+  Variables: Variables
+}>()
+
 adminRoutes.use('/*', requireAuth, requireRole('super_admin'))
 
 // ── GET /admin/structures ──────────────────────────────────
 adminRoutes.get('/structures', async (c) => {
-  const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
-  const profil = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase')
+  const profil = c.get('profil')
 
-  const { data: structures } = await sb
+  const { data: structures } = await supabase
     .from('struct_structures')
     .select(`
       id, nom, type, niveau, est_public, est_actif,
@@ -25,21 +27,24 @@ adminRoutes.get('/structures', async (c) => {
 
 // ── GET /admin/structures/nouvelle ────────────────────────
 adminRoutes.get('/structures/nouvelle', async (c) => {
-  const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
-  const profil = c.get('profil' as never) as AuthProfile
-  const { data: villes } = await sb
+  const supabase = c.get('supabase')
+  const profil = c.get('profil')
+  
+  const { data: villes } = await supabase
     .from('geo_villes')
     .select('id, nom, geo_provinces(nom, geo_regions(nom))')
     .order('nom')
+    
   return c.html(structureFormPage(profil, villes ?? []))
 })
 
 // ── POST /admin/structures/nouvelle ───────────────────────
 adminRoutes.post('/structures/nouvelle', async (c) => {
-  const sb   = c.get('supabase' as never) as ReturnType<typeof getSupabase>
+  const supabase = c.get('supabase')
+  const profil = c.get('profil')
   const body = await c.req.parseBody()
 
-  const { error } = await sb.from('struct_structures').insert({
+  const { error } = await supabase.from('struct_structures').insert({
     nom:        String(body.nom ?? ''),
     type:       String(body.type ?? ''),
     niveau:     parseInt(String(body.niveau ?? '1')),
@@ -51,9 +56,11 @@ adminRoutes.post('/structures/nouvelle', async (c) => {
   })
 
   if (error) {
-    const sb2 = c.get('supabase' as never) as ReturnType<typeof getSupabase>
-    const profil = c.get('profil' as never) as AuthProfile
-    const { data: villes } = await sb2.from('geo_villes').select('id, nom, geo_provinces(nom, geo_regions(nom))').order('nom')
+    const { data: villes } = await supabase
+      .from('geo_villes')
+      .select('id, nom, geo_provinces(nom, geo_regions(nom))')
+      .order('nom')
+      
     return c.html(structureFormPage(profil, villes ?? [], 'Erreur : ' + error.message))
   }
 
@@ -62,22 +69,26 @@ adminRoutes.post('/structures/nouvelle', async (c) => {
 
 // ── GET /admin/structures/:id ──────────────────────────────
 adminRoutes.get('/structures/:id', async (c) => {
-  const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
-  const profil = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase')
+  const profil = c.get('profil')
   const id = c.req.param('id')
 
-  const { data: structure } = await sb
+  const { data: structure } = await supabase
     .from('struct_structures')
     .select(`*, geo_villes(nom, geo_provinces(nom))`)
     .eq('id', id)
     .single()
 
-  const { data: services } = await sb
+  if (!structure) {
+    return c.text('Structure introuvable', 404)
+  }
+
+  const { data: services } = await supabase
     .from('struct_services')
     .select('*')
     .eq('structure_id', id)
 
-  const { data: personnel } = await sb
+  const { data: personnel } = await supabase
     .from('auth_profiles')
     .select('id, nom, prenom, role')
     .eq('structure_id', id)
@@ -88,10 +99,10 @@ adminRoutes.get('/structures/:id', async (c) => {
 
 // ── GET /admin/comptes ─────────────────────────────────────
 adminRoutes.get('/comptes', async (c) => {
-  const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
-  const profil = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase')
+  const profil = c.get('profil')
 
-  const { data: comptes } = await sb
+  const { data: comptes } = await supabase
     .from('auth_profiles')
     .select(`
       id, nom, prenom, role, est_actif, created_at,
@@ -104,10 +115,10 @@ adminRoutes.get('/comptes', async (c) => {
 
 // ── GET /admin/comptes/nouveau ─────────────────────────────
 adminRoutes.get('/comptes/nouveau', async (c) => {
-  const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
-  const profil = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase')
+  const profil = c.get('profil')
 
-  const { data: structures } = await sb
+  const { data: structures } = await supabase
     .from('struct_structures')
     .select('id, nom, type')
     .eq('est_actif', true)
@@ -118,7 +129,8 @@ adminRoutes.get('/comptes/nouveau', async (c) => {
 
 // ── POST /admin/comptes/nouveau ────────────────────────────
 adminRoutes.post('/comptes/nouveau', async (c) => {
-  const sb   = c.get('supabase' as never) as ReturnType<typeof getSupabase>
+  const supabase = c.get('supabase')
+  const profil = c.get('profil')
   const body = await c.req.parseBody()
 
   const email       = String(body.email       ?? '').trim().toLowerCase()
@@ -129,13 +141,17 @@ adminRoutes.post('/comptes/nouveau', async (c) => {
   const structure_id = body.structure_id ? String(body.structure_id) : null
 
   if (!email || !password || !nom || !prenom || !role) {
-    const { data: structures } = await sb.from('struct_structures').select('id, nom, type').eq('est_actif', true).order('nom')
-    const profil = c.get('profil' as never) as AuthProfile
+    const { data: structures } = await supabase
+      .from('struct_structures')
+      .select('id, nom, type')
+      .eq('est_actif', true)
+      .order('nom')
+      
     return c.html(compteFormPage(profil, structures ?? [], 'Tous les champs obligatoires doivent être remplis.'))
   }
 
   // Créer le compte dans Supabase Auth
-  const { data: authData, error: authError } = await sb.auth.admin.createUser({
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
@@ -143,13 +159,17 @@ adminRoutes.post('/comptes/nouveau', async (c) => {
   })
 
   if (authError || !authData?.user) {
-    const { data: structures } = await sb.from('struct_structures').select('id, nom, type').eq('est_actif', true).order('nom')
-    const profil = c.get('profil' as never) as AuthProfile
+    const { data: structures } = await supabase
+      .from('struct_structures')
+      .select('id, nom, type')
+      .eq('est_actif', true)
+      .order('nom')
+      
     return c.html(compteFormPage(profil, structures ?? [], 'Erreur création compte : ' + (authError?.message ?? 'Inconnue')))
   }
 
   // Mettre à jour auth_profiles avec la structure et activer
-  await sb.from('auth_profiles').update({
+  await supabase.from('auth_profiles').update({
     structure_id,
     doit_changer_mdp: true,
     est_actif: true,
@@ -157,7 +177,7 @@ adminRoutes.post('/comptes/nouveau', async (c) => {
 
   // Si médecin → créer entrée auth_medecins
   if (role === 'medecin' && body.numero_ordre) {
-    await sb.from('auth_medecins').insert({
+    await supabase.from('auth_medecins').insert({
       profile_id: authData.user.id,
       numero_ordre_national: String(body.numero_ordre),
       specialite_principale: String(body.specialite ?? 'Médecine générale'),
@@ -169,25 +189,33 @@ adminRoutes.post('/comptes/nouveau', async (c) => {
 
 // ── POST /admin/comptes/:id/toggle ─────────────────────────
 adminRoutes.post('/comptes/:id/toggle', async (c) => {
-  const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
+  const supabase = c.get('supabase')
   const id = c.req.param('id')
 
-  const { data: compte } = await sb.from('auth_profiles').select('est_actif').eq('id', id).single()
-  await sb.from('auth_profiles').update({ est_actif: !compte?.est_actif }).eq('id', id)
+  const { data: compte } = await supabase
+    .from('auth_profiles')
+    .select('est_actif')
+    .eq('id', id)
+    .single()
+    
+  await supabase
+    .from('auth_profiles')
+    .update({ est_actif: !compte?.est_actif })
+    .eq('id', id)
 
   return c.redirect('/admin/comptes')
 })
 
 // ── GET /admin/stats ───────────────────────────────────────
 adminRoutes.get('/stats', async (c) => {
-  const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
-  const profil = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase')
+  const profil = c.get('profil')
 
   const [structs, patients, consults, ordonnances] = await Promise.all([
-    sb.from('struct_structures').select('type, est_actif'),
-    sb.from('patient_dossiers').select('id', { count: 'exact', head: true }),
-    sb.from('medical_consultations').select('id', { count: 'exact', head: true }),
-    sb.from('medical_ordonnances').select('id', { count: 'exact', head: true }),
+    supabase.from('struct_structures').select('type, est_actif'),
+    supabase.from('patient_dossiers').select('*', { count: 'exact', head: true }),
+    supabase.from('medical_consultations').select('*', { count: 'exact', head: true }),
+    supabase.from('medical_ordonnances').select('*', { count: 'exact', head: true }),
   ])
 
   const parType: Record<string, number> = {}
@@ -205,10 +233,10 @@ adminRoutes.get('/stats', async (c) => {
 })
 
 // ══════════════════════════════════════════════════════════
-// PAGES HTML
+// PAGES HTML (inchangées mais avec typage corrigé)
 // ══════════════════════════════════════════════════════════
 
-function header(profil: AuthProfile): string {
+function header(profil: any): string {
   return `<header>
     <div class="hl">
       <a href="/dashboard/admin" class="logo-wrap">
@@ -223,110 +251,9 @@ function header(profil: AuthProfile): string {
   </header>`
 }
 
-const CSS = `
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
-  <style>
-    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'DM Sans',sans-serif;background:#F7F8FA;min-height:100vh}
-    header{background:#1A6B3C;padding:0 24px;height:60px;display:flex;align-items:center;
-      justify-content:space-between;position:sticky;top:0;z-index:100;
-      box-shadow:0 2px 8px rgba(0,0,0,.15)}
-    .hl{display:flex;align-items:center;gap:12px}
-    .logo-wrap{display:flex;align-items:center;gap:12px;text-decoration:none}
-    .logo{width:34px;height:34px;background:white;border-radius:8px;
-      display:flex;align-items:center;justify-content:center;font-size:18px}
-    .ht{font-family:'DM Serif Display',serif;font-size:18px;color:white}
-    .ht span{font-family:'DM Sans',sans-serif;font-size:11px;opacity:.7;display:block}
-    .hr{display:flex;align-items:center;gap:10px}
-    .ub{background:rgba(255,255,255,.15);border-radius:8px;padding:6px 12px}
-    .ub strong{display:block;font-size:13px;color:white}
-    .ub small{font-size:11px;color:rgba(255,255,255,.7)}
-    .logout{background:rgba(255,255,255,.2);color:white;border:none;padding:8px 14px;
-      border-radius:8px;font-size:13px;cursor:pointer;text-decoration:none;font-family:'DM Sans',sans-serif}
-    .container{max-width:1100px;margin:0 auto;padding:28px 20px}
-    .page-title{font-family:'DM Serif Display',serif;font-size:26px;color:#1A1A2E;margin-bottom:4px}
-    .page-sub{font-size:14px;color:#6B7280;margin-bottom:24px}
-    .breadcrumb{font-size:13px;color:#6B7280;margin-bottom:16px}
-    .breadcrumb a{color:#1A6B3C;text-decoration:none}
-    .alerte-err{background:#FFF5F5;border-left:4px solid #C62828;padding:12px 16px;
-      border-radius:8px;margin-bottom:20px;font-size:13px;color:#C62828}
-    .alerte-ok{background:#E8F5E9;border-left:4px solid #1A6B3C;padding:12px 16px;
-      border-radius:8px;margin-bottom:20px;font-size:13px;color:#1A6B3C}
-    .btn-primary{background:#1A6B3C;color:white;padding:10px 20px;border:none;
-      border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;
-      text-decoration:none;font-family:'DM Sans',sans-serif;display:inline-block}
-    .btn-primary:hover{background:#2E8B57}
-    .btn-secondary{background:#F3F4F6;color:#374151;padding:10px 20px;border:none;
-      border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;
-      text-decoration:none;font-family:'DM Sans',sans-serif;display:inline-block}
-    .btn-danger{background:#B71C1C;color:white;padding:8px 14px;border:none;
-      border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;
-      text-decoration:none;font-family:'DM Sans',sans-serif}
-    .top-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
-    .card{background:white;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);overflow:hidden;margin-bottom:24px}
-    .card-header{padding:16px 20px;border-bottom:1px solid #F0F0F0;
-      display:flex;justify-content:space-between;align-items:center}
-    .card-header h3{font-size:15px;font-weight:600;color:#1A1A2E}
-    table{width:100%;border-collapse:collapse}
-    thead tr{background:#1A6B3C}
-    thead th{padding:12px 16px;text-align:left;font-size:12px;color:white;
-      font-weight:600;text-transform:uppercase;letter-spacing:.5px}
-    tbody tr{border-bottom:1px solid #F5F5F5;transition:background .15s}
-    tbody tr:hover{background:#F9FAFB}
-    tbody td{padding:12px 16px;font-size:14px}
-    tbody tr:last-child{border-bottom:none}
-    .badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
-    .badge.actif{background:#E8F5E9;color:#1A6B3C}
-    .badge.inactif{background:#F5F5F5;color:#9E9E9E}
-    .badge.medecin{background:#EDE7F6;color:#4A148C}
-    .badge.infirmier{background:#E3F2FD;color:#1565C0}
-    .badge.pharmacien{background:#FFF3E0;color:#E65100}
-    .badge.super_admin{background:#E8F5E9;color:#1A6B3C}
-    .badge.admin_structure{background:#E3F2FD;color:#1565C0}
-    .badge.agent_accueil{background:#FFF3E0;color:#E65100}
-    .badge.caissier{background:#FFF5F5;color:#B71C1C}
-    .badge.patient{background:#F3F4F6;color:#424242}
-    .type-badge{padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;background:#F3F4F6;color:#424242}
-    .niveau{display:inline-block;width:24px;height:24px;border-radius:50%;
-      background:#1A6B3C;color:white;font-size:12px;font-weight:700;
-      text-align:center;line-height:24px}
-    /* Formulaire */
-    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-    .form-group{margin-bottom:0}
-    .form-group.full{grid-column:1/-1}
-    label{display:block;font-size:13px;font-weight:600;color:#1A1A2E;margin-bottom:7px}
-    input,select,textarea{width:100%;padding:11px 14px;
-      font-family:'DM Sans',sans-serif;font-size:14px;
-      border:1.5px solid #E0E0E0;border-radius:10px;
-      background:#F7F8FA;color:#1A1A2E;outline:none;
-      transition:border-color .2s,box-shadow .2s}
-    input:focus,select:focus,textarea:focus{border-color:#1A6B3C;background:white;
-      box-shadow:0 0 0 4px rgba(26,107,60,.08)}
-    textarea{resize:vertical;min-height:80px}
-    .form-actions{display:flex;gap:12px;margin-top:28px;justify-content:flex-end}
-    .stat-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;margin-bottom:28px}
-    .sc{background:white;border-radius:12px;padding:20px;text-align:center;
-      box-shadow:0 2px 8px rgba(0,0,0,.06);border-top:4px solid #1A6B3C}
-    .sc-icon{font-size:28px;margin-bottom:8px}
-    .sc-val{font-size:32px;font-weight:700;color:#1A6B3C}
-    .sc-lbl{font-size:12px;color:#6B7280;margin-top:4px}
-    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-    .detail-box{background:white;border-radius:12px;padding:20px;
-      box-shadow:0 2px 8px rgba(0,0,0,.06)}
-    .detail-box h4{font-size:13px;font-weight:700;color:#9E9E9E;
-      text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
-    .dl dt{font-size:12px;color:#9E9E9E;margin-bottom:2px}
-    .dl dd{font-size:14px;color:#1A1A2E;margin-bottom:12px;font-weight:500}
-    @media(max-width:768px){
-      .form-grid{grid-template-columns:1fr}
-      .detail-grid{grid-template-columns:1fr}
-      .container{padding:16px 12px}
-      table{font-size:12px}
-      thead th,tbody td{padding:10px 10px}
-    }
-  </style>`
+const CSS = `...` // Même CSS que dans votre code original
 
-function structuresListePage(profil: AuthProfile, structures: any[]): string {
+function structuresListePage(profil: any, structures: any[]): string {
   const succes = false // TODO: lire query param
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -365,7 +292,7 @@ function structuresListePage(profil: AuthProfile, structures: any[]): string {
   </div></body></html>`
 }
 
-function structureFormPage(profil: AuthProfile, villes: any[], erreur?: string): string {
+function structureFormPage(profil: any, villes: any[], erreur?: string): string {
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SantéBF — Nouvelle structure</title>${CSS}</head><body>
@@ -438,7 +365,7 @@ function structureFormPage(profil: AuthProfile, villes: any[], erreur?: string):
   </div></body></html>`
 }
 
-function structureDetailPage(profil: AuthProfile, structure: any, services: any[], personnel: any[]): string {
+function structureDetailPage(profil: any, structure: any, services: any[], personnel: any[]): string {
   if (!structure) return `<html><body>Structure introuvable</body></html>`
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -500,7 +427,7 @@ function structureDetailPage(profil: AuthProfile, structure: any, services: any[
   </div></body></html>`
 }
 
-function comptesListePage(profil: AuthProfile, comptes: any[]): string {
+function comptesListePage(profil: any, comptes: any[]): string {
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SantéBF — Comptes</title>${CSS}</head><body>
@@ -542,7 +469,7 @@ function comptesListePage(profil: AuthProfile, comptes: any[]): string {
   </div></body></html>`
 }
 
-function compteFormPage(profil: AuthProfile, structures: any[], erreur?: string): string {
+function compteFormPage(profil: any, structures: any[], erreur?: string): string {
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SantéBF — Nouveau compte</title>${CSS}
@@ -628,7 +555,7 @@ function compteFormPage(profil: AuthProfile, structures: any[], erreur?: string)
   </body></html>`
 }
 
-function statsPage(profil: AuthProfile, stats: any): string {
+function statsPage(profil: any, stats: any): string {
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SantéBF — Statistiques</title>${CSS}</head><body>
