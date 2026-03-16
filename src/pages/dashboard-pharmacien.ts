@@ -1,9 +1,12 @@
-/**
- * Page dashboard Pharmacien
- */
+import { AuthProfile } from '../lib/supabase'
+import { formatDate, formatFCFA } from '../utils/format'
 
 import { AuthProfile } from '../lib/supabase'
 import { formatDate, formatFCFA } from '../utils/format'
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD PHARMACIEN
+// ═══════════════════════════════════════════════════════════
 
 interface PharmacienData {
   ordonnances: Array<{
@@ -23,288 +26,174 @@ interface PharmacienData {
 }
 
 export function dashboardPharmacienPage(profil: AuthProfile, data: PharmacienData): string {
-  const now = new Date()
-  const heureActuelle = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-  const dateActuelle = now.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const heure = new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })
+  const date  = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pharmacie - SantéBF</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <title>SantéBF — Pharmacie</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Fraunces:wght@300;600&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      font-family: 'Inter', sans-serif; 
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      padding: 20px;
+    :root {
+      --violet:       #5c35a8;
+      --violet-clair: #f0ebff;
+      --violet-glow:  rgba(92,53,168,0.12);
+      --vert:         #1A6B3C;
+      --vert-clair:   #e8f5ee;
+      --texte:        #0f1923;
+      --texte-soft:   #5a6a78;
+      --bg:           #f5f3fb;
+      --blanc:        #ffffff;
+      --bordure:      #e4dff5;
+      --shadow-sm:    0 1px 4px rgba(0,0,0,0.06);
+      --shadow-md:    0 4px 20px rgba(0,0,0,0.08);
+      --radius:       16px;
+      --radius-sm:    10px;
     }
-    .container { max-width: 1400px; margin: 0 auto; }
-    
-    /* Header */
-    .header {
-      background: white;
-      border-radius: 15px;
-      padding: 20px 30px;
-      margin-bottom: 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .header-left { display: flex; align-items: center; gap: 15px; }
-    .logo { font-size: 28px; font-weight: 700; color: #667eea; }
-    .time-info { display: flex; flex-direction: column; }
-    .time { font-size: 24px; font-weight: 600; color: #333; }
-    .date { font-size: 14px; color: #666; }
-    .header-right { display: flex; align-items: center; gap: 20px; }
-    .user-info { text-align: right; }
-    .user-name { font-weight: 600; color: #333; }
-    .user-role { font-size: 12px; color: #666; }
-    .btn-logout {
-      background: #ef4444;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 500;
-      text-decoration: none;
-      display: inline-block;
-    }
-    .btn-logout:hover { background: #dc2626; }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); min-height:100vh; color:var(--texte); }
+    .layout { display:flex; min-height:100vh; }
 
-    /* Stats */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-    .stat-card {
-      background: white;
-      border-radius: 12px;
-      padding: 25px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .stat-icon {
-      font-size: 36px;
-      margin-bottom: 10px;
-    }
-    .stat-value {
-      font-size: 32px;
-      font-weight: 700;
-      color: #333;
-      margin-bottom: 5px;
-    }
-    .stat-label {
-      font-size: 14px;
-      color: #666;
-      font-weight: 500;
-    }
+    .sidebar { width:250px; background:var(--violet); position:fixed; top:0; left:0; height:100vh; z-index:200; display:flex; flex-direction:column; transition:transform 0.3s; }
+    .sidebar-brand { padding:24px 20px 18px; border-bottom:1px solid rgba(255,255,255,0.1); }
+    .brand-row { display:flex; align-items:center; gap:10px; }
+    .brand-icon { width:36px; height:36px; background:rgba(255,255,255,0.2); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:17px; }
+    .brand-name { font-family:'Fraunces',serif; font-size:18px; color:white; }
+    .brand-sub { font-size:10px; color:rgba(255,255,255,0.4); letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; padding-left:46px; }
+    .sidebar-nav { flex:1; padding:12px 10px; overflow-y:auto; }
+    .nav-label { font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:rgba(255,255,255,0.3); padding:10px 10px 5px; }
+    .nav-item { display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:var(--radius-sm); text-decoration:none; color:rgba(255,255,255,0.65); font-size:13.5px; font-weight:500; margin-bottom:2px; transition:all 0.2s; }
+    .nav-item:hover { background:rgba(255,255,255,0.1); color:white; }
+    .nav-item.active { background:rgba(255,255,255,0.18); color:white; font-weight:600; }
+    .nav-icon { font-size:15px; width:18px; text-align:center; }
+    .sidebar-footer { padding:14px 10px; border-top:1px solid rgba(255,255,255,0.1); }
+    .user-card { display:flex; align-items:center; gap:10px; padding:10px; border-radius:var(--radius-sm); background:rgba(255,255,255,0.08); }
+    .user-avatar { width:34px; height:34px; background:rgba(255,255,255,0.2); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:white; flex-shrink:0; }
+    .user-info { flex:1; min-width:0; }
+    .user-name { font-size:12.5px; font-weight:600; color:white; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .user-role { font-size:10.5px; color:rgba(255,255,255,0.4); }
+    .logout-btn { width:26px; height:26px; background:rgba(255,255,255,0.08); border:none; border-radius:6px; color:rgba(255,255,255,0.5); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; text-decoration:none; transition:all 0.2s; flex-shrink:0; }
+    .logout-btn:hover { background:rgba(255,80,80,0.2); color:#ff8080; }
 
-    /* Actions rapides */
-    .actions-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-    .action-card {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      text-align: center;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
-      text-decoration: none;
-      color: inherit;
-      display: block;
-    }
-    .action-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
-    }
-    .action-icon { font-size: 48px; margin-bottom: 10px; }
-    .action-label { font-weight: 600; color: #333; }
+    .main { margin-left:250px; flex:1; display:flex; flex-direction:column; }
+    .topbar { height:62px; background:var(--blanc); border-bottom:1px solid var(--bordure); display:flex; align-items:center; justify-content:space-between; padding:0 28px; position:sticky; top:0; z-index:100; }
+    .topbar-title { font-family:'Fraunces',serif; font-size:19px; font-weight:600; }
+    .topbar-sub { font-size:12px; color:var(--texte-soft); margin-top:1px; }
+    .datetime-pill { background:var(--violet-clair); padding:6px 14px; border-radius:20px; font-size:12.5px; font-weight:600; color:var(--violet); }
+    .menu-toggle { display:none; background:none; border:none; font-size:20px; cursor:pointer; color:var(--texte); }
+    .content { padding:28px; }
 
-    /* Ordonnances */
-    .section {
-      background: white;
-      border-radius: 12px;
-      padding: 30px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      margin-bottom: 30px;
-    }
-    .section-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .ordonnance-list { display: flex; flex-direction: column; gap: 15px; }
-    .ordonnance-item {
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      transition: background 0.2s;
-    }
-    .ordonnance-item:hover { background: #f9fafb; }
-    .ordonnance-info { flex: 1; }
-    .ordonnance-numero {
-      font-weight: 600;
-      font-size: 16px;
-      color: #667eea;
-      margin-bottom: 5px;
-    }
-    .ordonnance-patient {
-      font-weight: 600;
-      color: #333;
-      margin-bottom: 3px;
-    }
-    .ordonnance-medecin {
-      font-size: 14px;
-      color: #666;
-    }
-    .ordonnance-date {
-      font-size: 12px;
-      color: #999;
-    }
-    .ordonnance-statut {
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      margin-right: 15px;
-    }
-    .statut-active { background: #dbeafe; color: #1e40af; }
-    .statut-delivree { background: #dcfce7; color: #166534; }
-    .statut-expiree { background: #fee2e2; color: #991b1b; }
-    .btn-action {
-      background: #667eea;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 500;
-      text-decoration: none;
-      font-size: 14px;
-    }
-    .btn-action:hover { background: #5568d3; }
+    .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
+    .stat-card { background:var(--blanc); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow-sm); border:1px solid var(--bordure); position:relative; overflow:hidden; }
+    .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg,var(--violet),#9c6fde); }
+    .stat-icon { font-size:26px; margin-bottom:10px; }
+    .stat-val { font-family:'Fraunces',serif; font-size:36px; font-weight:600; color:var(--texte); line-height:1; margin-bottom:4px; }
+    .stat-lbl { font-size:12px; color:var(--texte-soft); font-weight:500; }
 
-    .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: #999;
-    }
-    .empty-icon { font-size: 64px; margin-bottom: 15px; }
+    .actions-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
+    .action-card { background:var(--blanc); border-radius:var(--radius); padding:18px; text-align:center; text-decoration:none; color:var(--texte); border:1px solid var(--bordure); transition:all 0.2s; box-shadow:var(--shadow-sm); }
+    .action-card:hover { border-color:var(--violet); box-shadow:0 0 0 3px var(--violet-glow), var(--shadow-md); transform:translateY(-2px); }
+    .action-icon { font-size:28px; margin-bottom:8px; }
+    .action-label { font-size:13px; font-weight:600; }
+
+    .table-wrap { background:var(--blanc); border-radius:var(--radius); border:1px solid var(--bordure); overflow:hidden; box-shadow:var(--shadow-sm); }
+    .table-head { padding:16px 20px; border-bottom:1px solid var(--bordure); display:flex; justify-content:space-between; align-items:center; }
+    .table-head h3 { font-family:'Fraunces',serif; font-size:16px; font-weight:600; }
+    table { width:100%; border-collapse:collapse; }
+    thead tr { background:#faf8ff; }
+    th { padding:11px 16px; text-align:left; font-size:11px; font-weight:700; color:var(--texte-soft); text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--bordure); }
+    td { padding:14px 16px; font-size:13.5px; border-bottom:1px solid #f8f5ff; }
+    tr:hover td { background:#fdfcff; }
+    tr:last-child td { border-bottom:none; }
+    .badge { padding:4px 10px; border-radius:20px; font-size:11px; font-weight:600; }
+    .badge-active { background:#dbeafe; color:#1e40af; }
+    .badge-delivree { background:var(--vert-clair); color:var(--vert); }
+    .badge-expiree { background:#fce8e8; color:#b71c1c; }
+    .btn-sm { background:var(--violet); color:white; padding:6px 14px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600; }
+    .empty { padding:32px; text-align:center; color:var(--texte-soft); font-style:italic; }
+
+    .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:150; }
+    .overlay.open { display:block; }
+    @media (max-width:1100px) { .stats-grid,.actions-grid { grid-template-columns:repeat(2,1fr); } }
+    @media (max-width:768px) { .sidebar { transform:translateX(-100%); } .sidebar.open { transform:translateX(0); } .main { margin-left:0; } .menu-toggle { display:flex; } .content { padding:16px; } }
   </style>
 </head>
 <body>
-  <div class="container">
-    <!-- Header -->
-    <div class="header">
-      <div class="header-left">
-        <div class="logo">💊 SantéBF</div>
-        <div class="time-info">
-          <div class="time">${heureActuelle}</div>
-          <div class="date">${dateActuelle}</div>
-        </div>
-      </div>
-      <div class="header-right">
-        <div class="user-info">
-          <div class="user-name">${profil.prenom} ${profil.nom}</div>
-          <div class="user-role">Pharmacien(ne)</div>
-        </div>
-        <a href="/auth/logout" class="btn-logout">Déconnexion</a>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-row"><div class="brand-icon">💊</div><div class="brand-name">SantéBF</div></div>
+      <div class="brand-sub">Pharmacie</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-label">Principal</div>
+      <a href="/dashboard/pharmacien" class="nav-item active"><span class="nav-icon">⊞</span> Tableau de bord</a>
+      <div class="nav-label">Ordonnances</div>
+      <a href="/pharmacien/delivrance" class="nav-item"><span class="nav-icon">💊</span> Délivrer</a>
+      <a href="/pharmacien/historique" class="nav-item"><span class="nav-icon">📜</span> Historique</a>
+      <div class="nav-label">Stock</div>
+      <a href="/pharmacien/stock" class="nav-item"><span class="nav-icon">📦</span> Gérer stock</a>
+      <a href="/pharmacien/alertes" class="nav-item"><span class="nav-icon">⚠️</span> Alertes</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-card">
+        <div class="user-avatar">${profil.prenom.charAt(0)}${profil.nom.charAt(0)}</div>
+        <div class="user-info"><div class="user-name">${profil.prenom} ${profil.nom}</div><div class="user-role">Pharmacien(ne)</div></div>
+        <a href="/auth/logout" class="logout-btn" title="Déconnexion">⏻</a>
       </div>
     </div>
-
-    <!-- Statistiques -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">📋</div>
-        <div class="stat-value">${data.stats.ordonnancesJour}</div>
-        <div class="stat-label">Ordonnances aujourd'hui</div>
+  </aside>
+  <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+  <div class="main">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <div><div class="topbar-title">Bonjour, ${profil.prenom} 👋</div><div class="topbar-sub">Espace pharmacie</div></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">⏳</div>
-        <div class="stat-value">${data.stats.enAttente}</div>
-        <div class="stat-label">En attente</div>
+      <div class="datetime-pill">🕐 ${heure} — ${date}</div>
+    </header>
+    <div class="content">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-val">${data.stats.ordonnancesJour}</div><div class="stat-lbl">Ordonnances aujourd'hui</div></div>
+        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-val">${data.stats.enAttente}</div><div class="stat-lbl">En attente</div></div>
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-val">${data.stats.delivrees}</div><div class="stat-lbl">Délivrées</div></div>
+        <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-val">${data.stats.stockAlertes}</div><div class="stat-lbl">Alertes stock</div></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">✅</div>
-        <div class="stat-value">${data.stats.delivrees}</div>
-        <div class="stat-label">Délivrées</div>
+      <div class="actions-grid">
+        <a href="/pharmacien/delivrance" class="action-card"><div class="action-icon">💊</div><div class="action-label">Délivrer</div></a>
+        <a href="/pharmacien/stock" class="action-card"><div class="action-icon">📦</div><div class="action-label">Stock</div></a>
+        <a href="/pharmacien/recherche" class="action-card"><div class="action-icon">🔍</div><div class="action-label">Rechercher</div></a>
+        <a href="/pharmacien/historique" class="action-card"><div class="action-icon">📜</div><div class="action-label">Historique</div></a>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">⚠️</div>
-        <div class="stat-value">${data.stats.stockAlertes}</div>
-        <div class="stat-label">Alertes stock</div>
+      <div class="table-wrap">
+        <div class="table-head"><h3>💊 Ordonnances actives</h3></div>
+        ${data.ordonnances.length === 0 ? '<div class="empty">Aucune ordonnance active</div>' : `
+        <table>
+          <thead><tr><th>N° Ordonnance</th><th>Patient</th><th>Médecin</th><th>Date</th><th>Statut</th><th>Action</th></tr></thead>
+          <tbody>
+            ${data.ordonnances.map((o: any) => `
+              <tr>
+                <td><strong style="color:var(--violet)">${o.numero_ordonnance}</strong></td>
+                <td>${o.patient?.nom || ''} ${o.patient?.prenom || ''}</td>
+                <td>Dr. ${o.medecin?.nom || ''}</td>
+                <td>${new Date(o.created_at).toLocaleDateString('fr-FR')}</td>
+                <td><span class="badge ${o.statut === 'active' ? 'badge-active' : o.statut === 'delivree' ? 'badge-delivree' : 'badge-expiree'}">${o.statut}</span></td>
+                <td><a href="/pharmacien/ordonnance/${o.id}" class="btn-sm">Délivrer</a></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`}
       </div>
-    </div>
-
-    <!-- Actions rapides -->
-    <div class="actions-grid">
-      <a href="/pharmacien/delivrance" class="action-card">
-        <div class="action-icon">💊</div>
-        <div class="action-label">Délivrer ordonnance</div>
-      </a>
-      <a href="/pharmacien/stock" class="action-card">
-        <div class="action-icon">📦</div>
-        <div class="action-label">Gérer stock</div>
-      </a>
-      <a href="/pharmacien/recherche" class="action-card">
-        <div class="action-icon">🔍</div>
-        <div class="action-label">Rechercher</div>
-      </a>
-      <a href="/pharmacien/inventaire" class="action-card">
-        <div class="action-icon">📊</div>
-        <div class="action-label">Inventaire</div>
-      </a>
-    </div>
-
-    <!-- Ordonnances en attente -->
-    <div class="section">
-      <div class="section-title">
-        <span>⏳</span> Ordonnances en attente de délivrance
-      </div>
-      ${data.ordonnances && data.ordonnances.length > 0 ? `
-        <div class="ordonnance-list">
-          ${data.ordonnances.map(ord => `
-            <div class="ordonnance-item">
-              <div class="ordonnance-info">
-                <div class="ordonnance-numero">${ord.numero_ordonnance}</div>
-                <div class="ordonnance-patient">${ord.patient.nom} ${ord.patient.prenom}</div>
-                <div class="ordonnance-medecin">Prescrit par Dr. ${ord.medecin.nom}</div>
-                <div class="ordonnance-date">${formatDate(ord.created_at)}</div>
-              </div>
-              <span class="ordonnance-statut ${
-                ord.statut === 'delivree' ? 'statut-delivree' :
-                ord.statut === 'expiree' ? 'statut-expiree' :
-                'statut-active'
-              }">${ord.statut}</span>
-              <a href="/pharmacien/ordonnance/${ord.id}" class="btn-action">Voir détails</a>
-            </div>
-          `).join('')}
-        </div>
-      ` : `
-        <div class="empty-state">
-          <div class="empty-icon">📋</div>
-          <p>Aucune ordonnance en attente</p>
-        </div>
-      `}
     </div>
   </div>
+</div>
+<script>
+  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').classList.toggle('open'); }
+  function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('open'); }
+</script>
 </body>
 </html>`
 }
+
