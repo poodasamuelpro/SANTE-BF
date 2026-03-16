@@ -17,6 +17,17 @@ export type AuthProfile = {
   doit_changer_mdp: boolean
 }
 
+// NOUVEAU : Type pour les variables de contexte Hono
+export type Variables = {
+  profil: AuthProfile
+  supabase: ReturnType<typeof getSupabase>
+}
+
+export type Bindings = {
+  SUPABASE_URL: string
+  SUPABASE_ANON_KEY: string
+}
+
 export function getSupabase(url: string | undefined, anonKey: string | undefined) {
   if (!url || !anonKey) {
     throw new Error('Variables d\'environnement Supabase manquantes. Configurez SUPABASE_URL et SUPABASE_ANON_KEY dans Cloudflare Pages.')
@@ -30,13 +41,22 @@ export async function getProfil(
   supabase: ReturnType<typeof getSupabase>,
   userId: string
 ): Promise<AuthProfile | null> {
-  const { data, error } = await supabase
-    .from('auth_profiles')
-    .select('id, nom, prenom, role, structure_id, est_actif, doit_changer_mdp')
-    .eq('id', userId)
-    .single()
-  if (error || !data) return null
-  return data as AuthProfile
+  try {
+    const { data, error } = await supabase
+      .from('auth_profiles')
+      .select('id, nom, prenom, role, structure_id, est_actif, doit_changer_mdp')
+      .eq('id', userId)
+      .single()
+    
+    if (error || !data) {
+      console.error('❌ getProfil error:', error?.message)
+      return null
+    }
+    return data as AuthProfile
+  } catch (err) {
+    console.error('❌ getProfil exception:', err)
+    return null
+  }
 }
 
 export function redirectionParRole(role: Role): string {
