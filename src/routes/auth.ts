@@ -8,15 +8,6 @@ import { resetPasswordPage, resetConfirmPage } from '../pages/reset-password'
 type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
 export const authRoutes = new Hono<{ Bindings: Bindings }>()
 
-const COOKIE_OPTS = {
-  httpOnly: true,
-  secure: true, // HTTPS uniquement
-  sameSite: 'Lax' as const,
-  maxAge: 604800, // 7 jours
-  path: '/'
-  // domain est automatiquement défini par le navigateur
-}
-
 // ── GET /auth/login ────────────────────────────────────────
 authRoutes.get('/login', async (c) => {
   const token = getCookie(c, 'sb_token')
@@ -88,24 +79,35 @@ authRoutes.post('/login', async (c) => {
 
     console.log('✓ Profil actif, configuration des cookies...')
 
-    setCookie(c, 'sb_token',   data.session.access_token,        COOKIE_OPTS)
-    setCookie(c, 'sb_refresh', data.session.refresh_token ?? '', COOKIE_OPTS)
+    // Options de cookies avec toutes les sécurités
+    const cookieOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax' as const,
+      maxAge: 604800, // 7 jours
+      path: '/'
+    }
 
-    console.log('✓ Cookies configurés')
-    console.log('🍪 Cookie sb_token:', data.session.access_token.substring(0, 20) + '...')
-    console.log('🍪 Cookie sb_refresh:', (data.session.refresh_token ?? '').substring(0, 20) + '...')
+    setCookie(c, 'sb_token',   data.session.access_token,        cookieOptions)
+    setCookie(c, 'sb_refresh', data.session.refresh_token ?? '', cookieOptions)
+
+    console.log('✅ Cookies configurés et session établie')
     
-    // Test lecture immédiate des cookies
-    const testToken = getCookie(c, 'sb_token')
-    const testRefresh = getCookie(c, 'sb_refresh')
-    console.log('🧪 Test lecture cookie - token:', testToken ? 'OK' : '❌ ABSENT')
-    console.log('🧪 Test lecture cookie - refresh:', testRefresh ? 'OK' : '❌ ABSENT')
+    // VÉRIFICATION IMMÉDIATE : lire les cookies qu'on vient de définir
+    const verifToken = getCookie(c, 'sb_token')
+    const verifRefresh = getCookie(c, 'sb_refresh')
+    console.log('🔍 Vérification cookies - token:', !!verifToken, 'refresh:', !!verifRefresh)
+    
+    if (!verifToken || !verifRefresh) {
+      console.error('❌ ERREUR CRITIQUE : Cookies non enregistrés !')
+      return c.html(loginPage('❌ Erreur de session. Réessayez ou contactez l\'administrateur.'))
+    }
 
+    // REDIRECTION DIRECTE VERS LE DASHBOARD
     const destination = profil.doit_changer_mdp ? '/auth/changer-mdp' : redirectionParRole(profil.role)
-    console.log('✅ Redirection vers:', destination)
+    console.log('➡️  Redirection vers:', destination)
 
-    if (profil.doit_changer_mdp) return c.redirect('/auth/changer-mdp')
-    return c.redirect(redirectionParRole(profil.role))
+    return c.redirect(destination)
   } catch (err) {
     console.error('❌ Erreur critique login:', err)
     console.error('Stack:', err instanceof Error ? err.stack : 'N/A')

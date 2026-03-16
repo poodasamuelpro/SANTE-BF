@@ -8,47 +8,66 @@ type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
 export const requireAuth = createMiddleware<{ Bindings: Bindings }>(async (c, next) => {
   const token   = getCookie(c, 'sb_token')
   const refresh = getCookie(c, 'sb_refresh')
-  
-  console.log('🔒 requireAuth - token:', token ? 'présent' : 'absent')
-  console.log('🔒 requireAuth - refresh:', refresh ? 'présent' : 'absent')
 
+  console.log('🔒 requireAuth - token présent:', !!token, 'refresh présent:', !!refresh)
+
+  // Si aucun cookie, redirection login
   if (!token && !refresh) {
-    console.log('❌ Aucun cookie trouvé, redirection vers login')
+    console.log('❌ Aucun cookie, redirection vers /auth/login')
     return c.redirect('/auth/login')
   }
 
   const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
   let userId: string | null = null
 
+  // Essayer avec le token d'accès
   if (token) {
-    const { data: { user } } = await sb.auth.getUser(token)
+    const { data: { user }, error } = await sb.auth.getUser(token)
+    console.log('🔑 Vérification token - user:', !!user, 'erreur:', error?.message || 'aucune')
     if (user) userId = user.id
   }
 
+  // Sinon essayer de rafraîchir avec le refresh token
   if (!userId && refresh) {
-    const { data } = await sb.auth.refreshSession({ refresh_token: refresh })
+    console.log('🔄 Tentative de rafraîchissement avec refresh_token')
+    const { data, error } = await sb.auth.refreshSession({ refresh_token: refresh })
+    console.log('🔄 Refresh result - success:', !!data?.user, 'erreur:', error?.message || 'aucune')
+    
     if (data?.user && data?.session) {
       userId = data.user.id
-      const opts = {
-        httpOnly: true, secure: true,
+      // Mettre à jour les cookies
+      const cookieOpts = {
+        httpOnly: true,
+        secure: true,
         sameSite: 'Lax' as const,
-        maxAge: 604800, path: '/'
+        maxAge: 604800,
+        path: '/'
       }
-      setCookie(c, 'sb_token',   data.session.access_token,  opts)
-      setCookie(c, 'sb_refresh', data.session.refresh_token, opts)
+      setCookie(c, 'sb_token',   data.session.access_token,  cookieOpts)
+      setCookie(c, 'sb_refresh', data.session.refresh_token, cookieOpts)
+      console.log('✅ Cookies rafraîchis')
     }
   }
 
-  if (!userId) return c.redirect('/auth/login')
-
-  const profil = await getProfil(sb, userId)
-  console.log('👤 Profil récupéré:', profil ? `${profil.nom} ${profil.prenom} (${profil.role})` : 'null')
-  
-  if (!profil || !profil.est_actif) {
-    console.log('❌ Profil invalide ou inactif, redirection vers login')
+  // Si toujours pas d'utilisateur, redirection
+  if (!userId) {
+    console.error('❌ Impossible de valider l\'utilisateur, redirection')
     return c.redirect('/auth/login')
   }
 
+  // Récupérer le profil
+  const profil = await getProfil(sb, userId)
+  console.log('👤 Profil récupéré:', profil ? `${profil.nom} (${profil.role})` : 'null')
+  
+  // Si pas de profil ou inactif, redirection
+  if (!profil || !profil.est_actif) {
+    console.error('❌ Profil invalide ou inactif')
+    return c.redirect('/auth/login')
+  }
+
+  console.log('✅ requireAuth OK, accès autorisé')
+  
+  // Tout est OK, on continue
   c.set('profil'   as never, profil)
   c.set('supabase' as never, sb)
   await next()
