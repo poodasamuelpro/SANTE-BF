@@ -2,7 +2,7 @@ import { AuthProfile } from '../lib/supabase'
 import { formatDate } from '../utils/format'
 
 // ═══════════════════════════════════════════════════════════
-// DASHBOARD STRUCTURE
+// DASHBOARD STRUCTURE 
 // ═══════════════════════════════════════════════════════════
 
 interface StructureData {
