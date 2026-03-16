@@ -10,7 +10,7 @@ caissierRoutes.use('/*', requireAuth, requireRole('caissier', 'admin_structure')
 const FCFA = (n: number) => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA'
 
 const CSS = `
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <link  href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
   <style>
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'DM Sans',sans-serif;background:#F7F8FA;min-height:100vh}
