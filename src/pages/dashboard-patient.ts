@@ -1,7 +1,3 @@
-/**
- * Page dashboard Patient
- */
-
 import { AuthProfile } from '../lib/supabase'
 import { formatDate } from '../utils/format'
 
@@ -23,262 +19,319 @@ interface PatientData {
 }
 
 export function dashboardPatientPage(profil: AuthProfile, data: PatientData): string {
-  const now = new Date()
-  const heureActuelle = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-  const dateActuelle = now.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const heure = new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })
+  const date  = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mon espace - SantéBF</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <title>SantéBF — Mon espace santé</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      font-family: 'Inter', sans-serif; 
-      background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-      min-height: 100vh;
-      padding: 20px;
+    :root {
+      --bleu:        #1565C0;
+      --bleu-mid:    #1976D2;
+      --bleu-clair:  #e8f0fe;
+      --bleu-glow:   rgba(21,101,192,0.12);
+      --rouge:       #C62828;
+      --rouge-clair: #fce8e8;
+      --vert:        #1A6B3C;
+      --vert-clair:  #e8f5ee;
+      --texte:       #0f1923;
+      --texte-soft:  #5a6a78;
+      --bg:          #f0f4fb;
+      --blanc:       #ffffff;
+      --bordure:     #dce6f5;
+      --shadow-sm:   0 1px 4px rgba(0,0,0,0.06);
+      --shadow-md:   0 4px 20px rgba(0,0,0,0.08);
+      --radius:      16px;
+      --radius-sm:   10px;
     }
-    .container { max-width: 1200px; margin: 0 auto; }
-    
-    /* Header */
-    .header {
-      background: white;
-      border-radius: 15px;
-      padding: 20px 30px;
-      margin-bottom: 30px;
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); min-height:100vh; color:var(--texte); }
+
+    /* HEADER MOBILE-FIRST */
+    .topbar {
+      background: linear-gradient(135deg, var(--bleu), var(--bleu-mid));
+      padding: 20px 20px 60px;
+      position: relative;
+    }
+    .topbar-inner {
+      max-width: 700px;
+      margin: 0 auto;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      align-items: flex-start;
     }
-    .header-left { display: flex; align-items: center; gap: 15px; }
-    .logo { font-size: 28px; font-weight: 700; color: #3b82f6; }
-    .time-info { display: flex; flex-direction: column; }
-    .time { font-size: 24px; font-weight: 600; color: #333; }
-    .date { font-size: 14px; color: #666; }
-    .header-right { display: flex; align-items: center; gap: 20px; }
-    .user-info { text-align: right; }
-    .user-name { font-weight: 600; color: #333; }
-    .user-role { font-size: 12px; color: #666; }
-    .btn-logout {
-      background: #ef4444;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 500;
-      text-decoration: none;
-      display: inline-block;
-    }
-    .btn-logout:hover { background: #dc2626; }
+    .brand { display:flex; align-items:center; gap:10px; }
+    .brand-icon { width:32px; height:32px; background:rgba(255,255,255,0.2); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:15px; }
+    .brand-name { font-family:'Fraunces',serif; font-size:17px; color:white; }
+    .logout-pill { background:rgba(255,255,255,0.15); color:white; border:1px solid rgba(255,255,255,0.2); padding:7px 14px; border-radius:20px; font-size:12px; font-weight:600; text-decoration:none; }
+    .logout-pill:hover { background:rgba(255,255,255,0.25); }
 
-    /* Dossier médical */
-    .dossier-card {
-      background: white;
-      border-radius: 12px;
-      padding: 30px;
-      margin-bottom: 30px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    .hero {
+      max-width: 700px;
+      margin: 16px auto 0;
+      padding: 0 20px;
     }
-    .dossier-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .info-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 20px;
-    }
-    .info-item {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-    .info-label {
-      font-size: 12px;
-      color: #666;
+    .hero h1 {
+      font-family: 'Fraunces', serif;
+      font-size: 26px;
       font-weight: 600;
-      text-transform: uppercase;
+      color: white;
+      margin-bottom: 4px;
     }
-    .info-value {
-      font-size: 16px;
-      color: #333;
-      font-weight: 500;
+    .hero p { font-size: 13px; color: rgba(255,255,255,0.75); }
+
+    /* CONTENT */
+    .content {
+      max-width: 700px;
+      margin: -40px auto 0;
+      padding: 0 16px 32px;
     }
 
-    /* Prochain RDV */
-    .rdv-card {
-      background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-      border-radius: 12px;
-      padding: 30px;
-      color: white;
-      margin-bottom: 30px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .rdv-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 20px;
+    /* NUMERO CARD */
+    .numero-card {
+      background: var(--blanc);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-md);
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: space-between;
+      border: 1px solid var(--bordure);
     }
-    .rdv-date {
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 10px;
-    }
-    .rdv-medecin {
+    .numero-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--texte-soft); margin-bottom: 4px; }
+    .numero-value { font-family: 'Fraunces', serif; font-size: 20px; color: var(--bleu); font-weight: 600; }
+    .sanguin-badge {
+      background: var(--rouge-clair);
+      color: var(--rouge);
       font-size: 18px;
-      margin-bottom: 5px;
-    }
-    .rdv-motif {
-      font-size: 14px;
-      opacity: 0.9;
-    }
-    .no-rdv {
-      text-align: center;
-      padding: 40px 20px;
-      opacity: 0.8;
+      font-weight: 900;
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      font-family: 'Fraunces', serif;
     }
 
-    /* Actions rapides */
+    /* RDV CARD */
+    .rdv-card {
+      background: linear-gradient(135deg, var(--bleu), var(--bleu-mid));
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-md);
+      color: white;
+    }
+    .rdv-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.7; margin-bottom: 10px; }
+    .rdv-date { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+    .rdv-medecin { font-size: 14px; font-weight: 600; opacity: 0.9; }
+    .rdv-motif { font-size: 13px; opacity: 0.7; margin-top: 4px; }
+    .no-rdv { text-align: center; padding: 8px 0; }
+    .no-rdv-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.6; }
+    .no-rdv p { font-size: 13px; opacity: 0.7; }
+
+    /* STATS STRIP */
+    .stats-strip {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat-pill {
+      background: var(--blanc);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--bordure);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .stat-pill-icon { font-size: 24px; }
+    .stat-pill-val { font-family:'Fraunces',serif; font-size:22px; font-weight:600; color:var(--bleu); line-height:1; }
+    .stat-pill-lbl { font-size:11px; color:var(--texte-soft); margin-top:2px; }
+
+    /* ACTIONS */
     .actions-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
     }
     .action-card {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      text-align: center;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      background: var(--blanc);
+      border-radius: var(--radius);
+      padding: 18px 16px;
       text-decoration: none;
-      color: inherit;
-      display: block;
+      color: var(--texte);
+      border: 1px solid var(--bordure);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s;
     }
-    .action-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    .action-card:hover { border-color:var(--bleu); box-shadow:0 0 0 3px var(--bleu-glow), var(--shadow-md); transform:translateY(-1px); }
+    .action-icon { font-size: 24px; width: 44px; height: 44px; background: var(--bleu-clair); border-radius: 10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .action-label { font-size: 13px; font-weight: 600; }
+    .action-sub { font-size: 11px; color: var(--texte-soft); margin-top: 2px; }
+
+    /* INFO MEDICALE */
+    .info-card {
+      background: var(--blanc);
+      border-radius: var(--radius);
+      padding: 20px;
+      border: 1px solid var(--bordure);
+      box-shadow: var(--shadow-sm);
     }
-    .action-icon { font-size: 48px; margin-bottom: 10px; }
-    .action-label { font-weight: 600; color: #333; }
-    .action-count {
-      font-size: 12px;
-      color: #666;
-      margin-top: 5px;
-    }
+    .info-card-title { font-family:'Fraunces',serif; font-size:16px; color:var(--texte); margin-bottom:14px; }
+    .info-row { display:flex; justify-content:space-between; align-items:flex-start; padding:10px 0; border-bottom:1px solid var(--bordure); }
+    .info-row:last-child { border-bottom:none; }
+    .info-lbl { font-size:12px; color:var(--texte-soft); font-weight:500; }
+    .info-val { font-size:13px; font-weight:600; color:var(--texte); text-align:right; max-width:60%; }
+    .tag { display:inline-block; background:var(--rouge-clair); color:var(--rouge); padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; margin:2px 2px 0 0; }
+    .tag.maladie { background:#fff3e0; color:#e65100; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <!-- Header -->
-    <div class="header">
-      <div class="header-left">
-        <div class="logo">🩺 SantéBF</div>
-        <div class="time-info">
-          <div class="time">${heureActuelle}</div>
-          <div class="date">${dateActuelle}</div>
-        </div>
-      </div>
-      <div class="header-right">
-        <div class="user-info">
-          <div class="user-name">${profil.prenom} ${profil.nom}</div>
-          <div class="user-role">Patient(e)</div>
-        </div>
-        <a href="/auth/logout" class="btn-logout">Déconnexion</a>
-      </div>
-    </div>
 
-    <!-- Prochain RDV -->
-    <div class="rdv-card">
-      <div class="rdv-title">
-        <span>📅</span> Prochain rendez-vous
+  <!-- HEADER -->
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-icon">🏥</div>
+        <div class="brand-name">SantéBF</div>
       </div>
+      <a href="/auth/logout" class="logout-pill">⏻ Déconnexion</a>
+    </div>
+    <div class="hero">
+      <h1>Bonjour, ${profil.prenom} 👋</h1>
+      <p>${date} • ${heure}</p>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- NUMERO NATIONAL -->
+    ${data.dossier ? `
+    <div class="numero-card">
+      <div>
+        <div class="numero-label">Numéro national</div>
+        <div class="numero-value">${data.dossier.numero_national}</div>
+      </div>
+      <div class="sanguin-badge">
+        🩸 ${data.dossier.groupe_sanguin || '?'}${data.dossier.rhesus || ''}
+      </div>
+    </div>` : ''}
+
+    <!-- PROCHAIN RDV -->
+    <div class="rdv-card">
+      <div class="rdv-title">📅 Prochain rendez-vous</div>
       ${data.prochainRdv ? `
         <div class="rdv-date">${formatDate(data.prochainRdv.date_heure)}</div>
         <div class="rdv-medecin">Dr. ${data.prochainRdv.medecin.nom} ${data.prochainRdv.medecin.prenom}</div>
-        <div class="rdv-medecin">${data.prochainRdv.medecin.specialite}</div>
-        <div class="rdv-motif">${data.prochainRdv.motif}</div>
+        <div class="rdv-motif">${data.prochainRdv.medecin.specialite} — ${data.prochainRdv.motif}</div>
       ` : `
         <div class="no-rdv">
-          <div style="font-size:48px;margin-bottom:10px;">📅</div>
+          <div class="no-rdv-icon">📅</div>
           <p>Aucun rendez-vous programmé</p>
         </div>
       `}
     </div>
 
-    <!-- Actions rapides -->
+    <!-- STATS -->
+    <div class="stats-strip">
+      <div class="stat-pill">
+        <div class="stat-pill-icon">💊</div>
+        <div>
+          <div class="stat-pill-val">${data.ordonnancesActives}</div>
+          <div class="stat-pill-lbl">Ordonnances actives</div>
+        </div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-pill-icon">📋</div>
+        <div>
+          <div class="stat-pill-val">${data.consultationsTotal}</div>
+          <div class="stat-pill-lbl">Consultations</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIONS -->
     <div class="actions-grid">
       <a href="/dashboard/patient/dossier" class="action-card">
         <div class="action-icon">📋</div>
-        <div class="action-label">Mon dossier médical</div>
+        <div>
+          <div class="action-label">Mon dossier</div>
+          <div class="action-sub">Historique complet</div>
+        </div>
       </a>
       <a href="/dashboard/patient/ordonnances" class="action-card">
         <div class="action-icon">💊</div>
-        <div class="action-label">Mes ordonnances</div>
-        <div class="action-count">${data.ordonnancesActives} active(s)</div>
+        <div>
+          <div class="action-label">Ordonnances</div>
+          <div class="action-sub">${data.ordonnancesActives} active(s)</div>
+        </div>
       </a>
       <a href="/dashboard/patient/rdv" class="action-card">
         <div class="action-icon">📅</div>
-        <div class="action-label">Mes rendez-vous</div>
+        <div>
+          <div class="action-label">Rendez-vous</div>
+          <div class="action-sub">Mes RDV</div>
+        </div>
       </a>
       <a href="/dashboard/patient/examens" class="action-card">
         <div class="action-icon">🧪</div>
-        <div class="action-label">Résultats examens</div>
+        <div>
+          <div class="action-label">Examens</div>
+          <div class="action-sub">Résultats</div>
+        </div>
       </a>
       <a href="/dashboard/patient/vaccinations" class="action-card">
         <div class="action-icon">💉</div>
-        <div class="action-label">Vaccinations</div>
+        <div>
+          <div class="action-label">Vaccinations</div>
+          <div class="action-sub">Carnet vaccinal</div>
+        </div>
       </a>
       <a href="/dashboard/patient/consentements" class="action-card">
         <div class="action-icon">🔒</div>
-        <div class="action-label">Consentements</div>
+        <div>
+          <div class="action-label">Consentements</div>
+          <div class="action-sub">Accès au dossier</div>
+        </div>
       </a>
     </div>
 
-    <!-- Informations dossier -->
+    <!-- INFO MEDICALE -->
     ${data.dossier ? `
-      <div class="dossier-card">
-        <div class="dossier-title">
-          <span>🩺</span> Informations médicales
-        </div>
-        <div class="info-grid">
-          <div class="info-item">
-            <div class="info-label">Numéro national</div>
-            <div class="info-value">${data.dossier.numero_national}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Groupe sanguin</div>
-            <div class="info-value">${data.dossier.groupe_sanguin} ${data.dossier.rhesus}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Allergies</div>
-            <div class="info-value">${data.dossier.allergies || 'Aucune'}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Maladies chroniques</div>
-            <div class="info-value">${data.dossier.maladies_chroniques || 'Aucune'}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Consultations</div>
-            <div class="info-value">${data.consultationsTotal} consultation(s)</div>
-          </div>
-        </div>
+    <div class="info-card">
+      <div class="info-card-title">🩺 Informations médicales</div>
+      <div class="info-row">
+        <span class="info-lbl">Allergies</span>
+        <span class="info-val">
+          ${data.dossier.allergies
+            ? (Array.isArray(data.dossier.allergies)
+                ? (data.dossier.allergies as any[]).map((a: any) => `<span class="tag">${a.nom || a}</span>`).join('')
+                : `<span class="tag">${data.dossier.allergies}</span>`)
+            : '<span style="color:var(--texte-soft)">Aucune</span>'}
+        </span>
       </div>
-    ` : ''}
+      <div class="info-row">
+        <span class="info-lbl">Maladies chroniques</span>
+        <span class="info-val">
+          ${data.dossier.maladies_chroniques
+            ? (Array.isArray(data.dossier.maladies_chroniques)
+                ? (data.dossier.maladies_chroniques as any[]).map((m: any) => `<span class="tag maladie">${m.nom || m}</span>`).join('')
+                : `<span class="tag maladie">${data.dossier.maladies_chroniques}</span>`)
+            : '<span style="color:var(--texte-soft)">Aucune</span>'}
+        </span>
+      </div>
+    </div>` : ''}
+
   </div>
 </body>
 </html>`
