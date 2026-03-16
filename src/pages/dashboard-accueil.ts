@@ -1,4 +1,29 @@
-export function dashboardAccueilPage(profil: any, rdvJour: any[]): string {
+import { AuthProfile } from '../lib/supabase'
+import { formatDate, formatFCFA } from '../utils/format'
+
+// ═══════════════════════════════════════════════════════════
+// DASHBOARD CAISSIER
+// ═══════════════════════════════════════════════════════════
+
+interface CaissierData {
+  factures: Array<{
+    id: string
+    numero_facture: string
+    patient: { nom: string; prenom: string }
+    montant_patient: number
+    total_ttc: number
+    statut: string
+    created_at: string
+  }>
+  stats: {
+    facturesJour: number
+    impayees: number
+    recetteJour: number
+    attente: number
+  }
+}
+
+export function dashboardCaissierPage(profil: AuthProfile, data: CaissierData): string {
   const heure = new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })
   const date  = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })
 
@@ -7,193 +32,177 @@ export function dashboardAccueilPage(profil: any, rdvJour: any[]): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SantéBF — Accueil</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <title>SantéBF — Caisse</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Fraunces:wght@300;600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --vert:        #1A6B3C;
+      --vert-mid:    #2E8B57;
+      --vert-clair:  #e8f5ee;
+      --vert-glow:   rgba(26,107,60,0.12);
+      --or:          #C9A84C;
+      --or-clair:    #fdf6e3;
+      --rouge:       #C62828;
+      --rouge-clair: #fce8e8;
+      --texte:       #0f1923;
+      --texte-soft:  #5a6a78;
+      --bg:          #f2f7f4;
+      --blanc:       #ffffff;
+      --bordure:     #daeae2;
+      --shadow-sm:   0 1px 4px rgba(0,0,0,0.06);
+      --shadow-md:   0 4px 20px rgba(0,0,0,0.08);
+      --radius:      16px;
+      --radius-sm:   10px;
+    }
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'DM Sans',sans-serif; background:#F7F8FA; min-height:100vh; }
-    header {
-      background:#1565C0; padding:0 24px; height:60px;
-      display:flex; align-items:center; justify-content:space-between;
-      position:sticky; top:0; z-index:100;
-      box-shadow:0 2px 8px rgba(0,0,0,0.15);
-    }
-    .hl { display:flex; align-items:center; gap:12px; }
-    .logo { width:34px; height:34px; background:white; border-radius:8px;
-      display:flex; align-items:center; justify-content:center; font-size:18px; }
-    .ht { font-family:'DM Serif Display',serif; font-size:18px; color:white; }
-    .ht span { font-family:'DM Sans',sans-serif; font-size:11px; opacity:.7; display:block; }
-    .hr { display:flex; align-items:center; gap:10px; }
-    .ub { background:rgba(255,255,255,0.15); border-radius:8px; padding:6px 12px; }
-    .ub strong { display:block; font-size:13px; color:white; }
-    .ub small   { font-size:11px; color:rgba(255,255,255,0.7); }
-    .logout { background:rgba(255,255,255,0.2); color:white; border:none;
-      padding:8px 14px; border-radius:8px; font-size:13px;
-      cursor:pointer; text-decoration:none; font-family:'DM Sans',sans-serif; }
-    .container { max-width:1100px; margin:0 auto; padding:24px 20px; }
-    .top-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; }
-    .welcome h2 { font-family:'DM Serif Display',serif; font-size:26px; color:#1A1A2E; }
-    .welcome p  { font-size:14px; color:#6B7280; margin-top:4px; }
-    .date-box strong { display:block; font-size:20px; color:#1565C0; text-align:right; }
-    .date-box span   { font-size:13px; color:#6B7280; }
+    body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); min-height:100vh; color:var(--texte); }
+    .layout { display:flex; min-height:100vh; }
 
-    /* Recherche rapide */
-    .search-bar {
-      background:white;
-      border-radius:14px;
-      padding:20px;
-      margin-bottom:24px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.06);
-      display:flex; gap:12px; align-items:center;
-    }
-    .search-bar input {
-      flex:1; padding:12px 16px;
-      border:1.5px solid #E0E0E0;
-      border-radius:10px; font-size:15px;
-      font-family:'DM Sans',sans-serif;
-      outline:none; transition:border-color .2s;
-    }
-    .search-bar input:focus { border-color:#1565C0; }
-    .btn-search {
-      background:#1565C0; color:white;
-      border:none; padding:12px 20px;
-      border-radius:10px; font-size:14px;
-      font-weight:600; cursor:pointer;
-      font-family:'DM Sans',sans-serif;
-      white-space:nowrap;
-    }
+    .sidebar { width:250px; background:var(--vert); position:fixed; top:0; left:0; height:100vh; z-index:200; display:flex; flex-direction:column; transition:transform 0.3s; }
+    .sidebar-brand { padding:24px 20px 18px; border-bottom:1px solid rgba(255,255,255,0.1); }
+    .brand-row { display:flex; align-items:center; gap:10px; }
+    .brand-icon { width:36px; height:36px; background:var(--or); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:17px; }
+    .brand-name { font-family:'Fraunces',serif; font-size:18px; color:white; }
+    .brand-sub { font-size:10px; color:rgba(255,255,255,0.4); letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; padding-left:46px; }
+    .sidebar-nav { flex:1; padding:12px 10px; overflow-y:auto; }
+    .nav-label { font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:rgba(255,255,255,0.3); padding:10px 10px 5px; }
+    .nav-item { display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:var(--radius-sm); text-decoration:none; color:rgba(255,255,255,0.65); font-size:13.5px; font-weight:500; margin-bottom:2px; transition:all 0.2s; }
+    .nav-item:hover { background:rgba(255,255,255,0.1); color:white; }
+    .nav-item.active { background:rgba(255,255,255,0.18); color:white; font-weight:600; }
+    .nav-icon { font-size:15px; width:18px; text-align:center; }
+    .sidebar-footer { padding:14px 10px; border-top:1px solid rgba(255,255,255,0.1); }
+    .user-card { display:flex; align-items:center; gap:10px; padding:10px; border-radius:var(--radius-sm); background:rgba(255,255,255,0.08); }
+    .user-avatar { width:34px; height:34px; background:var(--or); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:var(--vert); flex-shrink:0; }
+    .user-info { flex:1; min-width:0; }
+    .user-name { font-size:12.5px; font-weight:600; color:white; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .user-role { font-size:10.5px; color:rgba(255,255,255,0.4); }
+    .logout-btn { width:26px; height:26px; background:rgba(255,255,255,0.08); border:none; border-radius:6px; color:rgba(255,255,255,0.5); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; text-decoration:none; transition:all 0.2s; flex-shrink:0; }
+    .logout-btn:hover { background:rgba(255,80,80,0.2); color:#ff8080; }
 
-    /* Actions */
-    .actions { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:14px; margin-bottom:28px; }
-    .ac {
-      background:white; border-radius:12px; padding:20px 16px;
-      text-align:center; text-decoration:none; color:#1A1A2E;
-      box-shadow:0 2px 8px rgba(0,0,0,0.06);
-      transition:transform .2s;
-      display:flex; flex-direction:column; align-items:center; gap:10px;
-      border-bottom:3px solid #1565C0;
-    }
-    .ac:hover { transform:translateY(-3px); }
-    .ac-icon { font-size:30px; }
-    .ac-lbl  { font-size:13px; font-weight:600; }
+    .main { margin-left:250px; flex:1; display:flex; flex-direction:column; }
+    .topbar { height:62px; background:var(--blanc); border-bottom:1px solid var(--bordure); display:flex; align-items:center; justify-content:space-between; padding:0 28px; position:sticky; top:0; z-index:100; }
+    .topbar-title { font-family:'Fraunces',serif; font-size:19px; font-weight:600; }
+    .topbar-sub { font-size:12px; color:var(--texte-soft); margin-top:1px; }
+    .datetime-pill { background:var(--vert-clair); padding:6px 14px; border-radius:20px; font-size:12.5px; font-weight:600; color:var(--vert); }
+    .menu-toggle { display:none; background:none; border:none; font-size:20px; cursor:pointer; color:var(--texte); }
+    .content { padding:28px; }
 
-    /* RDV liste */
-    .rdv-box {
-      background:white; border-radius:14px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.06); overflow:hidden;
-    }
-    .rdv-header {
-      padding:14px 20px; background:#1565C0;
-      display:flex; justify-content:space-between; align-items:center;
-    }
-    .rdv-header h3 { font-size:14px; font-weight:600; color:white; }
-    .rdv-header a  { font-size:12px; color:rgba(255,255,255,.75); text-decoration:none; }
-    .rdv-item {
-      padding:14px 20px; border-bottom:1px solid #F5F5F5;
-      display:flex; align-items:center; gap:14px;
-    }
-    .rdv-item:last-child { border-bottom:none; }
-    .rdv-heure { font-size:16px; font-weight:700; color:#1565C0; min-width:48px; }
-    .rdv-patient strong { display:block; font-size:14px; }
-    .rdv-patient span   { font-size:12px; color:#9E9E9E; }
-    .rdv-medecin { margin-left:auto; font-size:12px; color:#6B7280; text-align:right; }
-    .rdv-statut { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; }
-    .rdv-statut.planifie  { background:#E3F2FD; color:#1565C0; }
-    .rdv-statut.confirme  { background:#E8F5E9; color:#1A6B3C; }
-    .rdv-statut.passe     { background:#F5F5F5; color:#9E9E9E; }
-    .rdv-statut.absent    { background:#FFF5F5; color:#B71C1C; }
-    .empty { padding:24px; text-align:center; color:#9E9E9E; font-size:13px; font-style:italic; }
+    .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
+    .stat-card { background:var(--blanc); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow-sm); border:1px solid var(--bordure); position:relative; overflow:hidden; }
+    .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+    .stat-card.c-vert::before { background:var(--vert); }
+    .stat-card.c-or::before { background:var(--or); }
+    .stat-card.c-rouge::before { background:var(--rouge); }
+    .stat-icon { font-size:26px; margin-bottom:10px; }
+    .stat-val { font-family:'Fraunces',serif; font-size:36px; font-weight:600; color:var(--texte); line-height:1; margin-bottom:4px; }
+    .stat-lbl { font-size:12px; color:var(--texte-soft); font-weight:500; }
+    .stat-val.or { color:var(--or); }
 
-    @media (max-width:640px) {
-      .actions { grid-template-columns:repeat(2,1fr); }
-      .search-bar { flex-direction:column; }
-      .top-row { flex-direction:column; gap:12px; }
-      .container { padding:16px 12px; }
-    }
+    .actions-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
+    .action-card { background:var(--blanc); border-radius:var(--radius); padding:18px; text-align:center; text-decoration:none; color:var(--texte); border:1px solid var(--bordure); transition:all 0.2s; box-shadow:var(--shadow-sm); }
+    .action-card:hover { border-color:var(--vert); box-shadow:0 0 0 3px var(--vert-glow), var(--shadow-md); transform:translateY(-2px); }
+    .action-icon { font-size:28px; margin-bottom:8px; }
+    .action-label { font-size:13px; font-weight:600; }
+
+    .facture-list { display:flex; flex-direction:column; gap:10px; }
+    .facture-item { background:var(--blanc); border-radius:var(--radius-sm); padding:16px 18px; border:1px solid var(--bordure); display:flex; align-items:center; gap:16px; box-shadow:var(--shadow-sm); transition:all 0.2s; }
+    .facture-item:hover { box-shadow:var(--shadow-md); transform:translateX(2px); border-color:var(--vert); }
+    .facture-num { font-family:'Fraunces',serif; font-size:14px; color:var(--vert); font-weight:600; }
+    .facture-patient { font-size:14px; font-weight:600; }
+    .facture-date { font-size:11px; color:var(--texte-soft); margin-top:2px; }
+    .facture-montant { font-family:'Fraunces',serif; font-size:16px; font-weight:600; color:var(--vert); margin-left:auto; }
+    .badge { padding:4px 10px; border-radius:20px; font-size:11px; font-weight:600; }
+    .badge-payee { background:var(--vert-clair); color:var(--vert); }
+    .badge-impayee { background:var(--rouge-clair); color:var(--rouge); }
+    .badge-attente { background:var(--or-clair); color:#7a5500; }
+    .badge-partielle { background:#dbeafe; color:#1e40af; }
+    .btn-sm { background:var(--vert); color:white; padding:6px 14px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600; white-space:nowrap; }
+    .section-title { font-family:'Fraunces',serif; font-size:17px; font-weight:600; margin-bottom:14px; }
+    .empty { padding:32px; text-align:center; color:var(--texte-soft); font-style:italic; }
+
+    .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:150; }
+    .overlay.open { display:block; }
+    @media (max-width:1100px) { .stats-grid,.actions-grid { grid-template-columns:repeat(2,1fr); } }
+    @media (max-width:768px) { .sidebar { transform:translateX(-100%); } .sidebar.open { transform:translateX(0); } .main { margin-left:0; } .menu-toggle { display:flex; } .content { padding:16px; } }
   </style>
 </head>
 <body>
-  <header>
-    <div class="hl">
-      <div class="logo">🏥</div>
-      <div class="ht">SantéBF <span>ACCUEIL</span></div>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-row"><div class="brand-icon">💵</div><div class="brand-name">SantéBF</div></div>
+      <div class="brand-sub">Caisse</div>
     </div>
-    <div class="hr">
-      <div class="ub">
-        <strong>${profil.prenom} ${profil.nom}</strong>
-        <small>Agent d'accueil</small>
-      </div>
-      <a href="/auth/logout" class="logout">Déconnexion</a>
-    </div>
-  </header>
-
-  <div class="container">
-    <div class="top-row">
-      <div class="welcome">
-        <h2>Bonjour, ${profil.prenom} 👋</h2>
-        <p>${rdvJour.length} rendez-vous planifiés aujourd'hui</p>
-      </div>
-      <div class="date-box">
-        <strong>${heure}</strong>
-        <span>${date}</span>
+    <nav class="sidebar-nav">
+      <div class="nav-label">Principal</div>
+      <a href="/dashboard/caissier" class="nav-item active"><span class="nav-icon">⊞</span> Tableau de bord</a>
+      <div class="nav-label">Facturation</div>
+      <a href="/caissier/encaissement" class="nav-item"><span class="nav-icon">💵</span> Encaissement</a>
+      <a href="/caissier/recherche" class="nav-item"><span class="nav-icon">🔍</span> Rechercher</a>
+      <a href="/caissier/historique" class="nav-item"><span class="nav-icon">📜</span> Historique</a>
+      <div class="nav-label">Rapport</div>
+      <a href="/caissier/cloture" class="nav-item"><span class="nav-icon">📊</span> Clôture caisse</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-card">
+        <div class="user-avatar">${profil.prenom.charAt(0)}${profil.nom.charAt(0)}</div>
+        <div class="user-info"><div class="user-name">${profil.prenom} ${profil.nom}</div><div class="user-role">Caissier(ère)</div></div>
+        <a href="/auth/logout" class="logout-btn" title="Déconnexion">⏻</a>
       </div>
     </div>
-
-    <!-- Recherche rapide patient -->
-    <form action="/accueil/recherche" method="GET" class="search-bar">
-      <input
-        type="text"
-        name="q"
-        placeholder="🔍  Rechercher un patient — nom, prénom ou numéro BF-XXXX-XXXXXX"
-      >
-      <button type="submit" class="btn-search">Rechercher</button>
-    </form>
-
-    <!-- Actions rapides -->
-    <div class="actions">
-      <a href="/accueil/nouveau-patient" class="ac">
-        <span class="ac-icon">➕</span>
-        <span class="ac-lbl">Nouveau patient</span>
-      </a>
-      <a href="/accueil/recherche" class="ac">
-        <span class="ac-icon">🔍</span>
-        <span class="ac-lbl">Rechercher</span>
-      </a>
-      <a href="/accueil/rdv" class="ac">
-        <span class="ac-icon">📅</span>
-        <span class="ac-lbl">Rendez-vous</span>
-      </a>
-      <a href="/accueil/rdv/nouveau" class="ac">
-        <span class="ac-icon">📋</span>
-        <span class="ac-lbl">Prendre RDV</span>
-      </a>
-    </div>
-
-    <!-- RDV du jour -->
-    <div class="rdv-box">
-      <div class="rdv-header">
-        <h3>📅 Rendez-vous d'aujourd'hui (${rdvJour.length})</h3>
-        <a href="/accueil/rdv">Voir tout →</a>
+  </aside>
+  <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+  <div class="main">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <div><div class="topbar-title">Bonjour, ${profil.prenom} 👋</div><div class="topbar-sub">Gestion de la caisse</div></div>
       </div>
-      ${rdvJour.length === 0
-        ? '<div class="empty">Aucun rendez-vous planifié pour aujourd\'hui</div>'
-        : rdvJour.map((r: any) => `
-          <div class="rdv-item">
-            <div class="rdv-heure">
-              ${new Date(r.date_heure).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
-            </div>
-            <div class="rdv-patient">
-              <strong>${r.patient_dossiers?.prenom || ''} ${r.patient_dossiers?.nom || ''}</strong>
-              <span>${r.motif || 'Consultation'}</span>
-            </div>
-            <div class="rdv-medecin">
-              Dr. ${r.auth_profiles?.prenom || ''} ${r.auth_profiles?.nom || ''}
-            </div>
-            <span class="rdv-statut ${r.statut}">${r.statut}</span>
-          </div>`).join('')
-      }
+      <div class="datetime-pill">🕐 ${heure} — ${date}</div>
+    </header>
+    <div class="content">
+      <div class="stats-grid">
+        <div class="stat-card c-vert"><div class="stat-icon">📋</div><div class="stat-val">${data.stats.facturesJour}</div><div class="stat-lbl">Factures aujourd'hui</div></div>
+        <div class="stat-card c-rouge"><div class="stat-icon">⏳</div><div class="stat-val">${data.stats.impayees}</div><div class="stat-lbl">Impayées</div></div>
+        <div class="stat-card c-or"><div class="stat-icon">💰</div><div class="stat-val or">${formatFCFA(data.stats.recetteJour)}</div><div class="stat-lbl">Recette du jour</div></div>
+        <div class="stat-card c-vert"><div class="stat-icon">🕐</div><div class="stat-val">${data.stats.attente}</div><div class="stat-lbl">En attente</div></div>
+      </div>
+      <div class="actions-grid">
+        <a href="/caissier/encaissement" class="action-card"><div class="action-icon">💵</div><div class="action-label">Encaissement</div></a>
+        <a href="/caissier/recherche" class="action-card"><div class="action-icon">🔍</div><div class="action-label">Rechercher</div></a>
+        <a href="/caissier/cloture" class="action-card"><div class="action-icon">📊</div><div class="action-label">Clôture</div></a>
+        <a href="/caissier/historique" class="action-card"><div class="action-icon">📜</div><div class="action-label">Historique</div></a>
+      </div>
+      <div class="section-title">⏳ Factures du jour</div>
+      ${data.factures.length === 0
+        ? '<div class="empty" style="background:white;border-radius:var(--radius);border:1px solid var(--bordure);">Aucune facture aujourd\'hui</div>'
+        : `<div class="facture-list">
+            ${data.factures.map((f: any) => `
+              <div class="facture-item">
+                <div>
+                  <div class="facture-num">${f.numero_facture}</div>
+                  <div class="facture-patient">${f.patient.prenom} ${f.patient.nom}</div>
+                  <div class="facture-date">${new Date(f.created_at).toLocaleDateString('fr-FR')}</div>
+                </div>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+                  <span class="badge ${
+                    f.statut === 'payee' ? 'badge-payee' :
+                    f.statut === 'impayee' ? 'badge-impayee' :
+                    f.statut === 'en_attente' ? 'badge-attente' : 'badge-partielle'
+                  }">${f.statut.replace(/_/g,' ')}</span>
+                  <div class="facture-montant">${formatFCFA(f.total_ttc)}</div>
+                  <a href="/caissier/facture/${f.id}" class="btn-sm">Encaisser</a>
+                </div>
+              </div>`).join('')}
+           </div>`}
     </div>
   </div>
+</div>
+<script>
+  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').classList.toggle('open'); }
+  function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('open'); }
+</script>
 </body>
 </html>`
 }
+
