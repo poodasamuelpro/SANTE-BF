@@ -326,7 +326,7 @@ export function loginPage(erreur?: string, resetOk?: boolean): string {
         <p>Accédez à votre espace SantéBF</p>
       </div>
 
-      ${erreur  ? `<div class="alerte">⚠️ ${erreur}</div>` : ''}
+      ${erreur ? `<div class="alerte">⚠️ ${erreur}</div>` : ''}
       ${resetOk ? `<div class="succes-msg">✅ Mot de passe modifié avec succès. Reconnectez-vous.</div>` : ''}
 
       <form method="POST" action="/auth/login" id="loginForm">
@@ -385,7 +385,7 @@ export function loginPage(erreur?: string, resetOk?: boolean): string {
       b.textContent = i.type === 'password' ? '👁️' : '🙈'
     }
     
-    // Timeout de 30 secondes pour la connexion
+    // SCRIPT AMÉLIORÉ
     let loginTimeout = null;
     
     const form = document.getElementById('loginForm')
@@ -410,23 +410,27 @@ export function loginPage(erreur?: string, resetOk?: boolean): string {
         
         console.log('✓ Spinner activé, formulaire va se soumettre')
         
-        // Timeout de 30 secondes
+        // Timeout réduit à 15 secondes pour debug
         loginTimeout = setTimeout(() => {
-          console.warn('⏱️ Timeout de 30s atteint')
-          spinner.style.display = 'none'
-          btnText.textContent = 'Se connecter'
-          btn.disabled = false
+          console.warn('⏱️ Timeout de 15s atteint')
           
-          // Afficher une alerte d'erreur
-          let alert = document.getElementById('timeoutAlert')
-          if (!alert) {
-            alert = document.createElement('div')
-            alert.id = 'timeoutAlert'
-            alert.className = 'alerte'
-            alert.innerHTML = '⚠️ La connexion prend trop de temps. Vérifiez votre connexion internet ou contactez l\\'administrateur.'
-            form.parentElement.insertBefore(alert, form)
+          // Vérifier si la page a changé
+          if (document.body.contains(btn)) {
+            spinner.style.display = 'none'
+            btnText.textContent = 'Se connecter'
+            btn.disabled = false
+            
+            // Afficher une alerte d'erreur
+            let alert = document.getElementById('timeoutAlert')
+            if (!alert) {
+              alert = document.createElement('div')
+              alert.id = 'timeoutAlert'
+              alert.className = 'alerte'
+              alert.innerHTML = '⚠️ La connexion prend trop de temps. Vérifiez votre connexion internet et ouvrez la console développeur (F12) pour voir les erreurs.'
+              form.parentElement.insertBefore(alert, form)
+            }
           }
-        }, 30000) // 30 secondes
+        }, 15000) // 15 secondes
       })
     }
     
