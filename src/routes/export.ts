@@ -3,7 +3,7 @@
  * ✅ CORRECTION : requireRole() attend des arguments individuels, pas un tableau
  * Ancienne version : requireRole(['admin_structure', 'medecin', ...])  ← ERREUR
  * Version corrigée : requireRole('admin_structure', 'medecin', ...)    ← CORRECT
- */
+ */ 
 
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
