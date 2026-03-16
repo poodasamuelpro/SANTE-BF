@@ -7,6 +7,18 @@ import { resetPasswordPage, resetConfirmPage } from '../pages/reset-password'
 
 export const authRoutes = new Hono<{ Bindings: Bindings }>()
 
+// Options communes pour tous les cookies d'auth
+// maxAge 7 jours — le refresh token Supabase dure aussi 7 jours par défaut
+// Le JWT access_token expire en 1h (configuré dans Supabase),
+// mais le middleware auth.ts le rafraîchit automatiquement via le refresh_token
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'Lax' as const,
+  maxAge: 604800, // 7 jours
+  path: '/'
+}
+
 // ── GET /auth/login ────────────────────────────────────────
 authRoutes.get('/login', async (c) => {
   try {
@@ -17,7 +29,9 @@ authRoutes.get('/login', async (c) => {
       if (user) {
         const profil = await getProfil(sb, user.id)
         if (profil?.est_actif) {
-          const destination = profil.doit_changer_mdp ? '/auth/changer-mdp' : redirectionParRole(profil.role)
+          const destination = profil.doit_changer_mdp
+            ? '/auth/changer-mdp'
+            : redirectionParRole(profil.role)
           return c.redirect(destination)
         }
       }
@@ -34,6 +48,7 @@ authRoutes.get('/login', async (c) => {
 authRoutes.post('/login', async (c) => {
   try {
     console.log('🔐 Tentative de connexion...')
+
     const body     = await c.req.parseBody()
     const email    = String(body.email    ?? '').trim().toLowerCase()
     const password = String(body.password ?? '').trim()
@@ -41,7 +56,6 @@ authRoutes.post('/login', async (c) => {
     console.log('📧 Email:', email)
 
     if (!email || !password) {
-      console.log('⚠️ Champs manquants')
       return c.html(loginPage('Veuillez remplir tous les champs.'))
     }
 
@@ -52,23 +66,18 @@ authRoutes.post('/login', async (c) => {
     }
 
     const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
-    
-    // Test de connexion Supabase
-    try {
-      await sb.auth.getSession()
-    } catch (err) {
-      console.error('❌ Supabase client error:', err)
-      return c.html(loginPage('❌ Erreur de connexion à la base de données.'))
-    }
+
+    // ✅ CORRECTION : suppression du try/catch inutile autour de getSession()
+    // qui faisait une requête réseau superflue ralentissant la connexion
 
     const { data, error } = await sb.auth.signInWithPassword({ email, password })
-    console.log('Auth response - Success:', !!data.user, 'Error:', error?.message || 'none')
+    console.log('Auth response — Succès:', !!data.user, 'Erreur:', error?.message || 'aucune')
 
     if (error || !data.user || !data.session) {
       console.error('❌ Erreur d\'authentification:', error?.message)
       let msg = 'Email ou mot de passe incorrect.'
-      if (error?.message?.includes('Too many'))       msg = 'Trop de tentatives. Réessayez dans 15 minutes.'
-      if (error?.message?.includes('not confirmed'))  msg = "Compte non confirmé. Contactez l'administrateur."
+      if (error?.message?.includes('Too many'))      msg = 'Trop de tentatives. Réessayez dans 15 minutes.'
+      if (error?.message?.includes('not confirmed')) msg = "Compte non confirmé. Contactez l'administrateur."
       return c.html(loginPage(msg))
     }
 
@@ -88,45 +97,33 @@ authRoutes.post('/login', async (c) => {
 
     console.log('✓ Profil actif, configuration des cookies...')
 
-    // Options de cookies avec toutes les sécurités
-    const cookieOptions = {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax' as const,
-      maxAge: 604800, // 7 jours
-      path: '/'
-    }
+    // ✅ CORRECTION : définir les cookies sur la réponse de redirection
+    // directement, sans setTimeout ni vérification getCookie côté serveur
+    // (les cookies ne sont pas encore lisibles côté serveur avant la prochaine requête)
+    setCookie(c, 'sb_token', data.session.access_token, COOKIE_OPTS)
 
-    // CORRECTION : Ne pas définir de cookie vide
-    setCookie(c, 'sb_token', data.session.access_token, cookieOptions)
-    
     if (data.session.refresh_token) {
-      setCookie(c, 'sb_refresh', data.session.refresh_token, cookieOptions)
+      setCookie(c, 'sb_refresh', data.session.refresh_token, COOKIE_OPTS)
     } else {
       console.warn('⚠️ Pas de refresh token dans la session')
     }
 
-    console.log('✅ Cookies configurés et session établie')
+    const destination = profil.doit_changer_mdp
+      ? '/auth/changer-mdp'
+      : redirectionParRole(profil.role)
 
-    // CORRECTION : Attendre un peu pour que les cookies soient bien définis
-    await new Promise(resolve => setTimeout(resolve, 100))
+    console.log('✅ Cookies définis, redirection vers:', destination)
 
-    // Vérification douce des cookies
-    const verifToken = getCookie(c, 'sb_token')
-    console.log('🔍 Vérification cookie token:', !!verifToken)
-
-    // Déterminer la destination
-    const destination = profil.doit_changer_mdp ? '/auth/changer-mdp' : redirectionParRole(profil.role)
-    console.log('➡️  Redirection vers:', destination)
-
-    // CORRECTION : Redirection avec code 302 explicite
+    // ✅ CORRECTION : redirection simple — Hono construit la réponse avec
+    // les cookies ET le header Location ensemble. Ne pas intercepter cette
+    // réponse dans functions/[[path]].ts (voir correction là-bas).
     return c.redirect(destination, 302)
-    
+
   } catch (err) {
     console.error('❌ Erreur critique login:', err)
     console.error('Stack:', err instanceof Error ? err.stack : 'N/A')
     const message = err instanceof Error ? err.message : 'Erreur serveur inconnue'
-    return c.html(loginPage(`❌ Erreur serveur: ${message}. Contactez l'administrateur si le problème persiste.`))
+    return c.html(loginPage(`❌ Erreur serveur: ${message}. Contactez l'administrateur.`))
   }
 })
 
@@ -138,7 +135,7 @@ authRoutes.post('/changer-mdp', async (c) => {
   try {
     const token   = getCookie(c, 'sb_token')
     const refresh = getCookie(c, 'sb_refresh')
-    
+
     if (!token) {
       console.error('❌ Token manquant pour changement mot de passe')
       return c.redirect('/auth/login')
@@ -160,19 +157,19 @@ authRoutes.post('/changer-mdp', async (c) => {
       return c.html(changerMdpPage('Au moins 1 caractère spécial (#@!$%).'))
 
     const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
-    
-    const { error: sessionError } = await sb.auth.setSession({ 
-      access_token: token, 
-      refresh_token: refresh ?? '' 
+
+    const { error: sessionError } = await sb.auth.setSession({
+      access_token:  token,
+      refresh_token: refresh ?? ''
     })
-    
+
     if (sessionError) {
       console.error('❌ Erreur setSession:', sessionError)
       return c.html(changerMdpPage('Session expirée. Reconnectez-vous.'))
     }
-    
+
     const { error } = await sb.auth.updateUser({ password: newPwd })
-    
+
     if (error) {
       console.error('❌ Erreur updateUser:', error)
       return c.html(changerMdpPage('Erreur : ' + error.message))
@@ -201,10 +198,10 @@ authRoutes.post('/reset-password', async (c) => {
   try {
     const body  = await c.req.parseBody()
     const email = String(body.email ?? '').trim().toLowerCase()
-    
+
     if (!email) return c.html(resetPasswordPage('Entrez votre adresse email.'))
 
-    const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+    const sb      = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
     const baseUrl = new URL(c.req.url).origin
 
     const { error } = await sb.auth.resetPasswordForEmail(email, {
@@ -215,6 +212,7 @@ authRoutes.post('/reset-password', async (c) => {
       console.error('❌ Erreur resetPasswordForEmail:', error.message)
     }
 
+    // On retourne toujours succès (sécurité : ne pas révéler si l'email existe)
     return c.html(resetPasswordPage(undefined, true))
   } catch (err) {
     console.error('❌ Erreur POST /reset-password:', err)
@@ -231,8 +229,8 @@ authRoutes.get('/reset-confirm', async (c) => {
 authRoutes.post('/reset-confirm', async (c) => {
   try {
     const body    = await c.req.parseBody()
-    const newPwd  = String(body.password ?? '')
-    const confirm = String(body.confirm  ?? '')
+    const newPwd  = String(body.password     ?? '')
+    const confirm = String(body.confirm      ?? '')
     const token   = String(body.access_token ?? '').trim()
 
     if (newPwd !== confirm)
@@ -254,7 +252,7 @@ authRoutes.post('/reset-confirm', async (c) => {
     const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
 
     const { error: sessionError } = await sb.auth.setSession({
-      access_token: token,
+      access_token:  token,
       refresh_token: ''
     })
 
@@ -264,7 +262,7 @@ authRoutes.post('/reset-confirm', async (c) => {
     }
 
     const { error: updateError } = await sb.auth.updateUser({ password: newPwd })
-    
+
     if (updateError) {
       console.error('❌ updateUser failed:', updateError.message)
       return c.html(resetConfirmPage('Erreur: ' + updateError.message))
