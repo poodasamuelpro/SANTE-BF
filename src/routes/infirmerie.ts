@@ -1,234 +1,151 @@
 /**
  * Routes du module Infirmerie
- * Soins infirmiers, pansements, injections, surveillance
+ * ✅ CORRECTION : Import des fonctions pageSkeleton, statsGrid, actionCard, alertHTML
  */
 
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
-import { getSupabase } from '../lib/supabase'
 import type { AuthProfile } from '../lib/supabase'
-// Note: pageSkeleton, statsGrid, actionCard sont définis localement pour ce module
-import { alertHTML } from '../components/alert'
+import { pageSkeleton, statsGrid, actionCard, alertHTML } from './module-helpers'
 
 export const infirmerieRoutes = new Hono()
 
-// Middleware
 infirmerieRoutes.use('*', requireAuth)
-infirmerieRoutes.use('*', requireRole(['infirmier', 'super_admin']))
+// ✅ CORRECTION : requireRole attend des args individuels, pas un tableau
+infirmerieRoutes.use('*', requireRole('infirmier', 'sage_femme', 'medecin', 'super_admin'))
 
 /**
- * GET /infirmerie
- * Dashboard infirmerie
+ * GET /infirmerie — Dashboard infirmerie
  */
 infirmerieRoutes.get('/', async (c) => {
   const supabase = c.get('supabase')
-  const profil = c.get('profil')
+  const profil = c.get('profil') as AuthProfile
 
   try {
-    // Soins programmés aujourd'hui
     const aujourdhui = new Date().toISOString().split('T')[0]
-    const { data: soinsJour, error: err1 } = await supabase
-      .from('medical_soins_infirmiers')
-      .select(`
-        id, patient_id, type_soin, horaire_prevu, statut,
-        patient:patient_id (nom, prenom, numero_national)
-      `)
-      .eq('structure_id', profil.structure_id!)
-      .gte('horaire_prevu', `${aujourdhui}T00:00:00`)
-      .lte('horaire_prevu', `${aujourdhui}T23:59:59`)
-      .order('horaire_prevu', { ascending: true })
 
-    if (err1) throw err1
+    const [soinsRes, surveillanceRes, pansementsRes, injectionsRes] = await Promise.all([
+      supabase.from('medical_soins_infirmiers')
+        .select(`id, patient_id, type_soin, horaire_prevu, statut, patient:patient_id (nom, prenom)`)
+        .eq('structure_id', profil.structure_id!)
+        .gte('horaire_prevu', `${aujourdhui}T00:00:00`)
+        .lte('horaire_prevu', `${aujourdhui}T23:59:59`)
+        .order('horaire_prevu', { ascending: true }),
+      supabase.from('medical_surveillance')
+        .select(`id, patient_id, type_surveillance, frequence, prochaine_mesure, patient:patient_id (nom, prenom)`)
+        .eq('structure_id', profil.structure_id!)
+        .eq('statut', 'active')
+        .order('prochaine_mesure', { ascending: true })
+        .limit(10),
+      supabase.from('medical_soins_infirmiers').select('id')
+        .eq('structure_id', profil.structure_id!)
+        .eq('type_soin', 'pansement')
+        .gte('horaire_prevu', `${aujourdhui}T00:00:00`)
+        .lte('horaire_prevu', `${aujourdhui}T23:59:59`),
+      supabase.from('medical_soins_infirmiers').select('id')
+        .eq('structure_id', profil.structure_id!)
+        .eq('type_soin', 'injection')
+        .gte('horaire_prevu', `${aujourdhui}T00:00:00`)
+        .lte('horaire_prevu', `${aujourdhui}T23:59:59`),
+    ])
 
-    // Patients sous surveillance
-    const { data: surveillance, error: err2 } = await supabase
-      .from('medical_surveillance')
-      .select(`
-        id, patient_id, type_surveillance, frequence, prochaine_mesure,
-        patient:patient_id (nom, prenom)
-      `)
-      .eq('structure_id', profil.structure_id!)
-      .eq('statut', 'active')
-      .order('prochaine_mesure', { ascending: true })
-      .limit(10)
-
-    if (err2) throw err2
-
-    // Pansements du jour
-    const { data: pansements, error: err3 } = await supabase
-      .from('medical_soins_infirmiers')
-      .select('id')
-      .eq('structure_id', profil.structure_id!)
-      .eq('type_soin', 'pansement')
-      .gte('horaire_prevu', `${aujourdhui}T00:00:00`)
-      .lte('horaire_prevu', `${aujourdhui}T23:59:59`)
-
-    if (err3) throw err3
-
-    // Injections du jour
-    const { data: injections, error: err4 } = await supabase
-      .from('medical_soins_infirmiers')
-      .select('id')
-      .eq('structure_id', profil.structure_id!)
-      .eq('type_soin', 'injection')
-      .gte('horaire_prevu', `${aujourdhui}T00:00:00`)
-      .lte('horaire_prevu', `${aujourdhui}T23:59:59`)
-
-    if (err4) throw err4
+    const soins       = soinsRes.data ?? []
+    const surveillance = surveillanceRes.data ?? []
 
     const stats = {
-      soinsJour: soinsJour?.length || 0,
-      surveillance: surveillance?.length || 0,
-      pansements: pansements?.length || 0,
-      injections: injections?.length || 0
+      soinsJour:    soins.length,
+      surveillance: surveillance.length,
+      pansements:   pansementsRes.data?.length || 0,
+      injections:   injectionsRes.data?.length || 0,
     }
 
-    const html = pageSkeleton(
-      profil,
-      'Infirmerie',
-      `
-        <div class="max-w-7xl mx-auto">
-          <!-- Statistiques -->
-          ${statsGrid([
-            { label: "Soins aujourd'hui", value: stats.soinsJour.toString(), icon: '💉', color: 'blue' },
-            { label: 'Surveillance active', value: stats.surveillance.toString(), icon: '📊', color: 'green' },
-            { label: 'Pansements', value: stats.pansements.toString(), icon: '🩹', color: 'orange' },
-            { label: 'Injections', value: stats.injections.toString(), icon: '💊', color: 'purple' }
-          ])}
+    const contenu = `
+      ${statsGrid([
+        { label: "Soins aujourd'hui", value: stats.soinsJour,    icon: '💉', color: 'blue'   },
+        { label: 'Surveillance',      value: stats.surveillance, icon: '📊', color: 'green'  },
+        { label: 'Pansements',        value: stats.pansements,   icon: '🩹', color: 'orange' },
+        { label: 'Injections',        value: stats.injections,   icon: '💊', color: 'purple' },
+      ])}
 
-          <!-- Actions rapides -->
-          <div class="grid md:grid-cols-4 gap-4 mb-8">
-            ${actionCard('Nouveau soin', '➕', '/infirmerie/nouveau', 'blue')}
-            ${actionCard('Surveillance', '📈', '/infirmerie/surveillance', 'green')}
-            ${actionCard('Rechercher', '🔍', '/infirmerie/recherche', 'gray')}
-            ${actionCard('Historique', '📋', '/infirmerie/historique', 'gray')}
-          </div>
+      <div class="actions-module">
+        ${actionCard('Nouveau soin',  '➕', '/infirmerie/nouveau',       'blue' )}
+        ${actionCard('Surveillance',  '📈', '/infirmerie/surveillance',  'green')}
+        ${actionCard('Rechercher',    '🔍', '/infirmerie/recherche',     'gray' )}
+        ${actionCard('Historique',    '📋', '/infirmerie/historique',    'gray' )}
+      </div>
 
-          <!-- Soins du jour -->
-          <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-              <span>💉</span> Soins programmés aujourd'hui
-            </h2>
-            ${soinsJour && soinsJour.length > 0 ? `
-              <div class="overflow-x-auto">
-                <table class="min-w-full">
-                  <thead class="bg-gray-50">
-                    <tr>
-                      <th class="px-4 py-2 text-left">Heure</th>
-                      <th class="px-4 py-2 text-left">Patient</th>
-                      <th class="px-4 py-2 text-left">Type de soin</th>
-                      <th class="px-4 py-2 text-left">Statut</th>
-                      <th class="px-4 py-2 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${soinsJour.map(soin => `
-                      <tr class="border-t hover:bg-gray-50">
-                        <td class="px-4 py-3 font-semibold">
-                          ${new Date(soin.horaire_prevu).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td class="px-4 py-3">${soin.patient?.nom} ${soin.patient?.prenom}</td>
-                        <td class="px-4 py-3">${soin.type_soin}</td>
-                        <td class="px-4 py-3">
-                          <span class="px-2 py-1 text-xs rounded ${
-                            soin.statut === 'effectue' ? 'bg-green-100 text-green-800' :
-                            soin.statut === 'en_cours' ? 'bg-blue-100 text-blue-800' :
-                            'bg-gray-100 text-gray-800'
-                          }">
-                            ${soin.statut}
-                          </span>
-                        </td>
-                        <td class="px-4 py-3">
-                          <a href="/infirmerie/soin/${soin.id}" 
-                             class="text-blue-600 hover:underline text-sm">
-                            Voir →
-                          </a>
-                        </td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-              </div>
-            ` : `
-              <p class="text-gray-500 text-center py-8">Aucun soin programmé aujourd'hui</p>
-            `}
-          </div>
-
-          <!-- Surveillance active -->
-          <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-              <span>📊</span> Patients sous surveillance
-            </h2>
-            ${surveillance && surveillance.length > 0 ? `
-              <div class="grid md:grid-cols-2 gap-4">
-                ${surveillance.map(s => `
-                  <div class="border rounded-lg p-4 hover:shadow-md transition">
-                    <div class="flex justify-between items-start mb-2">
-                      <span class="font-semibold">${s.patient?.nom} ${s.patient?.prenom}</span>
-                      <span class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                        ${s.type_surveillance}
-                      </span>
-                    </div>
-                    <div class="text-sm text-gray-600 mb-2">
-                      Fréquence : ${s.frequence}
-                    </div>
-                    <div class="text-sm text-gray-600">
-                      Prochaine mesure : ${s.prochaine_mesure ? new Date(s.prochaine_mesure).toLocaleString('fr-FR') : '—'}
-                    </div>
-                    <a href="/infirmerie/surveillance/${s.id}" 
-                       class="inline-block mt-2 text-blue-600 hover:underline text-sm">
-                      Voir détails →
-                    </a>
-                  </div>
-                `).join('')}
-              </div>
-            ` : `
-              <p class="text-gray-500 text-center py-8">Aucun patient sous surveillance</p>
-            `}
-          </div>
+      <div class="section-box" style="margin-bottom:20px">
+        <div class="section-header">
+          <h2>💉 Soins du jour (${soins.length})</h2>
+          <a href="/infirmerie/nouveau" style="font-size:12px;color:rgba(255,255,255,0.75);text-decoration:none;background:rgba(255,255,255,0.12);padding:4px 10px;border-radius:6px">+ Nouveau</a>
         </div>
-      `
-    )
+        ${soins.length === 0
+          ? '<div class="empty">Aucun soin programmé aujourd\'hui</div>'
+          : `<table>
+              <thead><tr><th>Heure</th><th>Patient</th><th>Type de soin</th><th>Statut</th><th>Actions</th></tr></thead>
+              <tbody>
+                ${soins.map((s: any) => {
+                  const statClass = s.statut === 'effectue' ? 'badge-ok' : s.statut === 'en_cours' ? 'badge-blue' : 'badge-neutral'
+                  return `<tr>
+                    <td><strong>${new Date(s.horaire_prevu).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</strong></td>
+                    <td>${s.patient?.prenom || ''} ${s.patient?.nom || ''}</td>
+                    <td>${s.type_soin}</td>
+                    <td><span class="badge ${statClass}">${s.statut}</span></td>
+                    <td><a href="/infirmerie/soin/${s.id}" style="color:#0288D1;font-size:13px">Voir →</a></td>
+                  </tr>`
+                }).join('')}
+              </tbody>
+            </table>`
+        }
+      </div>
 
-    return c.html(html)
-  } catch (error) {
-    console.error('Erreur dashboard infirmerie:', error)
-    return c.html(pageSkeleton(
-      profil,
-      'Erreur',
-      alertHTML('error', 'Erreur lors du chargement du dashboard')
-    ))
+      <div class="section-box">
+        <div class="section-header"><h2>📊 Patients sous surveillance (${surveillance.length})</h2></div>
+        ${surveillance.length === 0
+          ? '<div class="empty">Aucun patient sous surveillance</div>'
+          : `<table>
+              <thead><tr><th>Patient</th><th>Type surveillance</th><th>Fréquence</th><th>Prochaine mesure</th><th>Actions</th></tr></thead>
+              <tbody>
+                ${surveillance.map((s: any) => `
+                  <tr>
+                    <td><strong>${s.patient?.prenom || ''} ${s.patient?.nom || ''}</strong></td>
+                    <td>${s.type_surveillance}</td>
+                    <td>${s.frequence}</td>
+                    <td>${s.prochaine_mesure ? new Date(s.prochaine_mesure).toLocaleString('fr-FR') : '—'}</td>
+                    <td><a href="/infirmerie/surveillance/${s.id}" style="color:#0288D1;font-size:13px">Voir →</a></td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`
+        }
+      </div>`
+
+    return c.html(pageSkeleton(profil, 'Infirmerie', '#0288D1', contenu))
+
+  } catch (err) {
+    console.error('Erreur dashboard infirmerie:', err)
+    return c.html(pageSkeleton(profil, 'Erreur', '#0288D1', alertHTML('error', 'Erreur lors du chargement')))
   }
 })
 
 /**
  * GET /infirmerie/nouveau
- * Formulaire de nouveau soin
  */
 infirmerieRoutes.get('/nouveau', async (c) => {
-  const profil = c.get('profil')
-  
-  const html = pageSkeleton(
-    profil,
-    'Nouveau soin',
-    `
-      <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 class="text-2xl font-bold mb-6">Enregistrer un nouveau soin</h1>
-        <form method="POST" action="/infirmerie/nouveau">
-          <!-- Patient -->
-          <div class="mb-4">
-            <label class="block font-semibold mb-2">Patient *</label>
-            <input type="text" 
-                   name="patient_search" 
-                   placeholder="Rechercher par nom, numéro national..."
-                   class="w-full border rounded px-3 py-2" 
-                   required>
-          </div>
+  const profil = c.get('profil') as AuthProfile
 
-          <!-- Type de soin -->
-          <div class="mb-4">
-            <label class="block font-semibold mb-2">Type de soin *</label>
-            <select name="type_soin" class="w-full border rounded px-3 py-2" required>
+  const contenu = `
+    <div class="section-box" style="padding:28px">
+      <h1 style="font-family:'Fraunces',serif;font-size:22px;margin-bottom:20px">Enregistrer un soin</h1>
+      <form method="POST" action="/infirmerie/nouveau">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+          <div style="grid-column:1/-1">
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Patient *</label>
+            <input type="text" name="patient_search" placeholder="Rechercher par nom ou numéro..." style="width:100%;padding:11px 14px;border:1.5px solid #e2e8e4;border-radius:8px;font-size:14px;font-family:inherit" required>
+            <input type="hidden" name="patient_id">
+          </div>
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Type de soin *</label>
+            <select name="type_soin" style="width:100%;padding:11px 14px;border:1.5px solid #e2e8e4;border-radius:8px;font-size:14px;font-family:inherit" required>
               <option value="">-- Sélectionner --</option>
               <option value="injection">Injection</option>
               <option value="perfusion">Perfusion</option>
@@ -240,121 +157,109 @@ infirmerieRoutes.get('/nouveau', async (c) => {
               <option value="autre">Autre</option>
             </select>
           </div>
-
-          <!-- Horaire prévu -->
-          <div class="mb-4">
-            <label class="block font-semibold mb-2">Horaire prévu</label>
-            <input type="datetime-local" 
-                   name="horaire_prevu" 
-                   class="w-full border rounded px-3 py-2">
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Horaire prévu</label>
+            <input type="datetime-local" name="horaire_prevu" style="width:100%;padding:11px 14px;border:1.5px solid #e2e8e4;border-radius:8px;font-size:14px;font-family:inherit">
           </div>
-
-          <!-- Description -->
-          <div class="mb-4">
-            <label class="block font-semibold mb-2">Description / Prescription</label>
-            <textarea name="description" 
-                      rows="3" 
-                      class="w-full border rounded px-3 py-2"
-                      placeholder="Détails du soin à réaliser..."></textarea>
+          <div style="grid-column:1/-1">
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Description</label>
+            <textarea name="description" rows="3" placeholder="Détails du soin à réaliser..." style="width:100%;padding:11px 14px;border:1.5px solid #e2e8e4;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
           </div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:24px;justify-content:flex-end">
+          <a href="/infirmerie" style="background:#f3f4f6;color:#374151;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Annuler</a>
+          <button type="submit" style="background:#0288D1;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Enregistrer →</button>
+        </div>
+      </form>
+    </div>`
 
-          <div class="flex gap-4">
-            <button type="submit" 
-                    class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
-              Enregistrer
-            </button>
-            <a href="/infirmerie" 
-               class="bg-gray-200 text-gray-700 px-6 py-2 rounded hover:bg-gray-300">
-              Annuler
-            </a>
-          </div>
-        </form>
-      </div>
-    `
-  )
-
-  return c.html(html)
+  return c.html(pageSkeleton(profil, 'Nouveau soin', '#0288D1', contenu))
 })
 
 /**
  * GET /infirmerie/soin/:id
- * Détail d'un soin
  */
 infirmerieRoutes.get('/soin/:id', async (c) => {
-  const profil = c.get('profil')
+  const profil = c.get('profil') as AuthProfile
   const id = c.req.param('id')
-  
-  const html = pageSkeleton(
-    profil,
-    'Détail soin',
-    `
-      <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 class="text-2xl font-bold mb-4">Soin #${id}</h1>
-        <p class="text-gray-500">TODO: Afficher et tracer le soin</p>
-      </div>
-    `
-  )
 
-  return c.html(html)
+  const contenu = `
+    <div class="section-box" style="padding:28px">
+      <h1 style="font-family:'Fraunces',serif;font-size:22px;margin-bottom:12px">Soin #${id}</h1>
+      <p style="color:#6b7280">Détail du soin — Fonctionnalité en cours de développement</p>
+      <a href="/infirmerie" style="display:inline-block;margin-top:16px;color:#0288D1;font-weight:600">← Retour</a>
+    </div>`
+
+  return c.html(pageSkeleton(profil, 'Détail soin', '#0288D1', contenu))
 })
 
 /**
  * GET /infirmerie/surveillance
- * Gestion de la surveillance
  */
 infirmerieRoutes.get('/surveillance', async (c) => {
-  const profil = c.get('profil')
-  
-  const html = pageSkeleton(
-    profil,
-    'Surveillance',
-    `
-      <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 class="text-2xl font-bold mb-4">Surveillance des patients</h1>
-        <p class="text-gray-500">TODO: Liste et saisie des surveillances</p>
-      </div>
-    `
-  )
+  const profil = c.get('profil') as AuthProfile
 
-  return c.html(html)
+  const contenu = `
+    <div class="section-box" style="padding:28px">
+      <h1 style="font-family:'Fraunces',serif;font-size:22px;margin-bottom:12px">Surveillance des patients</h1>
+      <p style="color:#6b7280">Fonctionnalité en cours de développement</p>
+      <a href="/infirmerie" style="display:inline-block;margin-top:16px;color:#0288D1;font-weight:600">← Retour</a>
+    </div>`
+
+  return c.html(pageSkeleton(profil, 'Surveillance', '#0288D1', contenu))
 })
 
 /**
  * GET /infirmerie/recherche
  */
 infirmerieRoutes.get('/recherche', async (c) => {
-  const profil = c.get('profil')
-  
-  const html = pageSkeleton(
-    profil,
-    'Recherche',
-    `
-      <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 class="text-2xl font-bold mb-4">Rechercher un soin</h1>
-        <p class="text-gray-500">TODO: Formulaire de recherche</p>
-      </div>
-    `
-  )
+  const profil = c.get('profil') as AuthProfile
 
-  return c.html(html)
+  const contenu = `
+    <div class="section-box" style="padding:28px">
+      <h1 style="font-family:'Fraunces',serif;font-size:22px;margin-bottom:12px">Rechercher un soin</h1>
+      <p style="color:#6b7280">Fonctionnalité en cours de développement</p>
+      <a href="/infirmerie" style="display:inline-block;margin-top:16px;color:#0288D1;font-weight:600">← Retour</a>
+    </div>`
+
+  return c.html(pageSkeleton(profil, 'Recherche', '#0288D1', contenu))
 })
 
 /**
  * GET /infirmerie/historique
  */
 infirmerieRoutes.get('/historique', async (c) => {
-  const profil = c.get('profil')
-  
-  const html = pageSkeleton(
-    profil,
-    'Historique',
-    `
-      <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 class="text-2xl font-bold mb-4">Historique des soins</h1>
-        <p class="text-gray-500">TODO: Liste complète avec filtres</p>
-      </div>
-    `
-  )
+  const profil = c.get('profil') as AuthProfile
+  const supabase = c.get('supabase')
 
-  return c.html(html)
+  const { data: soins } = await supabase
+    .from('medical_soins_infirmiers')
+    .select(`id, type_soin, horaire_prevu, statut, patient:patient_id (nom, prenom)`)
+    .eq('structure_id', profil.structure_id!)
+    .order('horaire_prevu', { ascending: false })
+    .limit(50)
+
+  const contenu = `
+    <div class="section-box">
+      <div class="section-header"><h2>📋 Historique des soins</h2></div>
+      ${!soins || soins.length === 0
+        ? '<div class="empty">Aucun soin enregistré</div>'
+        : `<table>
+            <thead><tr><th>Date/Heure</th><th>Patient</th><th>Type</th><th>Statut</th></tr></thead>
+            <tbody>
+              ${soins.map((s: any) => {
+                const statClass = s.statut === 'effectue' ? 'badge-ok' : s.statut === 'en_cours' ? 'badge-blue' : 'badge-neutral'
+                return `<tr>
+                  <td>${new Date(s.horaire_prevu).toLocaleString('fr-FR')}</td>
+                  <td>${s.patient?.prenom || ''} ${s.patient?.nom || ''}</td>
+                  <td>${s.type_soin}</td>
+                  <td><span class="badge ${statClass}">${s.statut}</span></td>
+                </tr>`
+              }).join('')}
+            </tbody>
+          </table>`
+      }
+    </div>`
+
+  return c.html(pageSkeleton(profil, 'Historique', '#0288D1', contenu))
 })
