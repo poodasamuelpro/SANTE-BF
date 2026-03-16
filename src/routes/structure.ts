@@ -6,7 +6,7 @@ import type { AuthProfile } from '../lib/supabase'
 type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
 export const structureRoutes = new Hono<{ Bindings: Bindings }>()
 
-structureRoutes.use('/*', requireAuth, requireRole('admin_structure'))
+structureRoutes.use('/*', requireAuth, requireRole('admin_structure')) 
 
 // ── Liste du personnel ─────────────────────────────────────────
 structureRoutes.get('/personnel', async (c) => {
