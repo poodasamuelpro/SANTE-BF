@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
-import { getSupabase, type Variables, type Bindings } from '../lib/supabase'
+import { type Variables, type Bindings } from '../lib/supabase'
 
 export const adminRoutes = new Hono<{
   Bindings: Bindings
@@ -29,12 +29,12 @@ adminRoutes.get('/structures', async (c) => {
 adminRoutes.get('/structures/nouvelle', async (c) => {
   const supabase = c.get('supabase')
   const profil = c.get('profil')
-  
+
   const { data: villes } = await supabase
     .from('geo_villes')
     .select('id, nom, geo_provinces(nom, geo_regions(nom))')
     .order('nom')
-    
+
   return c.html(structureFormPage(profil, villes ?? []))
 })
 
@@ -60,7 +60,6 @@ adminRoutes.post('/structures/nouvelle', async (c) => {
       .from('geo_villes')
       .select('id, nom, geo_provinces(nom, geo_regions(nom))')
       .order('nom')
-      
     return c.html(structureFormPage(profil, villes ?? [], 'Erreur : ' + error.message))
   }
 
@@ -79,9 +78,7 @@ adminRoutes.get('/structures/:id', async (c) => {
     .eq('id', id)
     .single()
 
-  if (!structure) {
-    return c.text('Structure introuvable', 404)
-  }
+  if (!structure) return c.text('Structure introuvable', 404)
 
   const { data: services } = await supabase
     .from('struct_services')
@@ -104,10 +101,7 @@ adminRoutes.get('/comptes', async (c) => {
 
   const { data: comptes } = await supabase
     .from('auth_profiles')
-    .select(`
-      id, nom, prenom, role, est_actif, created_at,
-      struct_structures ( nom )
-    `)
+    .select(`id, nom, prenom, role, est_actif, created_at, struct_structures ( nom )`)
     .order('created_at', { ascending: false })
 
   return c.html(comptesListePage(profil, comptes ?? []))
@@ -133,49 +127,34 @@ adminRoutes.post('/comptes/nouveau', async (c) => {
   const profil = c.get('profil')
   const body = await c.req.parseBody()
 
-  const email       = String(body.email       ?? '').trim().toLowerCase()
-  const password    = String(body.password    ?? '').trim()
-  const nom         = String(body.nom         ?? '').trim()
-  const prenom      = String(body.prenom      ?? '').trim()
-  const role        = String(body.role        ?? '')
+  const email        = String(body.email       ?? '').trim().toLowerCase()
+  const password     = String(body.password    ?? '').trim()
+  const nom          = String(body.nom         ?? '').trim()
+  const prenom       = String(body.prenom      ?? '').trim()
+  const role         = String(body.role        ?? '')
   const structure_id = body.structure_id ? String(body.structure_id) : null
 
   if (!email || !password || !nom || !prenom || !role) {
     const { data: structures } = await supabase
-      .from('struct_structures')
-      .select('id, nom, type')
-      .eq('est_actif', true)
-      .order('nom')
-      
+      .from('struct_structures').select('id, nom, type').eq('est_actif', true).order('nom')
     return c.html(compteFormPage(profil, structures ?? [], 'Tous les champs obligatoires doivent être remplis.'))
   }
 
-  // Créer le compte dans Supabase Auth
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
+    email, password, email_confirm: true,
     user_metadata: { nom, prenom, role },
   })
 
   if (authError || !authData?.user) {
     const { data: structures } = await supabase
-      .from('struct_structures')
-      .select('id, nom, type')
-      .eq('est_actif', true)
-      .order('nom')
-      
+      .from('struct_structures').select('id, nom, type').eq('est_actif', true).order('nom')
     return c.html(compteFormPage(profil, structures ?? [], 'Erreur création compte : ' + (authError?.message ?? 'Inconnue')))
   }
 
-  // Mettre à jour auth_profiles avec la structure et activer
   await supabase.from('auth_profiles').update({
-    structure_id,
-    doit_changer_mdp: true,
-    est_actif: true,
+    structure_id, doit_changer_mdp: true, est_actif: true,
   }).eq('id', authData.user.id)
 
-  // Si médecin → créer entrée auth_medecins
   if (role === 'medecin' && body.numero_ordre) {
     await supabase.from('auth_medecins').insert({
       profile_id: authData.user.id,
@@ -193,15 +172,10 @@ adminRoutes.post('/comptes/:id/toggle', async (c) => {
   const id = c.req.param('id')
 
   const { data: compte } = await supabase
-    .from('auth_profiles')
-    .select('est_actif')
-    .eq('id', id)
-    .single()
-    
-  await supabase
-    .from('auth_profiles')
-    .update({ est_actif: !compte?.est_actif })
-    .eq('id', id)
+    .from('auth_profiles').select('est_actif').eq('id', id).single()
+
+  await supabase.from('auth_profiles')
+    .update({ est_actif: !compte?.est_actif }).eq('id', id)
 
   return c.redirect('/admin/comptes')
 })
@@ -233,8 +207,152 @@ adminRoutes.get('/stats', async (c) => {
 })
 
 // ══════════════════════════════════════════════════════════
-// PAGES HTML (inchangées mais avec typage corrigé)
+// CSS + COMPOSANTS COMMUNS
 // ══════════════════════════════════════════════════════════
+
+const CSS = `
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Fraunces:wght@300;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --vert:        #1A6B3C;
+    --vert-fonce:  #134d2c;
+    --vert-clair:  #e8f5ee;
+    --vert-glow:   rgba(26,107,60,0.12);
+    --or:          #C9A84C;
+    --or-clair:    #fdf6e3;
+    --texte:       #0f1923;
+    --texte-soft:  #5a6a78;
+    --bg:          #f4f6f4;
+    --blanc:       #ffffff;
+    --bordure:     #e2e8e4;
+    --shadow-sm:   0 1px 4px rgba(0,0,0,0.06);
+    --shadow-md:   0 4px 20px rgba(0,0,0,0.08);
+    --radius:      14px;
+    --radius-sm:   8px;
+  }
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); min-height:100vh; color:var(--texte); }
+
+  /* HEADER */
+  header {
+    background:var(--vert-fonce); padding:0 28px; height:60px;
+    display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:100;
+    box-shadow:0 2px 8px rgba(0,0,0,0.15);
+  }
+  .hl { display:flex; align-items:center; gap:12px; }
+  .logo-wrap { display:flex; align-items:center; gap:12px; text-decoration:none; }
+  .logo { width:34px; height:34px; background:var(--or); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:17px; }
+  .ht { font-family:'Fraunces',serif; font-size:18px; color:white; }
+  .ht span { font-family:'Plus Jakarta Sans',sans-serif; font-size:11px; opacity:.6; display:block; }
+  .hr { display:flex; align-items:center; gap:10px; }
+  .ub { background:rgba(255,255,255,0.1); border-radius:8px; padding:6px 12px; }
+  .ub strong { display:block; font-size:13px; color:white; }
+  .ub small { font-size:11px; color:rgba(255,255,255,0.5); }
+  .logout { background:rgba(255,255,255,0.1); color:white; border:none; padding:8px 14px; border-radius:8px; font-size:13px; cursor:pointer; text-decoration:none; font-family:'Plus Jakarta Sans',sans-serif; transition:background .2s; }
+  .logout:hover { background:rgba(255,80,80,0.2); }
+
+  /* LAYOUT */
+  .container { max-width:1100px; margin:0 auto; padding:28px 20px; }
+  .breadcrumb { font-size:12px; color:var(--texte-soft); margin-bottom:14px; }
+  .breadcrumb a { color:var(--vert); text-decoration:none; font-weight:600; }
+  .breadcrumb a:hover { text-decoration:underline; }
+
+  /* TOP BAR */
+  .top-bar { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+  .page-title { font-family:'Fraunces',serif; font-size:26px; color:var(--texte); margin-bottom:3px; }
+  .page-sub { font-size:13px; color:var(--texte-soft); }
+
+  /* BUTTONS */
+  .btn-primary { background:var(--vert); color:white; padding:10px 20px; border:none; border-radius:var(--radius-sm); font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; font-family:'Plus Jakarta Sans',sans-serif; display:inline-block; transition:background .2s; }
+  .btn-primary:hover { background:#15593a; }
+  .btn-secondary { background:var(--blanc); color:var(--texte); padding:10px 20px; border:1px solid var(--bordure); border-radius:var(--radius-sm); font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; font-family:'Plus Jakarta Sans',sans-serif; display:inline-block; }
+  .btn-danger { background:#fce8e8; color:#b71c1c; padding:10px 20px; border:none; border-radius:var(--radius-sm); font-size:13px; font-weight:600; cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; }
+  .btn-danger:hover { background:#fbd0d0; }
+
+  /* ALERTS */
+  .alerte-err { background:#fff5f5; border-left:4px solid #c62828; padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:20px; font-size:13px; color:#c62828; }
+  .alerte-ok  { background:var(--vert-clair); border-left:4px solid var(--vert); padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:20px; font-size:13px; color:var(--vert); }
+
+  /* CARD */
+  .card { background:var(--blanc); border-radius:var(--radius); box-shadow:var(--shadow-sm); border:1px solid var(--bordure); overflow:hidden; margin-bottom:24px; }
+  .card-header { padding:14px 20px; background:var(--vert-fonce); display:flex; justify-content:space-between; align-items:center; }
+  .card-header h3 { font-size:14px; color:white; font-weight:600; }
+
+  /* TABLE */
+  table { width:100%; border-collapse:collapse; }
+  thead tr { background:#f8faf8; }
+  thead th { padding:11px 16px; text-align:left; font-size:11px; color:var(--texte-soft); font-weight:700; text-transform:uppercase; letter-spacing:.6px; border-bottom:2px solid var(--bordure); }
+  tbody tr { border-bottom:1px solid var(--bordure); transition:background .15s; }
+  tbody tr:hover { background:#f9fdf9; }
+  tbody td { padding:12px 16px; font-size:13.5px; }
+  tbody tr:last-child { border-bottom:none; }
+  .empty { padding:40px; text-align:center; color:var(--texte-soft); font-style:italic; font-size:13px; }
+
+  /* BADGES */
+  .badge { padding:4px 10px; border-radius:20px; font-size:11px; font-weight:600; display:inline-block; }
+  .badge.actif    { background:var(--vert-clair); color:var(--vert); }
+  .badge.inactif  { background:#f3f4f6; color:#9e9e9e; }
+  .type-badge { background:var(--or-clair); color:#7a5500; padding:3px 10px; border-radius:6px; font-size:11px; font-weight:600; }
+  .niveau { background:#e8f0fe; color:#1e40af; padding:3px 10px; border-radius:6px; font-size:11px; font-weight:600; }
+
+  /* ROLE BADGES */
+  .badge.super_admin     { background:#fdf6e3; color:#7a5500; }
+  .badge.admin_structure { background:#e8f0fe; color:#1e40af; }
+  .badge.medecin         { background:#f3e8ff; color:#6a1b9a; }
+  .badge.infirmier       { background:#e0f2fe; color:#0277bd; }
+  .badge.sage_femme      { background:#fce4ec; color:#880e4f; }
+  .badge.pharmacien      { background:#e8eaf6; color:#283593; }
+  .badge.laborantin      { background:#e0f7fa; color:#00695c; }
+  .badge.radiologue      { background:#fff3e0; color:#e65100; }
+  .badge.caissier        { background:var(--vert-clair); color:var(--vert); }
+  .badge.agent_accueil   { background:#f1f8e9; color:#33691e; }
+  .badge.patient         { background:#fce8e8; color:#b71c1c; }
+
+  /* FORMS */
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .form-group { display:flex; flex-direction:column; gap:6px; }
+  .form-group.full { grid-column:1/-1; }
+  label { font-size:13px; font-weight:600; color:var(--texte); }
+  input[type="text"], input[type="email"], input[type="number"], input[type="password"],
+  select, textarea {
+    width:100%; padding:11px 14px; font-family:'Plus Jakarta Sans',sans-serif;
+    font-size:14px; border:1.5px solid var(--bordure); border-radius:var(--radius-sm);
+    background:#f8faf8; color:var(--texte); outline:none; transition:border-color .2s, background .2s;
+  }
+  input:focus, select:focus, textarea:focus { border-color:var(--vert); background:var(--blanc); box-shadow:0 0 0 3px var(--vert-glow); }
+  textarea { resize:vertical; min-height:90px; }
+  .form-actions { display:flex; gap:12px; margin-top:28px; justify-content:flex-end; }
+
+  /* DETAIL GRID */
+  .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px; }
+  .detail-box { background:var(--blanc); border-radius:var(--radius); padding:22px; border:1px solid var(--bordure); box-shadow:var(--shadow-sm); }
+  .detail-box h4 { font-family:'Fraunces',serif; font-size:15px; margin-bottom:14px; color:var(--texte); }
+  .dl { display:flex; flex-direction:column; gap:0; }
+  .dl dt { font-size:11px; font-weight:700; color:var(--texte-soft); text-transform:uppercase; letter-spacing:.5px; margin-top:10px; }
+  .dl dd { font-size:14px; color:var(--texte); font-weight:500; padding-bottom:10px; border-bottom:1px solid var(--bordure); }
+  .dl dd:last-child { border-bottom:none; }
+
+  /* STATS ROW */
+  .stat-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; margin-bottom:28px; }
+  .sc { background:var(--blanc); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow-sm); border:1px solid var(--bordure); position:relative; overflow:hidden; }
+  .sc::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg,var(--vert),var(--or)); }
+  .sc-icon { font-size:28px; margin-bottom:8px; }
+  .sc-val  { font-family:'Fraunces',serif; font-size:36px; font-weight:600; color:var(--vert); line-height:1; margin-bottom:4px; }
+  .sc-lbl  { font-size:12px; color:var(--texte-soft); font-weight:500; }
+
+  /* MEDECIN FIELDS */
+  .medecin-fields { display:none; }
+  .medecin-fields.visible { display:contents; }
+
+  @media(max-width:768px) {
+    .form-grid { grid-template-columns:1fr; }
+    .detail-grid { grid-template-columns:1fr; }
+    .top-bar { flex-direction:column; }
+    .container { padding:16px 12px; }
+    header { padding:0 16px; }
+  }
+</style>`
 
 function header(profil: any): string {
   return `<header>
@@ -245,16 +363,17 @@ function header(profil: any): string {
       </a>
     </div>
     <div class="hr">
-      <div class="ub"><strong>${profil.prenom} ${profil.nom}</strong><small>Super Admin</small></div>
+      <div class="ub">
+        <strong>${profil.prenom} ${profil.nom}</strong>
+        <small>Super Admin</small>
+      </div>
       <a href="/auth/logout" class="logout">Déconnexion</a>
     </div>
   </header>`
 }
 
-const CSS = `...` // Même CSS que dans votre code original
-
 function structuresListePage(profil: any, structures: any[]): string {
-  const succes = false // TODO: lire query param
+  const succes = false
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SantéBF — Structures</title>${CSS}</head><body>
@@ -275,17 +394,16 @@ function structuresListePage(profil: any, structures: any[]): string {
         </tr></thead>
         <tbody>
           ${structures.length === 0
-            ? '<tr><td colspan="6" style="text-align:center;padding:32px;color:#9E9E9E;font-style:italic">Aucune structure enregistrée. <a href="/admin/structures/nouvelle" style="color:#1A6B3C">Ajouter la première →</a></td></tr>'
+            ? `<tr><td colspan="6" class="empty">Aucune structure enregistrée. <a href="/admin/structures/nouvelle" style="color:var(--vert)">Ajouter la première →</a></td></tr>`
             : structures.map((s: any) => `
               <tr>
                 <td><strong>${s.nom}</strong></td>
                 <td><span class="type-badge">${s.type}</span></td>
-                <td><span class="niveau">${s.niveau}</span></td>
+                <td><span class="niveau">Niv. ${s.niveau}</span></td>
                 <td>${s.geo_villes?.nom ?? '—'}</td>
                 <td><span class="badge ${s.est_actif ? 'actif' : 'inactif'}">${s.est_actif ? 'Active' : 'Inactive'}</span></td>
-                <td><a href="/admin/structures/${s.id}" class="btn-secondary" style="padding:6px 12px;font-size:12px">Voir</a></td>
-              </tr>`).join('')
-          }
+                <td><a href="/admin/structures/${s.id}" class="btn-secondary" style="padding:5px 12px;font-size:12px">Voir →</a></td>
+              </tr>`).join('')}
         </tbody>
       </table>
     </div>
@@ -376,10 +494,17 @@ function structureDetailPage(profil: any, structure: any, services: any[], perso
     <div class="top-bar">
       <div>
         <div class="page-title">${structure.nom}</div>
-        <div class="page-sub"><span class="type-badge">${structure.type}</span> · Niveau ${structure.niveau} · ${structure.est_public ? 'Public' : 'Privé'}</div>
+        <div class="page-sub">
+          <span class="type-badge">${structure.type}</span>
+          &nbsp;· Niveau ${structure.niveau}
+          &nbsp;· ${structure.est_public ? 'Public' : 'Privé'}
+        </div>
       </div>
-      <span class="badge ${structure.est_actif ? 'actif' : 'inactif'}" style="padding:8px 16px;font-size:13px">${structure.est_actif ? '✅ Active' : '⛔ Inactive'}</span>
+      <span class="badge ${structure.est_actif ? 'actif' : 'inactif'}" style="padding:8px 16px;font-size:13px">
+        ${structure.est_actif ? '✅ Active' : '⛔ Inactive'}
+      </span>
     </div>
+
     <div class="detail-grid">
       <div class="detail-box">
         <h4>Informations générales</h4>
@@ -392,35 +517,32 @@ function structureDetailPage(profil: any, structure: any, services: any[], perso
         </dl>
       </div>
       <div class="detail-box">
-        <h4>Personnel (${personnel.length})</h4>
+        <h4>Personnel actif (${personnel.length})</h4>
         ${personnel.length === 0
-          ? '<p style="color:#9E9E9E;font-size:13px;font-style:italic">Aucun personnel assigné</p>'
+          ? '<p style="color:var(--texte-soft);font-size:13px;font-style:italic">Aucun personnel assigné</p>'
           : personnel.slice(0,8).map((p: any) => `
-            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F5F5F5">
-              <span style="font-size:13px">${p.prenom} ${p.nom}</span>
-              <span class="badge ${p.role}">${p.role.replace(/_/g,' ')}</span>
-            </div>`).join('')
-        }
-        ${personnel.length > 8 ? `<p style="font-size:12px;color:#9E9E9E;margin-top:8px">+${personnel.length-8} autres</p>` : ''}
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bordure)">
+              <span style="font-size:13px;font-weight:500">${p.prenom} ${p.nom}</span>
+              <span class="badge ${p.role}" style="font-size:10px">${p.role.replace(/_/g,' ')}</span>
+            </div>`).join('')}
+        ${personnel.length > 8 ? `<p style="font-size:12px;color:var(--texte-soft);margin-top:8px">+${personnel.length-8} autres</p>` : ''}
       </div>
     </div>
+
     <div class="card">
-      <div class="card-header">
-        <h3>Services (${services.length})</h3>
-      </div>
+      <div class="card-header"><h3>Services (${services.length})</h3></div>
       <table>
         <thead><tr><th>Nom</th><th>Code</th><th>Lits</th><th>Statut</th></tr></thead>
         <tbody>
           ${services.length === 0
-            ? '<tr><td colspan="4" style="text-align:center;padding:24px;color:#9E9E9E;font-style:italic">Aucun service enregistré</td></tr>'
+            ? '<tr><td colspan="4" class="empty">Aucun service enregistré</td></tr>'
             : services.map((s: any) => `
               <tr>
                 <td><strong>${s.nom}</strong></td>
-                <td><code style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-size:12px">${s.code ?? '—'}</code></td>
+                <td><code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;font-size:11px">${s.code ?? '—'}</code></td>
                 <td>${s.nb_lits_total ?? 0}</td>
                 <td><span class="badge ${s.est_actif ? 'actif' : 'inactif'}">${s.est_actif ? 'Actif' : 'Inactif'}</span></td>
-              </tr>`).join('')
-          }
+              </tr>`).join('')}
         </tbody>
       </table>
     </div>
@@ -446,7 +568,7 @@ function comptesListePage(profil: any, comptes: any[]): string {
         <thead><tr><th>Nom</th><th>Rôle</th><th>Structure</th><th>Statut</th><th>Créé le</th><th>Actions</th></tr></thead>
         <tbody>
           ${comptes.length === 0
-            ? '<tr><td colspan="6" style="text-align:center;padding:32px;color:#9E9E9E;font-style:italic">Aucun compte. <a href="/admin/comptes/nouveau" style="color:#1A6B3C">Créer le premier →</a></td></tr>'
+            ? `<tr><td colspan="6" class="empty">Aucun compte. <a href="/admin/comptes/nouveau" style="color:var(--vert)">Créer le premier →</a></td></tr>`
             : comptes.map((cp: any) => `
               <tr>
                 <td><strong>${cp.prenom} ${cp.nom}</strong></td>
@@ -461,8 +583,7 @@ function comptesListePage(profil: any, comptes: any[]): string {
                     </button>
                   </form>
                 </td>
-              </tr>`).join('')
-          }
+              </tr>`).join('')}
         </tbody>
       </table>
     </div>
@@ -472,17 +593,12 @@ function comptesListePage(profil: any, comptes: any[]): string {
 function compteFormPage(profil: any, structures: any[], erreur?: string): string {
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>SantéBF — Nouveau compte</title>${CSS}
-  <style>
-    .medecin-fields{display:none}
-    .medecin-fields.visible{display:grid}
-  </style>
-  </head><body>
+  <title>SantéBF — Nouveau compte</title>${CSS}</head><body>
   ${header(profil)}
   <div class="container">
     <div class="breadcrumb"><a href="/dashboard/admin">Accueil</a> → <a href="/admin/comptes">Comptes</a> → Nouveau</div>
     <div class="page-title">Créer un compte utilisateur</div>
-    <div class="page-sub">Le compte sera créé dans Supabase Auth et le profil sera configuré automatiquement.</div>
+    <div class="page-sub">Le compte sera créé dans Supabase Auth et le profil configuré automatiquement.</div>
     ${erreur ? `<div class="alerte-err">⚠️ ${erreur}</div>` : ''}
     <div class="card" style="padding:28px">
       <form method="POST" action="/admin/comptes/nouveau">
@@ -502,7 +618,7 @@ function compteFormPage(profil: any, structures: any[], erreur?: string): string
           <div class="form-group">
             <label>Mot de passe temporaire *</label>
             <input type="text" name="password" placeholder="Ex: SanteBF@2025#" required>
-            <small style="font-size:11px;color:#9E9E9E;margin-top:4px;display:block">L'utilisateur devra le changer à la 1ère connexion</small>
+            <small style="font-size:11px;color:var(--texte-soft);margin-top:4px">L'utilisateur devra le changer à la 1ère connexion</small>
           </div>
           <div class="form-group">
             <label>Rôle *</label>
@@ -520,15 +636,13 @@ function compteFormPage(profil: any, structures: any[], erreur?: string): string
               <option value="patient">Patient</option>
             </select>
           </div>
-          <div class="form-group">
+          <div class="form-group full">
             <label>Structure d'affectation</label>
             <select name="structure_id">
               <option value="">Aucune (Super Admin)</option>
               ${structures.map((s: any) => `<option value="${s.id}">${s.nom} (${s.type})</option>`).join('')}
             </select>
           </div>
-
-          <!-- Champs spécifiques médecin -->
           <div class="form-group medecin-fields" id="medecinFields">
             <label>N° Ordre national médecin</label>
             <input type="text" name="numero_ordre" placeholder="Ex: MED-BF-2019-00342">
@@ -576,7 +690,10 @@ function statsPage(profil: any, stats: any): string {
         <thead><tr><th>Type</th><th>Nombre</th></tr></thead>
         <tbody>
           ${Object.entries(stats.parType).map(([type, nb]: [string, any]) => `
-            <tr><td><span class="type-badge">${type}</span></td><td><strong>${nb}</strong></td></tr>
+            <tr>
+              <td><span class="type-badge">${type}</span></td>
+              <td><strong>${nb}</strong></td>
+            </tr>
           `).join('')}
         </tbody>
       </table>
