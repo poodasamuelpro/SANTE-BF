@@ -1,30 +1,72 @@
-// Routes publiques — accessibles SANS connexion
 import { Hono } from 'hono'
-import { getSupabase } from '../lib/supabase'
-import { urgencePage } from '../pages/urgence-qr'
+import { getSupabase, type Bindings } from '../lib/supabase'
 
-type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
 export const publicRoutes = new Hono<{ Bindings: Bindings }>()
 
 // ── QR code urgence patient ────────────────────────────────────
 publicRoutes.get('/urgence/:qr_token', async (c) => {
-  const qrToken = c.req.param('qr_token')
-  const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+  try {
+    const qrToken = c.req.param('qr_token')
+    const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
 
-  const { data: patient } = await sb
-    .from('patient_dossiers')
-    .select(`
-      id, numero_national, nom, prenom, date_naissance, sexe,
-      groupe_sanguin, rhesus, allergies, maladies_chroniques,
-      patient_contacts_urgence (nom, telephone, lien)
-    `)
-    .eq('qr_code_token', qrToken)
-    .single()
+    const { data: patient, error } = await sb
+      .from('patient_dossiers')
+      .select(`
+        id, numero_national, nom, prenom, date_naissance, sexe,
+        groupe_sanguin, rhesus, allergies, maladies_chroniques,
+        patient_contacts_urgence (nom, telephone, lien)
+      `)
+      .eq('qr_code_token', qrToken)
+      .single()
 
-  if (!patient) {
-    return c.html(`<!DOCTYPE html>
+    if (error || !patient) {
+      console.error('❌ QR token invalide:', qrToken, error?.message)
+      return c.html(notFoundPage('QR Code invalide'), 404)
+    }
+
+    // Importer la page d'urgence
+    const { urgencePage } = await import('../pages/urgence-qr')
+    return c.html(urgencePage(patient))
+  } catch (err) {
+    console.error('❌ Erreur route urgence:', err)
+    return c.html(errorPage('Erreur serveur'), 500)
+  }
+})
+
+// ── Vérification ordonnance publique (pharmacien externe) ──────
+publicRoutes.get('/ordonnance/:qr_code', async (c) => {
+  try {
+    const qrCode = c.req.param('qr_code')
+    const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+
+    const { data: ordonnance, error } = await sb
+      .from('medical_ordonnances')
+      .select(`
+        id, numero_ordonnance, created_at, date_expiration, statut,
+        patient_dossiers (nom, prenom, date_naissance),
+        auth_profiles (nom, prenom),
+        medical_ordonnance_lignes (nom_medicament, posologie, duree_jours)
+      `)
+      .eq('qr_code_verification', qrCode)
+      .single()
+
+    if (error || !ordonnance) {
+      console.error('❌ QR ordonnance invalide:', qrCode, error?.message)
+      return c.html(notFoundPage('Ordonnance introuvable'), 404)
+    }
+
+    return c.html(ordonnancePage(ordonnance))
+  } catch (err) {
+    console.error('❌ Erreur route ordonnance:', err)
+    return c.html(errorPage('Erreur serveur'), 500)
+  }
+})
+
+// Pages helper
+function notFoundPage(message: string): string {
+  return `<!DOCTYPE html>
 <html lang="fr">
-<head><meta charset="UTF-8"><title>QR Invalide</title>
+<head><meta charset="UTF-8"><title>${message}</title>
 <style>
   body{font-family:sans-serif;background:#f7f8fa;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
   .box{background:white;padding:48px;border-radius:16px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.08)}
@@ -35,36 +77,17 @@ publicRoutes.get('/urgence/:qr_token', async (c) => {
 <body>
   <div class="box">
     <div style="font-size:48px;margin-bottom:16px">⚠️</div>
-    <h1>QR Code invalide</h1>
+    <h1>${message}</h1>
     <p>Ce code QR n'est pas reconnu dans le système SantéBF.</p>
   </div>
 </body>
-</html>`, 404)
-  }
+</html>`
+}
 
-  return c.html(urgencePage(patient))
-})
-
-// ── Vérification ordonnance publique (pharmacien externe) ──────
-publicRoutes.get('/ordonnance/:qr_code', async (c) => {
-  const qrCode = c.req.param('qr_code')
-  const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
-
-  const { data: ordonnance } = await sb
-    .from('medical_ordonnances')
-    .select(`
-      id, numero_ordonnance, created_at, date_expiration, statut,
-      patient_dossiers (nom, prenom, date_naissance),
-      auth_profiles (nom, prenom),
-      medical_ordonnance_lignes (nom_medicament, posologie, duree_jours)
-    `)
-    .eq('qr_code_verification', qrCode)
-    .single()
-
-  if (!ordonnance) {
-    return c.html(`<!DOCTYPE html>
+function errorPage(message: string): string {
+  return `<!DOCTYPE html>
 <html lang="fr">
-<head><meta charset="UTF-8"><title>Ordonnance introuvable</title>
+<head><meta charset="UTF-8"><title>Erreur</title>
 <style>
   body{font-family:sans-serif;background:#f7f8fa;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
   .box{background:white;padding:48px;border-radius:16px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.08)}
@@ -74,19 +97,20 @@ publicRoutes.get('/ordonnance/:qr_code', async (c) => {
 <body>
   <div class="box">
     <div style="font-size:48px;margin-bottom:16px">❌</div>
-    <h1>Ordonnance introuvable</h1>
-    <p>Ce code QR ne correspond à aucune ordonnance valide.</p>
+    <h1>Erreur serveur</h1>
+    <p>${message}</p>
   </div>
 </body>
-</html>`, 404)
-  }
+</html>`
+}
 
+function ordonnancePage(ordonnance: any): string {
   const patient = ordonnance.patient_dossiers as any
   const medecin = ordonnance.auth_profiles as any
   const lignes = ordonnance.medical_ordonnance_lignes as any[]
   const estExpiree = new Date(ordonnance.date_expiration) < new Date()
 
-  return c.html(`<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -113,7 +137,7 @@ publicRoutes.get('/ordonnance/:qr_code', async (c) => {
     .med-item{background:#F9FAFB;border-left:4px solid #4A148C;padding:14px;border-radius:8px;margin-bottom:10px}
     .med-nom{font-size:14px;font-weight:600;color:#1A1A2E;margin-bottom:4px}
     .med-posologie{font-size:13px;color:#6B7280}
-    .alert{background:#FFF8E1;border-left:4px solid:#F9A825;padding:14px;border-radius:8px;margin:20px 0;font-size:13px;color:#E65100}
+    .alert{background:#FFF8E1;border-left:4px solid #F9A825;padding:14px;border-radius:8px;margin:20px 0;font-size:13px;color:#E65100}
     .footer{text-align:center;margin-top:32px;font-size:12px;color:#9CA3AF}
   </style>
 </head>
@@ -173,5 +197,5 @@ publicRoutes.get('/ordonnance/:qr_code', async (c) => {
     </div>
   </div>
 </body>
-</html>`)
-})
+</html>`
+}
