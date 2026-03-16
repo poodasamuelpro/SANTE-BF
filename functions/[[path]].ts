@@ -1,4 +1,4 @@
-// functions/[[path]].ts - VERSION CORRIGÉE
+// functions/[[path]].ts - VERSION CORRIGÉE + profilRoutes
 import { Hono } from 'hono'
 import { handle } from 'hono/cloudflare-pages'
 import { authRoutes } from '../src/routes/auth'
@@ -21,6 +21,7 @@ import { uploadRoutes } from '../src/routes/upload'
 import { parametresRoutes } from '../src/routes/parametres'
 import { patientPdfRoutes } from '../src/routes/patient-pdf'
 import { exportRoutes } from '../src/routes/export'
+import { profilRoutes } from '../src/routes/profil'
 
 type Env = {
   Bindings: {
@@ -30,21 +31,11 @@ type Env = {
   }
 }
 
-// =====================================================
-// APPLICATION HONO — créée UNE SEULE FOIS au démarrage
-// =====================================================
 const app = new Hono<Env>()
 
-// Routes publiques
 app.route('/public', publicRoutes)
-
-// Authentification
 app.route('/auth', authRoutes)
-
-// Dashboards
 app.route('/dashboard', dashboardRoutes)
-
-// Modules métier
 app.route('/admin', adminRoutes)
 app.route('/accueil', accueilRoutes)
 app.route('/medecin', medecinRoutes)
@@ -58,32 +49,20 @@ app.route('/laboratoire', laboratoireRoutes)
 app.route('/radiologie', radiologieRoutes)
 app.route('/grossesse', grossesseRoutes)
 app.route('/infirmerie', infirmerieRoutes)
-
-// Services transverses
 app.route('/upload', uploadRoutes)
 app.route('/parametres', parametresRoutes)
 app.route('/patient-pdf', patientPdfRoutes)
 app.route('/export', exportRoutes)
+app.route('/profil', profilRoutes)  // ✅ NOUVEAU — photo de profil
 
-// Racine → login
 app.get('/', (c) => c.redirect('/auth/login'))
-
-// 404 → login
 app.notFound((c) => c.redirect('/auth/login'))
 
-// =====================================================
-// HANDLER CLOUDFLARE PAGES
-// =====================================================
 const honoHandler = handle(app)
 
 export async function onRequest(context: any) {
   try {
-    // ✅ CORRECTION PRINCIPALE :
-    // On retourne DIRECTEMENT la réponse de Hono sans l'intercepter.
-    // L'ancienne version recréait une Response.redirect() qui perdait
-    // tous les cookies Set-Cookie définis par auth.ts → bug de connexion.
     return await honoHandler(context)
-
   } catch (err) {
     console.error('❌ ERREUR CRITIQUE:', err)
     return new Response('Erreur serveur interne', { status: 500 })
