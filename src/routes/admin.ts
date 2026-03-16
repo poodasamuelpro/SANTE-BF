@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
-import { type Variables, type Bindings } from '../lib/supabase'
+import { type Variables, type Bindings } from '../lib/supabase' 
 
 export const adminRoutes = new Hono<{
   Bindings: Bindings
