@@ -62,41 +62,41 @@ authRoutes.post('/login', async (c) => {
     const { data, error } = await sb.auth.signInWithPassword({ email, password })
     console.log('Auth response - Success:', !!data.user, 'Error:', error?.message || 'none')
 
-  if (error || !data.user || !data.session) {
-    console.error('❌ Erreur d\'authentification:', error?.message)
-    let msg = 'Email ou mot de passe incorrect.'
-    if (error?.message?.includes('Too many'))       msg = 'Trop de tentatives. Réessayez dans 15 minutes.'
-    if (error?.message?.includes('not confirmed'))  msg = "Compte non confirmé. Contactez l'administrateur."
-    if (error?.message?.includes('Invalid login'))  msg = 'Email ou mot de passe incorrect.'
-    return c.html(loginPage(msg))
-  }
+    if (error || !data.user || !data.session) {
+      console.error('❌ Erreur d\'authentification:', error?.message)
+      let msg = 'Email ou mot de passe incorrect.'
+      if (error?.message?.includes('Too many'))       msg = 'Trop de tentatives. Réessayez dans 15 minutes.'
+      if (error?.message?.includes('not confirmed'))  msg = "Compte non confirmé. Contactez l'administrateur."
+      if (error?.message?.includes('Invalid login'))  msg = 'Email ou mot de passe incorrect.'
+      return c.html(loginPage(msg))
+    }
 
-  console.log('✓ Authentification réussie pour:', data.user.email)
+    console.log('✓ Authentification réussie pour:', data.user.email)
 
-  const profil = await getProfil(sb, data.user.id)
-  console.log('Profil récupéré:', profil ? `${profil.nom} ${profil.prenom} (${profil.role})` : 'null')
+    const profil = await getProfil(sb, data.user.id)
+    console.log('Profil récupéré:', profil ? `${profil.nom} ${profil.prenom} (${profil.role})` : 'null')
 
-  if (!profil) {
-    console.error('❌ Profil introuvable pour user:', data.user.id)
-    return c.html(loginPage("Profil introuvable. Contactez l'administrateur."))
-  }
-  if (!profil.est_actif) {
-    console.warn('⚠️ Compte désactivé pour:', profil.email)
-    return c.html(loginPage("Compte désactivé. Contactez l'administrateur."))
-  }
+    if (!profil) {
+      console.error('❌ Profil introuvable pour user:', data.user.id)
+      return c.html(loginPage("Profil introuvable. Contactez l'administrateur."))
+    }
+    if (!profil.est_actif) {
+      console.warn('⚠️ Compte désactivé pour:', profil.email)
+      return c.html(loginPage("Compte désactivé. Contactez l'administrateur."))
+    }
 
-  console.log('✓ Profil actif, configuration des cookies...')
+    console.log('✓ Profil actif, configuration des cookies...')
 
-  setCookie(c, 'sb_token',   data.session.access_token,        COOKIE_OPTS)
-  setCookie(c, 'sb_refresh', data.session.refresh_token ?? '', COOKIE_OPTS)
+    setCookie(c, 'sb_token',   data.session.access_token,        COOKIE_OPTS)
+    setCookie(c, 'sb_refresh', data.session.refresh_token ?? '', COOKIE_OPTS)
 
-  console.log('✓ Cookies configurés')
+    console.log('✓ Cookies configurés')
 
-  const destination = profil.doit_changer_mdp ? '/auth/changer-mdp' : redirectionParRole(profil.role)
-  console.log('✅ Redirection vers:', destination)
+    const destination = profil.doit_changer_mdp ? '/auth/changer-mdp' : redirectionParRole(profil.role)
+    console.log('✅ Redirection vers:', destination)
 
-  if (profil.doit_changer_mdp) return c.redirect('/auth/changer-mdp')
-  return c.redirect(redirectionParRole(profil.role))
+    if (profil.doit_changer_mdp) return c.redirect('/auth/changer-mdp')
+    return c.redirect(redirectionParRole(profil.role))
   } catch (err) {
     console.error('❌ Erreur critique login:', err)
     console.error('Stack:', err instanceof Error ? err.stack : 'N/A')
@@ -147,28 +147,28 @@ authRoutes.post('/changer-mdp', async (c) => {
 authRoutes.get('/reset-password', (c) => c.html(resetPasswordPage()))
 
 // ── POST /auth/reset-password ──────────────────────────────
-// Supabase envoie l'email automatiquement — on appelle juste l'API
 authRoutes.post('/reset-password', async (c) => {
   const body  = await c.req.parseBody()
   const email = String(body.email ?? '').trim().toLowerCase()
   if (!email) return c.html(resetPasswordPage('Entrez votre adresse email.'))
 
   const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
-  // IMPORTANT: redirectTo doit pointer vers la page /auth/reset-confirm de votre site
   const baseUrl = new URL(c.req.url).origin
-  await sb.auth.resetPasswordForEmail(email, {
+  
+  // Utiliser le flow avec code au lieu de token (compatible Cloudflare)
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
     redirectTo: `${baseUrl}/auth/reset-confirm`,
   })
-  // Toujours afficher succès même si email inconnu (sécurité)
+  
+  if (error) {
+    console.error('❌ Erreur resetPasswordForEmail:', error.message)
+  }
+  
   return c.html(resetPasswordPage(undefined, true))
 })
 
 // ── GET /auth/reset-confirm ────────────────────────────────
-// Supabase redirige ici après clic sur le lien dans l'email
-// Le lien contient access_token et type=recovery dans l'URL (fragment #)
 authRoutes.get('/reset-confirm', async (c) => {
-  // Les tokens arrivent dans le fragment d'URL (#access_token=xxx&type=recovery)
-  // On doit les extraire côté client avec JavaScript
   return c.html(resetConfirmPage())
 })
 
@@ -178,9 +178,9 @@ authRoutes.post('/reset-confirm', async (c) => {
     const body    = await c.req.parseBody()
     const newPwd  = String(body.password ?? '')
     const confirm = String(body.confirm  ?? '')
-    const token   = String(body.access_token ?? '').trim() // Envoyé depuis le formulaire
+    const token   = String(body.access_token ?? '').trim()
 
-    // Validation mot de passe
+    // Validation
     if (newPwd !== confirm)
       return c.html(resetConfirmPage('Les mots de passe ne correspondent pas.'))
     if (newPwd.length < 8)
@@ -190,45 +190,38 @@ authRoutes.post('/reset-confirm', async (c) => {
     if (!/[0-9]/.test(newPwd))
       return c.html(resetConfirmPage('Au moins 1 chiffre.'))
     if (!/[#@!$%]/.test(newPwd))
-      return c.html(resetConfirmPage('Au moins 1 caractère spécial (#@!$%).'))
+      return c.html(resetConfirmPage('Au moins 1 caractère spécial.'))
 
-    // Vérifier le token de récupération
-    if (!token)
-      return c.html(resetConfirmPage('Session expirée. Refaites la demande de reset.'))
+    if (!token) {
+      console.error('❌ Token manquant')
+      return c.html(resetConfirmPage('Session expirée. Refaites la demande.'))
+    }
 
     const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
     
-    // Valider le token et récupérer la session de récupération
-    const { data: sessionData, error: sessionError } = await sb.auth.getUser(token)
-    if (sessionError || !sessionData.user) {
-      console.error('❌ Token invalide:', sessionError?.message)
-      return c.html(resetConfirmPage('Lien expiré ou invalide. Refaites la demande.'))
-    }
-
-    // Établir la session avec le token de récupération
-    const { error: setError } = await sb.auth.setSession({
+    // Établir la session avec le token
+    const { error: sessionError } = await sb.auth.setSession({
       access_token: token,
-      refresh_token: '' // Pas de refresh token pour recovery
+      refresh_token: ''
     })
-    if (setError) {
-      console.error('❌ Erreur setSession:', setError.message)
-      return c.html(resetConfirmPage('Erreur lors de la validation du lien.'))
+    
+    if (sessionError) {
+      console.error('❌ setSession failed:', sessionError.message)
+      return c.html(resetConfirmPage('Lien expiré. Refaites la demande.'))
     }
 
     // Mettre à jour le mot de passe
-    const { error } = await sb.auth.updateUser({ password: newPwd })
-    if (error) {
-      console.error('❌ Erreur updateUser:', error.message)
-      return c.html(resetConfirmPage('Impossible de changer le mot de passe. Refaites la demande.'))
+    const { error: updateError } = await sb.auth.updateUser({ password: newPwd })
+    if (updateError) {
+      console.error('❌ updateUser failed:', updateError.message)
+      return c.html(resetConfirmPage('Erreur: ' + updateError.message))
     }
 
-    // Déconnexion de la session de récupération
     await sb.auth.signOut()
-
     return c.redirect('/auth/login?reset=ok')
   } catch (err) {
-    console.error('❌ Erreur reset-confirm:', err)
-    return c.html(resetConfirmPage('Erreur serveur. Réessayez.'))
+    console.error('❌ Exception:', err)
+    return c.html(resetConfirmPage('Erreur serveur.'))
   }
 })
 

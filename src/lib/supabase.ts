@@ -8,6 +8,7 @@ export type Role =
 
 export type AuthProfile = {
   id: string
+  email?: string
   nom: string
   prenom: string
   role: Role
