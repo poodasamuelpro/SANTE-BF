@@ -1,11 +1,11 @@
 import { createMiddleware } from 'hono/factory'
 import { getCookie, setCookie } from 'hono/cookie'
-import { getSupabase, getProfil } from '../lib/supabase'
-import type { Role } from '../lib/supabase'
+import { getSupabase, getProfil, type Variables, type Bindings } from '../lib/supabase'
 
-type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
-
-export const requireAuth = createMiddleware<{ Bindings: Bindings }>(async (c, next) => {
+export const requireAuth = createMiddleware<{
+  Bindings: Bindings
+  Variables: Variables
+}>(async (c, next) => {
   const token   = getCookie(c, 'sb_token')
   const refresh = getCookie(c, 'sb_refresh')
 
@@ -22,30 +22,38 @@ export const requireAuth = createMiddleware<{ Bindings: Bindings }>(async (c, ne
 
   // Essayer avec le token d'accès
   if (token) {
-    const { data: { user }, error } = await sb.auth.getUser(token)
-    console.log('🔑 Vérification token - user:', !!user, 'erreur:', error?.message || 'aucune')
-    if (user) userId = user.id
+    try {
+      const { data: { user }, error } = await sb.auth.getUser(token)
+      console.log('🔑 Vérification token - user:', !!user, 'erreur:', error?.message || 'aucune')
+      if (user) userId = user.id
+    } catch (err) {
+      console.error('❌ Erreur getUser:', err)
+    }
   }
 
   // Sinon essayer de rafraîchir avec le refresh token
   if (!userId && refresh) {
     console.log('🔄 Tentative de rafraîchissement avec refresh_token')
-    const { data, error } = await sb.auth.refreshSession({ refresh_token: refresh })
-    console.log('🔄 Refresh result - success:', !!data?.user, 'erreur:', error?.message || 'aucune')
-    
-    if (data?.user && data?.session) {
-      userId = data.user.id
-      // Mettre à jour les cookies
-      const cookieOpts = {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'Lax' as const,
-        maxAge: 604800,
-        path: '/'
+    try {
+      const { data, error } = await sb.auth.refreshSession({ refresh_token: refresh })
+      console.log('🔄 Refresh result - success:', !!data?.user, 'erreur:', error?.message || 'aucune')
+
+      if (data?.user && data?.session) {
+        userId = data.user.id
+        // Mettre à jour les cookies
+        const cookieOpts = {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'Lax' as const,
+          maxAge: 604800,
+          path: '/'
+        }
+        setCookie(c, 'sb_token',   data.session.access_token,  cookieOpts)
+        setCookie(c, 'sb_refresh', data.session.refresh_token, cookieOpts)
+        console.log('✅ Cookies rafraîchis')
       }
-      setCookie(c, 'sb_token',   data.session.access_token,  cookieOpts)
-      setCookie(c, 'sb_refresh', data.session.refresh_token, cookieOpts)
-      console.log('✅ Cookies rafraîchis')
+    } catch (err) {
+      console.error('❌ Erreur refreshSession:', err)
     }
   }
 
@@ -55,27 +63,37 @@ export const requireAuth = createMiddleware<{ Bindings: Bindings }>(async (c, ne
     return c.redirect('/auth/login')
   }
 
-  // Récupérer le profil
-  const profil = await getProfil(sb, userId)
-  console.log('👤 Profil récupéré:', profil ? `${profil.nom} (${profil.role})` : 'null')
-  
+  // Récupérer le profil avec timeout
+  let profil = null
+  try {
+    profil = await getProfil(sb, userId)
+    console.log('👤 Profil récupéré:', profil ? `${profil.nom} (${profil.role})` : 'null')
+  } catch (err) {
+    console.error('❌ Erreur getProfil:', err)
+  }
+
   // Si pas de profil ou inactif, redirection
   if (!profil || !profil.est_actif) {
     console.error('❌ Profil invalide ou inactif')
     return c.redirect('/auth/login')
   }
 
-  console.log('✅ requireAuth OK, accès autorisé')
+  console.log('✅ requireAuth OK, accès autorisé pour:', profil.role)
+
+  // CORRECTION : Plus de 'as never' - typage correct
+  c.set('profil', profil)
+  c.set('supabase', sb)
   
-  // Tout est OK, on continue
-  c.set('profil'   as never, profil)
-  c.set('supabase' as never, sb)
   await next()
 })
 
 export const requireRole = (...roles: Role[]) =>
-  createMiddleware<{ Bindings: Bindings }>(async (c, next) => {
-    const profil = c.get('profil' as never) as { role: Role } | undefined
+  createMiddleware<{
+    Bindings: Bindings
+    Variables: Variables
+  }>(async (c, next) => {
+    const profil = c.get('profil')
+    
     if (!profil || !roles.includes(profil.role)) {
       return c.html(`<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><title>Accès refusé — SantéBF</title>
