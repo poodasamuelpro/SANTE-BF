@@ -2,7 +2,7 @@ import { AuthProfile } from '../lib/supabase'
 import { formatDate, formatFCFA } from '../utils/format'
 
 // ═══════════════════════════════════════════════════════════
-// DASHBOARD CAISSIER
+// DASHBOARD CAISSIER 
 // ═══════════════════════════════════════════════════════════
 
 interface CaissierData {
