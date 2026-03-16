@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
-import type { AuthProfile } from '../lib/supabase'
+import type { AuthProfile, Variables, Bindings } from '../lib/supabase'
 import { dashboardAdminPage } from '../pages/dashboard-admin'
 import { dashboardMedecinPage } from '../pages/dashboard-medecin'
 import { dashboardAccueilPage } from '../pages/dashboard-accueil'
@@ -9,8 +9,10 @@ import { dashboardCaissierPage } from '../pages/dashboard-caissier'
 import { dashboardPatientPage } from '../pages/dashboard-patient'
 import { dashboardStructurePage } from '../pages/dashboard-structure'
 
-type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
-export const dashboardRoutes = new Hono<{ Bindings: Bindings }>()
+export const dashboardRoutes = new Hono<{
+  Bindings: Bindings
+  Variables: Variables
+}>()
 
 dashboardRoutes.use('/*', requireAuth)
 
@@ -18,21 +20,26 @@ dashboardRoutes.use('/*', requireAuth)
 dashboardRoutes.get('/admin',
   requireRole('super_admin'),
   async (c) => {
-    const profil   = c.get('profil' as never) as AuthProfile
-    const supabase = c.get('supabase' as never) as any
+    try {
+      const profil   = c.get('profil')
+      const supabase = c.get('supabase')
 
-    // Stats nationales
-    const [structures, comptes, patients] = await Promise.all([
-      supabase.from('struct_structures').select('id', { count: 'exact', head: true }),
-      supabase.from('auth_profiles').select('id', { count: 'exact', head: true }),
-      supabase.from('patient_dossiers').select('id', { count: 'exact', head: true }),
-    ])
+      // Stats nationales
+      const [structures, comptes, patients] = await Promise.all([
+        supabase.from('struct_structures').select('*', { count: 'exact', head: true }),
+        supabase.from('auth_profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('patient_dossiers').select('*', { count: 'exact', head: true }),
+      ])
 
-    return c.html(dashboardAdminPage(profil, {
-      nbStructures: structures.count ?? 0,
-      nbComptes:    comptes.count    ?? 0,
-      nbPatients:   patients.count   ?? 0,
-    }))
+      return c.html(dashboardAdminPage(profil, {
+        nbStructures: structures.count ?? 0,
+        nbComptes:    comptes.count    ?? 0,
+        nbPatients:   patients.count   ?? 0,
+      }))
+    } catch (err) {
+      console.error('❌ Erreur dashboard admin:', err)
+      return c.text('Erreur serveur', 500)
+    }
   }
 )
 
@@ -40,38 +47,47 @@ dashboardRoutes.get('/admin',
 dashboardRoutes.get('/structure',
   requireRole('admin_structure'),
   async (c) => {
-    const profil   = c.get('profil' as never) as AuthProfile
-    const supabase = c.get('supabase' as never) as any
+    try {
+      const profil   = c.get('profil')
+      const supabase = c.get('supabase')
 
-    const { data: structure } = await supabase
-      .from('struct_structures')
-      .select('nom, type, niveau')
-      .eq('id', profil.structure_id)
-      .single()
-
-    const [lits, personnel] = await Promise.all([
-      supabase.from('struct_lits').select('statut').eq('structure_id', profil.structure_id),
-      supabase.from('auth_profiles').select('id', { count: 'exact', head: true }).eq('structure_id', profil.structure_id),
-    ])
-
-    const litsData    = lits.data ?? []
-    const litsDispos  = litsData.filter((l: any) => l.statut === 'disponible').length
-    const litsOccupes = litsData.filter((l: any) => l.statut === 'occupe').length
-
-    return c.html(dashboardStructurePage(profil, {
-      structure: {
-        nom: structure?.nom || 'N/A',
-        type: structure?.type || 'N/A',
-        niveau: structure?.niveau || 1
-      },
-      stats: {
-        personnel: personnel.count ?? 0,
-        patientsJour: 0, // TODO: calculer
-        litsOccupes: litsOccupes,
-        litsTotal: litsData.length,
-        consultationsJour: 0 // TODO: calculer
+      if (!profil.structure_id) {
+        return c.text('Aucune structure assignée', 400)
       }
-    }))
+
+      const { data: structure } = await supabase
+        .from('struct_structures')
+        .select('nom, type, niveau')
+        .eq('id', profil.structure_id)
+        .single()
+
+      const [lits, personnel] = await Promise.all([
+        supabase.from('struct_lits').select('statut').eq('structure_id', profil.structure_id),
+        supabase.from('auth_profiles').select('*', { count: 'exact', head: true }).eq('structure_id', profil.structure_id),
+      ])
+
+      const litsData    = lits.data ?? []
+      const litsDispos  = litsData.filter((l: any) => l.statut === 'disponible').length
+      const litsOccupes = litsData.filter((l: any) => l.statut === 'occupe').length
+
+      return c.html(dashboardStructurePage(profil, {
+        structure: {
+          nom: structure?.nom || 'N/A',
+          type: structure?.type || 'N/A',
+          niveau: structure?.niveau || 1
+        },
+        stats: {
+          personnel: personnel.count ?? 0,
+          patientsJour: 0,
+          litsOccupes: litsOccupes,
+          litsTotal: litsData.length,
+          consultationsJour: 0
+        }
+      }))
+    } catch (err) {
+      console.error('❌ Erreur dashboard structure:', err)
+      return c.text('Erreur serveur', 500)
+    }
   }
 )
 
@@ -79,38 +95,43 @@ dashboardRoutes.get('/structure',
 dashboardRoutes.get('/medecin',
   requireRole('medecin', 'infirmier', 'sage_femme', 'laborantin', 'radiologue'),
   async (c) => {
-    const profil   = c.get('profil' as never) as AuthProfile
-    const supabase = c.get('supabase' as never) as any
+    try {
+      const profil   = c.get('profil')
+      const supabase = c.get('supabase')
 
-    // RDV du jour
-    const today = new Date().toISOString().split('T')[0]
-    const { data: rdvJour } = await supabase
-      .from('medical_rendez_vous')
-      .select(`
-        id, date_heure, motif, statut,
-        patient_dossiers ( nom, prenom )
-      `)
-      .eq('medecin_id', profil.id)
-      .gte('date_heure', today + 'T00:00:00')
-      .lte('date_heure', today + 'T23:59:59')
-      .order('date_heure', { ascending: true })
-      .limit(10)
+      // RDV du jour
+      const today = new Date().toISOString().split('T')[0]
+      const { data: rdvJour } = await supabase
+        .from('medical_rendez_vous')
+        .select(`
+          id, date_heure, motif, statut,
+          patient_dossiers ( nom, prenom )
+        `)
+        .eq('medecin_id', profil.id)
+        .gte('date_heure', today + 'T00:00:00')
+        .lte('date_heure', today + 'T23:59:59')
+        .order('date_heure', { ascending: true })
+        .limit(10)
 
-    // Dernières consultations
-    const { data: consultations } = await supabase
-      .from('medical_consultations')
-      .select(`
-        id, created_at, motif, diagnostic_principal,
-        patient_dossiers ( nom, prenom )
-      `)
-      .eq('medecin_id', profil.id)
-      .order('created_at', { ascending: false })
-      .limit(5)
+      // Dernières consultations
+      const { data: consultations } = await supabase
+        .from('medical_consultations')
+        .select(`
+          id, created_at, motif, diagnostic_principal,
+          patient_dossiers ( nom, prenom )
+        `)
+        .eq('medecin_id', profil.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
 
-    return c.html(dashboardMedecinPage(profil, {
-      rdvJour:       rdvJour       ?? [],
-      consultations: consultations ?? [],
-    }))
+      return c.html(dashboardMedecinPage(profil, {
+        rdvJour:       rdvJour       ?? [],
+        consultations: consultations ?? [],
+      }))
+    } catch (err) {
+      console.error('❌ Erreur dashboard medecin:', err)
+      return c.text('Erreur serveur', 500)
+    }
   }
 )
 
@@ -118,21 +139,26 @@ dashboardRoutes.get('/medecin',
 dashboardRoutes.get('/pharmacien',
   requireRole('pharmacien'),
   async (c) => {
-    const profil   = c.get('profil' as never) as AuthProfile
-    const supabase = c.get('supabase' as never) as any
+    try {
+      const profil   = c.get('profil')
+      const supabase = c.get('supabase')
 
-    const { data: ordonnances } = await supabase
-      .from('medical_ordonnances')
-      .select(`
-        id, numero_ordonnance, created_at, statut,
-        patient_dossiers ( nom, prenom )
-      `)
-      .eq('structure_id', profil.structure_id)
-      .eq('statut', 'active')
-      .order('created_at', { ascending: false })
-      .limit(10)
+      const { data: ordonnances } = await supabase
+        .from('medical_ordonnances')
+        .select(`
+          id, numero_ordonnance, created_at, statut,
+          patient_dossiers ( nom, prenom )
+        `)
+        .eq('structure_id', profil.structure_id)
+        .eq('statut', 'active')
+        .order('created_at', { ascending: false })
+        .limit(10)
 
-    return c.html(dashboardPharmacienPage(profil, ordonnances ?? []))
+      return c.html(dashboardPharmacienPage(profil, ordonnances ?? []))
+    } catch (err) {
+      console.error('❌ Erreur dashboard pharmacien:', err)
+      return c.text('Erreur serveur', 500)
+    }
   }
 )
 
@@ -140,42 +166,47 @@ dashboardRoutes.get('/pharmacien',
 dashboardRoutes.get('/caissier',
   requireRole('caissier'),
   async (c) => {
-    const profil   = c.get('profil' as never) as AuthProfile
-    const supabase = c.get('supabase' as never) as any
+    try {
+      const profil   = c.get('profil')
+      const supabase = c.get('supabase')
 
-    const today = new Date().toISOString().split('T')[0]
-    const { data: factures } = await supabase
-      .from('finance_factures')
-      .select(`
-        id, numero_facture, total_ttc, statut, created_at,
-        patient_dossiers ( nom, prenom )
-      `)
-      .eq('structure_id', profil.structure_id)
-      .gte('created_at', today + 'T00:00:00')
-      .order('created_at', { ascending: false })
-      .limit(15)
+      const today = new Date().toISOString().split('T')[0]
+      const { data: factures } = await supabase
+        .from('finance_factures')
+        .select(`
+          id, numero_facture, total_ttc, statut, created_at,
+          patient_dossiers ( nom, prenom )
+        `)
+        .eq('structure_id', profil.structure_id)
+        .gte('created_at', today + 'T00:00:00')
+        .order('created_at', { ascending: false })
+        .limit(15)
 
-    const totalJour = (factures ?? [])
-      .filter((f: any) => f.statut === 'payee')
-      .reduce((sum: number, f: any) => sum + (f.total_ttc ?? 0), 0)
+      const totalJour = (factures ?? [])
+        .filter((f: any) => f.statut === 'payee')
+        .reduce((sum: number, f: any) => sum + (f.total_ttc ?? 0), 0)
 
-    return c.html(dashboardCaissierPage(profil, {
-      factures: (factures ?? []).map((f: any) => ({
-        id: f.id,
-        numero_facture: f.numero_facture,
-        patient: { nom: f.patient_dossiers?.nom || '', prenom: f.patient_dossiers?.prenom || '' },
-        montant_patient: f.total_ttc ?? 0,
-        total_ttc: f.total_ttc ?? 0,
-        statut: f.statut,
-        created_at: f.created_at
-      })),
-      stats: {
-        facturesJour: factures?.length ?? 0,
-        impayees: (factures ?? []).filter((f: any) => f.statut === 'impayee').length,
-        recetteJour: totalJour,
-        attente: (factures ?? []).filter((f: any) => f.statut === 'en_attente').length
-      }
-    }))
+      return c.html(dashboardCaissierPage(profil, {
+        factures: (factures ?? []).map((f: any) => ({
+          id: f.id,
+          numero_facture: f.numero_facture,
+          patient: { nom: f.patient_dossiers?.nom || '', prenom: f.patient_dossiers?.prenom || '' },
+          montant_patient: f.total_ttc ?? 0,
+          total_ttc: f.total_ttc ?? 0,
+          statut: f.statut,
+          created_at: f.created_at
+        })),
+        stats: {
+          facturesJour: factures?.length ?? 0,
+          impayees: (factures ?? []).filter((f: any) => f.statut === 'impayee').length,
+          recetteJour: totalJour,
+          attente: (factures ?? []).filter((f: any) => f.statut === 'en_attente').length
+        }
+      }))
+    } catch (err) {
+      console.error('❌ Erreur dashboard caissier:', err)
+      return c.text('Erreur serveur', 500)
+    }
   }
 )
 
@@ -183,23 +214,28 @@ dashboardRoutes.get('/caissier',
 dashboardRoutes.get('/accueil',
   requireRole('agent_accueil'),
   async (c) => {
-    const profil   = c.get('profil' as never) as AuthProfile
-    const supabase = c.get('supabase' as never) as any
+    try {
+      const profil   = c.get('profil')
+      const supabase = c.get('supabase')
 
-    const today = new Date().toISOString().split('T')[0]
-    const { data: rdvJour } = await supabase
-      .from('medical_rendez_vous')
-      .select(`
-        id, date_heure, motif, statut,
-        patient_dossiers ( nom, prenom ),
-        auth_profiles ( nom, prenom )
-      `)
-      .eq('structure_id', profil.structure_id)
-      .gte('date_heure', today + 'T00:00:00')
-      .lte('date_heure', today + 'T23:59:59')
-      .order('date_heure', { ascending: true })
+      const today = new Date().toISOString().split('T')[0]
+      const { data: rdvJour } = await supabase
+        .from('medical_rendez_vous')
+        .select(`
+          id, date_heure, motif, statut,
+          patient_dossiers ( nom, prenom ),
+          auth_profiles ( nom, prenom )
+        `)
+        .eq('structure_id', profil.structure_id)
+        .gte('date_heure', today + 'T00:00:00')
+        .lte('date_heure', today + 'T23:59:59')
+        .order('date_heure', { ascending: true })
 
-    return c.html(dashboardAccueilPage(profil, rdvJour ?? []))
+      return c.html(dashboardAccueilPage(profil, rdvJour ?? []))
+    } catch (err) {
+      console.error('❌ Erreur dashboard accueil:', err)
+      return c.text('Erreur serveur', 500)
+    }
   }
 )
 
@@ -207,47 +243,55 @@ dashboardRoutes.get('/accueil',
 dashboardRoutes.get('/patient',
   requireRole('patient'),
   async (c) => {
-    const profil   = c.get('profil' as never) as AuthProfile
-    const supabase = c.get('supabase' as never) as any
+    try {
+      const profil   = c.get('profil')
+      const supabase = c.get('supabase')
 
-    const { data: dossier } = await supabase
-      .from('patient_dossiers')
-      .select(`
-        numero_national, nom, prenom, date_naissance,
-        groupe_sanguin, rhesus, allergies, maladies_chroniques
-      `)
-      .eq('profile_id', profil.id)
-      .single()
+      const { data: dossier } = await supabase
+        .from('patient_dossiers')
+        .select(`
+          id, numero_national, nom, prenom, date_naissance,
+          groupe_sanguin, rhesus, allergies, maladies_chroniques
+        `)
+        .eq('profile_id', profil.id)
+        .single()
 
-    const { data: ordonnances } = await supabase
-      .from('medical_ordonnances')
-      .select('id, numero_ordonnance, statut, created_at')
-      .eq('patient_id', dossier?.id)
-      .eq('statut', 'active')
-      .limit(5)
+      if (!dossier) {
+        return c.text('Dossier patient introuvable', 404)
+      }
 
-    const { data: consultations } = await supabase
-      .from('medical_consultations')
-      .select('id', { count: 'exact', head: true })
-      .eq('patient_id', dossier?.id)
+      const { data: ordonnances } = await supabase
+        .from('medical_ordonnances')
+        .select('id, numero_ordonnance, statut, created_at')
+        .eq('patient_id', dossier.id)
+        .eq('statut', 'active')
+        .limit(5)
 
-    return c.html(dashboardPatientPage(profil, {
-      dossier: dossier ? {
-        numero_national: dossier.numero_national,
-        groupe_sanguin: dossier.groupe_sanguin,
-        rhesus: dossier.rhesus,
-        allergies: dossier.allergies,
-        maladies_chroniques: dossier.maladies_chroniques
-      } : null,
-      prochainRdv: null, // TODO: récupérer prochain RDV
-      ordonnancesActives: ordonnances?.length ?? 0,
-      consultationsTotal: consultations.count ?? 0
-    }))
+      const { count: consultationsCount } = await supabase
+        .from('medical_consultations')
+        .select('*', { count: 'exact', head: true })
+        .eq('patient_id', dossier.id)
+
+      return c.html(dashboardPatientPage(profil, {
+        dossier: {
+          numero_national: dossier.numero_national,
+          groupe_sanguin: dossier.groupe_sanguin,
+          rhesus: dossier.rhesus,
+          allergies: dossier.allergies || [],
+          maladies_chroniques: dossier.maladies_chroniques || []
+        },
+        prochainRdv: null,
+        ordonnancesActives: ordonnances?.length ?? 0,
+        consultationsTotal: consultationsCount ?? 0
+      }))
+    } catch (err) {
+      console.error('❌ Erreur dashboard patient:', err)
+      return c.text('Erreur serveur', 500)
+    }
   }
 )
 
-// ── Pages internes ─────────────────────────────────────────
-// ✅ EXPORTS pour réutilisation dans d'autres modules
+// ── Fonctions helper (inchangées) ──────────────────────────
 export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string, contenu: string): string {
   const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
   const date  = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })
@@ -269,7 +313,6 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'DM Sans',sans-serif; background:var(--gris); min-height:100vh; }
 
-    /* Header */
     header {
       background: var(--couleur);
       padding: 0 24px;
@@ -323,10 +366,8 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
     }
     .btn-logout:hover { background:rgba(255,255,255,0.3); }
 
-    /* Layout */
     .container { max-width:1100px; margin:0 auto; padding:24px 20px; }
 
-    /* Bienvenue */
     .welcome {
       margin-bottom:24px;
     }
@@ -338,7 +379,6 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
     }
     .welcome p { font-size:14px; color:var(--soft); }
 
-    /* Stats grid */
     .stats-grid {
       display:grid;
       grid-template-columns:repeat(auto-fill, minmax(180px,1fr));
@@ -357,7 +397,6 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
     .stat-val  { font-size:28px; font-weight:700; color:var(--couleur); }
     .stat-lbl  { font-size:12px; color:var(--soft); margin-top:4px; }
 
-    /* Actions grid */
     .actions-grid {
       display:grid;
       grid-template-columns:repeat(auto-fill, minmax(160px,1fr));
@@ -386,7 +425,6 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
     .ac-icon { font-size:32px; }
     .ac-lbl  { font-size:13px; font-weight:600; }
 
-    /* Section titre */
     .section-title {
       font-size:14px;
       font-weight:700;
@@ -396,7 +434,6 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
       margin-bottom:12px;
     }
 
-    /* Table */
     .table-wrap {
       background:white;
       border-radius:12px;
@@ -414,14 +451,12 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
     .empty { text-align:center; color:var(--soft); font-style:italic; }
     code { background:#F3F4F6; padding:2px 8px; border-radius:4px; font-size:12px; }
 
-    /* Badges statut */
     .badge-statut { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; }
     .badge-statut.payee           { background:#E8F5E9; color:#1A6B3C; }
     .badge-statut.impayee         { background:#FFF5F5; color:#B71C1C; }
     .badge-statut.partiellement_payee { background:#FFF3E0; color:#E65100; }
     .badge-statut.annulee         { background:#F3F4F6; color:#9E9E9E; }
 
-    /* Patient card */
     .patient-card {
       background:white;
       border-radius:12px;
@@ -437,7 +472,6 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
       font-size:14px; font-weight:700;
     }
 
-    /* RDV liste */
     .rdv-list { display:flex; flex-direction:column; gap:10px; margin-bottom:24px; }
     .rdv-item {
       background:white;
@@ -459,7 +493,6 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
     .rdv-statut.passe     { background:#F3F4F6; color:#9E9E9E; }
     .rdv-statut.annule    { background:#FFF5F5; color:#B71C1C; }
 
-    /* Btn small */
     .btn-sm {
       background:var(--couleur);
       color:white;
@@ -470,7 +503,6 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
       font-weight:600;
     }
 
-    /* Date header */
     .date-header {
       display:flex;
       justify-content:space-between;
@@ -480,7 +512,6 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
     .date-header span { font-size:13px; color:var(--soft); }
     .date-header strong { font-size:13px; color:var(--texte); }
 
-    /* Responsive */
     @media (max-width:640px) {
       header { padding:0 16px; }
       .header-title span { display:none; }
@@ -528,7 +559,6 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
 </html>`
 }
 
-// ✅ Export des helpers UI
 export function statsGrid(stats: { icon: string; value: string | number; label: string; color?: string }[]): string {
   return `
     <div class="stats-grid">
