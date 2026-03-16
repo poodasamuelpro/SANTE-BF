@@ -8,8 +8,14 @@ type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
 export const requireAuth = createMiddleware<{ Bindings: Bindings }>(async (c, next) => {
   const token   = getCookie(c, 'sb_token')
   const refresh = getCookie(c, 'sb_refresh')
+  
+  console.log('🔒 requireAuth - token:', token ? 'présent' : 'absent')
+  console.log('🔒 requireAuth - refresh:', refresh ? 'présent' : 'absent')
 
-  if (!token && !refresh) return c.redirect('/auth/login')
+  if (!token && !refresh) {
+    console.log('❌ Aucun cookie trouvé, redirection vers login')
+    return c.redirect('/auth/login')
+  }
 
   const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
   let userId: string | null = null
@@ -36,7 +42,12 @@ export const requireAuth = createMiddleware<{ Bindings: Bindings }>(async (c, ne
   if (!userId) return c.redirect('/auth/login')
 
   const profil = await getProfil(sb, userId)
-  if (!profil || !profil.est_actif) return c.redirect('/auth/login')
+  console.log('👤 Profil récupéré:', profil ? `${profil.nom} ${profil.prenom} (${profil.role})` : 'null')
+  
+  if (!profil || !profil.est_actif) {
+    console.log('❌ Profil invalide ou inactif, redirection vers login')
+    return c.redirect('/auth/login')
+  }
 
   c.set('profil'   as never, profil)
   c.set('supabase' as never, sb)

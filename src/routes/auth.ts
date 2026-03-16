@@ -10,11 +10,11 @@ export const authRoutes = new Hono<{ Bindings: Bindings }>()
 
 const COOKIE_OPTS = {
   httpOnly: true,
-  secure: true, // Fonctionne en HTTPS (Cloudflare Pages)
+  secure: true, // HTTPS uniquement
   sameSite: 'Lax' as const,
-  maxAge: 604800,
-  path: '/',
-  domain: undefined // Laisse le navigateur gérer
+  maxAge: 604800, // 7 jours
+  path: '/'
+  // domain est automatiquement défini par le navigateur
 }
 
 // ── GET /auth/login ────────────────────────────────────────
@@ -92,6 +92,14 @@ authRoutes.post('/login', async (c) => {
     setCookie(c, 'sb_refresh', data.session.refresh_token ?? '', COOKIE_OPTS)
 
     console.log('✓ Cookies configurés')
+    console.log('🍪 Cookie sb_token:', data.session.access_token.substring(0, 20) + '...')
+    console.log('🍪 Cookie sb_refresh:', (data.session.refresh_token ?? '').substring(0, 20) + '...')
+    
+    // Test lecture immédiate des cookies
+    const testToken = getCookie(c, 'sb_token')
+    const testRefresh = getCookie(c, 'sb_refresh')
+    console.log('🧪 Test lecture cookie - token:', testToken ? 'OK' : '❌ ABSENT')
+    console.log('🧪 Test lecture cookie - refresh:', testRefresh ? 'OK' : '❌ ABSENT')
 
     const destination = profil.doit_changer_mdp ? '/auth/changer-mdp' : redirectionParRole(profil.role)
     console.log('✅ Redirection vers:', destination)
