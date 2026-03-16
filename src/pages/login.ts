@@ -380,6 +380,7 @@ export function loginPage(erreur?: string, resetOk?: boolean): string {
     function toggleMdp() {
       const i = document.getElementById('password')
       const b = document.querySelector('.toggle-mdp')
+      if (!i || !b) return
       i.type = i.type === 'password' ? 'text' : 'password'
       b.textContent = i.type === 'password' ? '👁️' : '🙈'
     }
@@ -387,40 +388,58 @@ export function loginPage(erreur?: string, resetOk?: boolean): string {
     // Timeout de 30 secondes pour la connexion
     let loginTimeout = null;
     
-    document.getElementById('loginForm').addEventListener('submit', () => {
-      const btn = document.getElementById('btnLogin')
-      const spinner = document.getElementById('spinner')
-      const btnText = document.getElementById('btnText')
-      
-      spinner.style.display = 'block'
-      btnText.textContent = 'Connexion...'
-      btn.disabled = true
-      
-      // Timeout de 30 secondes
-      loginTimeout = setTimeout(() => {
-        spinner.style.display = 'none'
-        btnText.textContent = 'Se connecter'
-        btn.disabled = false
+    const form = document.getElementById('loginForm')
+    if (!form) {
+      console.error('❌ Formulaire loginForm introuvable')
+    } else {
+      form.addEventListener('submit', (e) => {
+        console.log('🔄 Soumission du formulaire de connexion')
         
-        // Afficher une alerte d'erreur
-        const form = document.getElementById('loginForm')
-        let alert = document.getElementById('timeoutAlert')
-        if (!alert) {
-          alert = document.createElement('div')
-          alert.id = 'timeoutAlert'
-          alert.className = 'alerte'
-          alert.innerHTML = '⚠️ La connexion prend trop de temps. Vérifiez votre connexion internet ou contactez l\\'administrateur.'
-          form.parentElement.insertBefore(alert, form)
+        const btn = document.getElementById('btnLogin')
+        const spinner = document.getElementById('spinner')
+        const btnText = document.getElementById('btnText')
+        
+        if (!btn || !spinner || !btnText) {
+          console.error('❌ Éléments du bouton introuvables')
+          return // Laisser le formulaire se soumettre normalement
         }
-      }, 30000) // 30 secondes
-    })
+        
+        spinner.style.display = 'block'
+        btnText.textContent = 'Connexion...'
+        btn.disabled = true
+        
+        console.log('✓ Spinner activé, formulaire va se soumettre')
+        
+        // Timeout de 30 secondes
+        loginTimeout = setTimeout(() => {
+          console.warn('⏱️ Timeout de 30s atteint')
+          spinner.style.display = 'none'
+          btnText.textContent = 'Se connecter'
+          btn.disabled = false
+          
+          // Afficher une alerte d'erreur
+          let alert = document.getElementById('timeoutAlert')
+          if (!alert) {
+            alert = document.createElement('div')
+            alert.id = 'timeoutAlert'
+            alert.className = 'alerte'
+            alert.innerHTML = '⚠️ La connexion prend trop de temps. Vérifiez votre connexion internet ou contactez l\\'administrateur.'
+            form.parentElement.insertBefore(alert, form)
+          }
+        }, 30000) // 30 secondes
+      })
+    }
     
     // Nettoyer le timeout si la page est déchargée
     window.addEventListener('beforeunload', () => {
       if (loginTimeout) clearTimeout(loginTimeout)
     })
     
-    document.getElementById('email').focus()
+    // Focus sur le champ email
+    const emailInput = document.getElementById('email')
+    if (emailInput) emailInput.focus()
+    
+    console.log('✅ Script de connexion chargé')
   </script>
 </body>
 </html>`

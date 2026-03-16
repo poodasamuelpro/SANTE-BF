@@ -10,10 +10,11 @@ export const authRoutes = new Hono<{ Bindings: Bindings }>()
 
 const COOKIE_OPTS = {
   httpOnly: true,
-  secure: true,
+  secure: true, // Fonctionne en HTTPS (Cloudflare Pages)
   sameSite: 'Lax' as const,
   maxAge: 604800,
-  path: '/'
+  path: '/',
+  domain: undefined // Laisse le navigateur gérer
 }
 
 // ── GET /auth/login ────────────────────────────────────────
