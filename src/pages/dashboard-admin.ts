@@ -55,7 +55,7 @@ export function dashboardAdminPage(profil: any, stats: {
       height: 100vh;
       z-index: 200;
       transition: transform 0.3s;
-    }
+    } 
 
     .sidebar-brand {
       padding: 28px 24px 20px;
