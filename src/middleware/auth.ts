@@ -1,6 +1,6 @@
 import { createMiddleware } from 'hono/factory'
 import { getCookie, setCookie } from 'hono/cookie'
-import { getSupabase, getProfil, type Variables, type Bindings } from '../lib/supabase'
+import { getSupabase, getProfil, type Variables, type Bindings, type Role } from '../lib/supabase'
 
 export const requireAuth = createMiddleware<{
   Bindings: Bindings
@@ -11,7 +11,6 @@ export const requireAuth = createMiddleware<{
 
   console.log('🔒 requireAuth - token présent:', !!token, 'refresh présent:', !!refresh)
 
-  // Si aucun cookie, redirection login
   if (!token && !refresh) {
     console.log('❌ Aucun cookie, redirection vers /auth/login')
     return c.redirect('/auth/login')
@@ -20,7 +19,6 @@ export const requireAuth = createMiddleware<{
   const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
   let userId: string | null = null
 
-  // Essayer avec le token d'accès
   if (token) {
     try {
       const { data: { user }, error } = await sb.auth.getUser(token)
@@ -31,7 +29,6 @@ export const requireAuth = createMiddleware<{
     }
   }
 
-  // Sinon essayer de rafraîchir avec le refresh token
   if (!userId && refresh) {
     console.log('🔄 Tentative de rafraîchissement avec refresh_token')
     try {
@@ -40,7 +37,6 @@ export const requireAuth = createMiddleware<{
 
       if (data?.user && data?.session) {
         userId = data.user.id
-        // Mettre à jour les cookies
         const cookieOpts = {
           httpOnly: true,
           secure: true,
@@ -57,13 +53,11 @@ export const requireAuth = createMiddleware<{
     }
   }
 
-  // Si toujours pas d'utilisateur, redirection
   if (!userId) {
     console.error('❌ Impossible de valider l\'utilisateur, redirection')
     return c.redirect('/auth/login')
   }
 
-  // Récupérer le profil avec timeout
   let profil = null
   try {
     profil = await getProfil(sb, userId)
@@ -72,7 +66,6 @@ export const requireAuth = createMiddleware<{
     console.error('❌ Erreur getProfil:', err)
   }
 
-  // Si pas de profil ou inactif, redirection
   if (!profil || !profil.est_actif) {
     console.error('❌ Profil invalide ou inactif')
     return c.redirect('/auth/login')
@@ -80,20 +73,20 @@ export const requireAuth = createMiddleware<{
 
   console.log('✅ requireAuth OK, accès autorisé pour:', profil.role)
 
-  // CORRECTION : Plus de 'as never' - typage correct
   c.set('profil', profil)
   c.set('supabase', sb)
-  
+
   await next()
 })
 
+// ✅ FIX CRITIQUE : import type { Role } ajouté — sans ça TypeScript refuse de compiler
 export const requireRole = (...roles: Role[]) =>
   createMiddleware<{
     Bindings: Bindings
     Variables: Variables
   }>(async (c, next) => {
     const profil = c.get('profil')
-    
+
     if (!profil || !roles.includes(profil.role)) {
       return c.html(`<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><title>Accès refusé — SantéBF</title>
@@ -109,7 +102,7 @@ export const requireRole = (...roles: Role[]) =>
     text-decoration:none;font-weight:600;font-size:14px}
 </style></head>
 <body><div class="box">
-  <div style="font-size:48px;margin-bottom:16px">⛔</div>
+  <div style="font-size:48px;margin-bottom:16px">&#9940;</div>
   <h2>Accès refusé</h2>
   <p>Vous n'avez pas les droits pour accéder à cette page.</p>
   <a href="/auth/logout">Se déconnecter</a>
