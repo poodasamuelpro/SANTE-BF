@@ -180,6 +180,23 @@ export function dashboardPatientSansDossierPage(profil: any): string {
 </div>
 
 <script>
+
+  // Mode sombre
+  function toggleDark(){
+    const html = document.documentElement
+    const isDark = html.getAttribute('data-theme') === 'dark'
+    html.setAttribute('data-theme', isDark ? 'light' : 'dark')
+    document.getElementById('darkBtn').textContent = isDark ? '🌙' : '☀️'
+    localStorage.setItem('santebf-theme', isDark ? 'light' : 'dark')
+  }
+  // Restaurer préférence
+  const savedTheme = localStorage.getItem('santebf-theme') || 
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  if(savedTheme === 'dark'){
+    document.documentElement.setAttribute('data-theme','dark')
+    setTimeout(()=>{const b=document.getElementById('darkBtn');if(b)b.textContent='☀️'},0)
+  }
+
   function toggleMenu(){
     document.getElementById('overlay').classList.toggle('open')
     document.getElementById('sbMobile').classList.toggle('open')
@@ -226,6 +243,18 @@ export function dashboardPatientPage(profil: any, data: {
       --shadow:0 2px 10px rgba(0,0,0,0.07);
       --radius:16px;--radius-sm:10px;
     }
+    /* ══ MODE SOMBRE ══ */
+    [data-theme="dark"] {
+      --bg:#0f172a;--blanc:#1e293b;--bordure:#334155;
+      --texte:#f1f5f9;--soft:#94a3b8;
+      --shadow:0 2px 10px rgba(0,0,0,0.3);
+    }
+    [data-theme="dark"] .sidebar{background:linear-gradient(180deg,#020617,#0f172a);}
+    [data-theme="dark"] .topbar{background:linear-gradient(135deg,#020617,#0f172a);}
+    [data-theme="dark"] .hero-card{background:linear-gradient(135deg,#020617,#0d47a1);}
+    [data-theme="dark"] .rdv-card{background:linear-gradient(135deg,#0d47a1,#1565C0);}
+    [data-theme="dark"] .sb-drawer{background:linear-gradient(180deg,#020617,#0f172a);}
+
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
     html{scroll-behavior:smooth;}
     body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:100vh;color:var(--texte);}
@@ -477,6 +506,7 @@ export function dashboardPatientPage(profil: any, data: {
       <div class="topbar-right">
         <span class="topbar-date">${date}</span>
         <span class="topbar-time">${heure}</span>
+        <button onclick="toggleDark()" id="darkBtn" title="Mode sombre" style="background:none;border:1px solid var(--bordure);border-radius:8px;padding:5px 10px;font-size:16px;cursor:pointer;color:var(--texte);">🌙</button>
       </div>
     </div>
 
@@ -518,7 +548,7 @@ export function dashboardPatientPage(profil: any, data: {
               </a>
               <a href="/patient-pdf/ordonnances" class="action-card">
                 <span class="action-icon">💊</span><span class="action-lbl">Ordonnances</span>
-                ${ordonnancesActives > 0 ? `<span class="action-count">${ordonnancesActives} active(s)</span>` : ''}
+                \${ordonnancesActives > 0 ? `<span class="action-count">\${ordonnancesActives} active(s)</span>` : ''}
               </a>
               <a href="/patient/rdv" class="action-card">
                 <span class="action-icon">📅</span><span class="action-lbl">Rendez-vous</span>
@@ -531,6 +561,15 @@ export function dashboardPatientPage(profil: any, data: {
               </a>
               <a href="/patient/consentements" class="action-card">
                 <span class="action-icon">🔐</span><span class="action-lbl">Consentements</span>
+              </a>
+              <a href="/patient/documents" class="action-card">
+                <span class="action-icon">📁</span><span class="action-lbl">Documents</span>
+              </a>
+              <a href="/patient/factures" class="action-card">
+                <span class="action-icon">🧾</span><span class="action-lbl">Factures</span>
+              </a>
+              <a href="/patient/profil" class="action-card" style="border-bottom-color:var(--soft);">
+                <span class="action-icon">👤</span><span class="action-lbl">Mon profil</span>
               </a>
             </div>
           </div>
