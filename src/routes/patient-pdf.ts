@@ -346,4 +346,3 @@ patientPdfRoutes.get('/examen/:id', async (c) => {
     return c.json({ error: 'Erreur génération PDF' }, 500)
   }
 })
- 
