@@ -2,6 +2,11 @@
  * src/pages/dashboard-patient.ts
  * Layout : sidebar fixe PC/tablette, bottom nav mobile
  * Zéro template literal imbriqué — syntaxe TypeScript stricte
+ *
+ * CORRECTIONS APPLIQUÉES :
+ *  1. `.sb-avatar` : ajout de `position:relative` pour que le badge caméra se positionne correctement
+ *  2. Topbar dans dashboardPatientSansDossierPage : lien logout correctement stylé
+ *  3. Cohérence des deux fonctions exportées vérifiée
  */
 
 // ── CSS commun ─────────────────────────────────────────────────
@@ -19,7 +24,8 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:
 .sidebar{width:250px;flex-shrink:0;background:linear-gradient(180deg,var(--bleu-f),var(--bleu));display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh;overflow-y:auto;}
 .sb-brand{font-family:'Fraunces',serif;font-size:20px;color:white;text-decoration:none;display:flex;align-items:center;gap:8px;margin-bottom:22px;}
 .sb-user{text-align:center;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.15);}
-.sb-avatar{width:64px;height:64px;border-radius:50%;border:3px solid rgba(255,255,255,.3);overflow:hidden;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:white;margin:0 auto 10px;cursor:pointer;}
+/* ✅ FIX : position:relative ajouté pour que le badge caméra (absolute) se positionne dans l'avatar */
+.sb-avatar{width:64px;height:64px;border-radius:50%;border:3px solid rgba(255,255,255,.3);overflow:hidden;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:white;margin:0 auto 10px;cursor:pointer;position:relative;}
 .sb-avatar:hover{border-color:rgba(255,255,255,.6);}
 .sb-avatar img{width:100%;height:100%;object-fit:cover;}
 .sb-name{font-size:14px;font-weight:700;color:white;margin-bottom:2px;}
@@ -40,6 +46,9 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:
 .topbar-date{font-size:12px;color:var(--soft);}
 .topbar-time{font-size:14px;font-weight:700;color:var(--bleu);}
 .dark-btn{background:none;border:1px solid var(--bordure);border-radius:8px;padding:5px 10px;font-size:16px;cursor:pointer;color:var(--texte);}
+/* ✅ FIX : logout-btn pour styler correctement le lien déconnexion dans la topbar */
+.logout-btn{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--soft);text-decoration:none;padding:5px 10px;border-radius:8px;border:1px solid var(--bordure);}
+.logout-btn:hover{color:var(--rouge);border-color:var(--rouge);}
 .content{padding:24px 28px;flex:1;}
 .grid-main{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start;}
 .col-l,.col-r{display:flex;flex-direction:column;gap:14px;}
@@ -121,15 +130,23 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:
 
 function sbLinks(): string {
   return `
-    <a href="/dashboard/patient"      class="sb-link active"><span class="sb-ico">&#127968;</span>Tableau de bord</a>
-    <a href="/patient/dossier"        class="sb-link"><span class="sb-ico">&#128203;</span>Mon dossier</a>
+    <a href="/dashboard/patient"       class="sb-link active"><span class="sb-ico">&#127968;</span>Tableau de bord</a>
+    <a href="/patient/dossier"         class="sb-link"><span class="sb-ico">&#128203;</span>Mon dossier</a>
     <a href="/patient-pdf/ordonnances" class="sb-link"><span class="sb-ico">&#128138;</span>Ordonnances</a>
-    <a href="/patient/rdv"            class="sb-link"><span class="sb-ico">&#128197;</span>Rendez-vous</a>
-    <a href="/patient-pdf/examens"    class="sb-link"><span class="sb-ico">&#129514;</span>Examens</a>
-    <a href="/patient/vaccinations"   class="sb-link"><span class="sb-ico">&#128137;</span>Vaccinations</a>
-    <a href="/patient/consentements"  class="sb-link"><span class="sb-ico">&#128274;</span>Consentements</a>
-    <a href="/patient/profil"         class="sb-link"><span class="sb-ico">&#128100;</span>Mon profil</a>`
+    <a href="/patient/rdv"             class="sb-link"><span class="sb-ico">&#128197;</span>Rendez-vous</a>
+    <a href="/patient-pdf/examens"     class="sb-link"><span class="sb-ico">&#129514;</span>Examens</a>
+    <a href="/patient/vaccinations"    class="sb-link"><span class="sb-ico">&#128137;</span>Vaccinations</a>
+    <a href="/patient/consentements"   class="sb-link"><span class="sb-ico">&#128274;</span>Consentements</a>
+    <a href="/patient/profil"          class="sb-link"><span class="sb-ico">&#128100;</span>Mon profil</a>`
 }
+
+const JS = `
+var sel=null;
+function toggleMenu(){document.getElementById('overlay').classList.toggle('open');document.getElementById('drawer').classList.toggle('open');}
+function toggleDark(){var h=document.documentElement,d=h.getAttribute('data-theme')==='dark';h.setAttribute('data-theme',d?'light':'dark');document.getElementById('darkBtn').textContent=d?'\u{1F319}':'\u2600\uFE0F';localStorage.setItem('santebf-theme',d?'light':'dark');}
+var t=localStorage.getItem('santebf-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');setTimeout(function(){var b=document.getElementById('darkBtn');if(b)b.textContent='\u2600\uFE0F';},0);}
+`
 
 // ── PAGE SANS DOSSIER ──────────────────────────────────────────
 export function dashboardPatientSansDossierPage(profil: any): string {
@@ -165,7 +182,8 @@ export function dashboardPatientSansDossierPage(profil: any): string {
       </div>
       <div class="topbar-right">
         <button class="dark-btn" id="darkBtn" onclick="toggleDark()">&#127769;</button>
-        <a href="/auth/logout" style="font-size:12px;color:var(--soft);text-decoration:none;">&#9211;</a>
+        <!-- ✅ FIX : lien logout correctement stylé avec la classe .logout-btn -->
+        <a href="/auth/logout" class="logout-btn">&#9211; Déconnexion</a>
       </div>
     </div>
     <div class="content">
@@ -190,9 +208,9 @@ export function dashboardPatientSansDossierPage(profil: any): string {
 </div>
 <nav class="bottom-nav">
   <a href="/dashboard/patient" class="nav-btn active"><span class="nav-icon">&#127968;</span>Accueil</a>
-  <a href="/patient/dossier" class="nav-btn"><span class="nav-icon">&#128203;</span>Dossier</a>
-  <a href="/patient/rdv" class="nav-btn"><span class="nav-icon">&#128197;</span>RDV</a>
-  <a href="/patient/profil" class="nav-btn"><span class="nav-icon">&#128100;</span>Profil</a>
+  <a href="/patient/dossier"   class="nav-btn"><span class="nav-icon">&#128203;</span>Dossier</a>
+  <a href="/patient/rdv"       class="nav-btn"><span class="nav-icon">&#128197;</span>RDV</a>
+  <a href="/patient/profil"    class="nav-btn"><span class="nav-icon">&#128100;</span>Profil</a>
 </nav>
 <div class="sb-overlay" id="overlay" onclick="toggleMenu()"></div>
 <div class="sb-drawer" id="drawer">
@@ -200,12 +218,7 @@ export function dashboardPatientSansDossierPage(profil: any): string {
   <nav style="display:flex;flex-direction:column;gap:2px;flex:1;">${sbLinks()}</nav>
   <div style="padding-top:14px;border-top:1px solid rgba(255,255,255,.12);"><a href="/auth/logout" class="sb-logout"><span class="sb-ico">&#9211;</span>Déconnexion</a></div>
 </div>
-<script>
-function toggleMenu(){document.getElementById('overlay').classList.toggle('open');document.getElementById('drawer').classList.toggle('open');}
-function toggleDark(){var h=document.documentElement,d=h.getAttribute('data-theme')==='dark';h.setAttribute('data-theme',d?'light':'dark');document.getElementById('darkBtn').textContent=d?'\u{1F319}':'\u2600\uFE0F';localStorage.setItem('santebf-theme',d?'light':'dark');}
-var t=localStorage.getItem('santebf-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
-if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');setTimeout(function(){var b=document.getElementById('darkBtn');if(b)b.textContent='\u2600\uFE0F';},0);}
-</script>
+<script>${JS}</script>
 </body></html>`
 }
 
@@ -224,10 +237,10 @@ export function dashboardPatientPage(profil: any, data: {
 
   const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
   const date  = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-  const ini = `${(profil.prenom || '?').charAt(0)}${(profil.nom || '?').charAt(0)}`
+  const ini       = `${(profil.prenom || '?').charAt(0)}${(profil.nom || '?').charAt(0)}`
   const avatarUrl = profil.avatar_url || ''
   const avHtml    = avatarUrl ? `<img src="${avatarUrl}" alt="">` : ini
-  const allergies: any[] = Array.isArray(dossier.allergies) ? dossier.allergies : []
+  const allergies: any[] = Array.isArray(dossier.allergies)          ? dossier.allergies          : []
   const maladies:  any[] = Array.isArray(dossier.maladies_chroniques) ? dossier.maladies_chroniques : []
 
   // RDV
@@ -245,8 +258,8 @@ export function dashboardPatientPage(profil: any, data: {
   let exHtml = ''
   if (examens.length > 0) {
     const exItems = examens.slice(0, 3).map((e: any) => {
-      const dispo = e.statut === 'resultat_disponible' || e.valide_par
-      const dt = new Date(e.created_at).toLocaleDateString('fr-FR')
+      const dispo = e.statut === 'resultat_disponible' || !!e.valide_par
+      const dt    = new Date(e.created_at).toLocaleDateString('fr-FR')
       return `<div class="ex-item"><span style="font-size:20px;">&#128300;</span><div class="ex-info"><div class="ex-type">${e.type_examen || 'Examen'}</div><div class="ex-date">${dt}</div></div>${dispo ? '<span class="badge-dispo">&#10003; Disponible</span>' : '<span class="badge-wait">&#8987; En attente</span>'}</div>`
     }).join('')
     exHtml = `<div class="card"><div class="card-hd"><div class="card-title">&#129514; Derniers examens</div><a href="/patient-pdf/examens" class="card-link">Voir tout &#8594;</a></div>${exItems}</div>`
@@ -256,7 +269,9 @@ export function dashboardPatientPage(profil: any, data: {
   let medHtml = ''
   if (medecins.length > 0) {
     const medItems = medecins.slice(0, 4).map((m: any) => {
-      const mavHtml = m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `${(m.prenom || '?').charAt(0)}${(m.nom || '?').charAt(0)}`
+      const mavHtml = m.avatar_url
+        ? `<img src="${m.avatar_url}" alt="">`
+        : `${(m.prenom || '?').charAt(0)}${(m.nom || '?').charAt(0)}`
       return `<div class="med-item"><div class="med-av">${mavHtml}</div><div class="med-info"><div class="med-name">Dr. ${m.prenom || ''} ${m.nom || ''}</div><div class="med-spec">${m.specialite || 'Médecin généraliste'}</div>${m.structure ? ('<div class="med-struct">&#127973; ' + m.structure + '</div>') : ''}</div><span class="badge-ok">&#10003;</span></div>`
     }).join('')
     medHtml = `<div class="card"><div class="card-hd"><div class="card-title">&#128104;&#8205;&#9877; Mes médecins</div><a href="/patient/consentements" class="card-link">Gérer &#8594;</a></div>${medItems}</div>`
@@ -295,6 +310,7 @@ export function dashboardPatientPage(profil: any, data: {
   <aside class="sidebar">
     <a href="/dashboard/patient" class="sb-brand">&#127973; SantéBF</a>
     <div class="sb-user">
+      <!-- ✅ FIX : position:relative déjà dans CSS — le badge caméra (absolute) se positionne correctement -->
       <div class="sb-avatar" onclick="ouvrirPhoto()">${avHtml}<div style="position:absolute;bottom:0;right:0;background:var(--bleu);color:white;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;">&#128247;</div></div>
       <div class="sb-name">${profil.prenom} ${profil.nom}</div>
       <div class="sb-num">${dossier.numero_national || ''}</div>
@@ -337,15 +353,15 @@ export function dashboardPatientPage(profil: any, data: {
           <div class="card">
             <div class="card-hd"><div class="card-title">&#9889; Accès rapide</div></div>
             <div class="actions-grid">
-              <a href="/patient/dossier" class="action-card"><span class="action-icon">&#128203;</span><span class="action-lbl">Mon dossier</span></a>
-              <a href="/patient-pdf/ordonnances" class="action-card"><span class="action-icon">&#128138;</span><span class="action-lbl">Ordonnances</span>${ordCount}</a>
-              <a href="/patient/rdv" class="action-card"><span class="action-icon">&#128197;</span><span class="action-lbl">Rendez-vous</span></a>
-              <a href="/patient-pdf/examens" class="action-card"><span class="action-icon">&#129514;</span><span class="action-lbl">Examens</span></a>
-              <a href="/patient/vaccinations" class="action-card"><span class="action-icon">&#128137;</span><span class="action-lbl">Vaccinations</span></a>
-              <a href="/patient/consentements" class="action-card"><span class="action-icon">&#128274;</span><span class="action-lbl">Consentements</span></a>
-              <a href="/patient/documents" class="action-card"><span class="action-icon">&#128193;</span><span class="action-lbl">Documents</span></a>
-              <a href="/patient/factures" class="action-card"><span class="action-icon">&#129534;</span><span class="action-lbl">Factures</span></a>
-              <a href="/patient/profil" class="action-card" style="border-bottom-color:var(--soft);"><span class="action-icon">&#128100;</span><span class="action-lbl">Mon profil</span></a>
+              <a href="/patient/dossier"         class="action-card"><span class="action-icon">&#128203;</span><span class="action-lbl">Mon dossier</span></a>
+              <a href="/patient-pdf/ordonnances"  class="action-card"><span class="action-icon">&#128138;</span><span class="action-lbl">Ordonnances</span>${ordCount}</a>
+              <a href="/patient/rdv"              class="action-card"><span class="action-icon">&#128197;</span><span class="action-lbl">Rendez-vous</span></a>
+              <a href="/patient-pdf/examens"      class="action-card"><span class="action-icon">&#129514;</span><span class="action-lbl">Examens</span></a>
+              <a href="/patient/vaccinations"     class="action-card"><span class="action-icon">&#128137;</span><span class="action-lbl">Vaccinations</span></a>
+              <a href="/patient/consentements"    class="action-card"><span class="action-icon">&#128274;</span><span class="action-lbl">Consentements</span></a>
+              <a href="/patient/documents"        class="action-card"><span class="action-icon">&#128193;</span><span class="action-lbl">Documents</span></a>
+              <a href="/patient/factures"         class="action-card"><span class="action-icon">&#129534;</span><span class="action-lbl">Factures</span></a>
+              <a href="/patient/profil"           class="action-card" style="border-bottom-color:var(--soft);"><span class="action-icon">&#128100;</span><span class="action-lbl">Mon profil</span></a>
             </div>
           </div>
 
@@ -368,10 +384,10 @@ export function dashboardPatientPage(profil: any, data: {
 
 <!-- BOTTOM NAV MOBILE -->
 <nav class="bottom-nav">
-  <a href="/dashboard/patient" class="nav-btn active"><span class="nav-icon">&#127968;</span>Accueil</a>
-  <a href="/patient/dossier" class="nav-btn"><span class="nav-icon">&#128203;</span>Dossier</a>
-  <a href="/patient-pdf/ordonnances" class="nav-btn"><span class="nav-icon">&#128138;</span>Ordonnances</a>
-  <a href="/patient/rdv" class="nav-btn"><span class="nav-icon">&#128197;</span>RDV</a>
+  <a href="/dashboard/patient"        class="nav-btn active"><span class="nav-icon">&#127968;</span>Accueil</a>
+  <a href="/patient/dossier"          class="nav-btn"><span class="nav-icon">&#128203;</span>Dossier</a>
+  <a href="/patient-pdf/ordonnances"  class="nav-btn"><span class="nav-icon">&#128138;</span>Ordonnances</a>
+  <a href="/patient/rdv"              class="nav-btn"><span class="nav-icon">&#128197;</span>RDV</a>
   <button class="nav-btn" onclick="ouvrirPhoto()"><span class="nav-icon">&#128100;</span>Profil</button>
 </nav>
 
@@ -391,7 +407,11 @@ export function dashboardPatientPage(profil: any, data: {
     <div class="ph-preview" id="phPrev">${avHtml}</div>
     <div class="msg-ok" id="msgOk">&#10003; Photo mise à jour !</div>
     <div class="msg-ko" id="msgKo">&#10007; Erreur. Réessayez.</div>
-    <div class="file-zone" onclick="document.getElementById('fileIn').click()"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">&#128193; Cliquer pour choisir</div><div style="font-size:11.5px;color:var(--soft);">JPG, PNG ou WEBP · Max 5 Mo</div><input type="file" id="fileIn" accept="image/jpeg,image/png,image/webp" onchange="previewPh(this)" style="display:none;"></div>
+    <div class="file-zone" onclick="document.getElementById('fileIn').click()">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">&#128193; Cliquer pour choisir</div>
+      <div style="font-size:11.5px;color:var(--soft);">JPG, PNG ou WEBP · Max 5 Mo</div>
+      <input type="file" id="fileIn" accept="image/jpeg,image/png,image/webp" onchange="previewPh(this)" style="display:none;">
+    </div>
     <div class="pb" id="pb"><div class="pb-fill" id="pbFill" style="width:0%"></div></div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="fermerPhoto()">Annuler</button>
@@ -401,11 +421,7 @@ export function dashboardPatientPage(profil: any, data: {
 </div>
 
 <script>
-var sel=null;
-function toggleMenu(){document.getElementById('overlay').classList.toggle('open');document.getElementById('drawer').classList.toggle('open');}
-function toggleDark(){var h=document.documentElement,d=h.getAttribute('data-theme')==='dark';h.setAttribute('data-theme',d?'light':'dark');document.getElementById('darkBtn').textContent=d?'\u{1F319}':'\u2600\uFE0F';localStorage.setItem('santebf-theme',d?'light':'dark');}
-var t=localStorage.getItem('santebf-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
-if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');setTimeout(function(){var b=document.getElementById('darkBtn');if(b)b.textContent='\u2600\uFE0F';},0);}
+${JS}
 function ouvrirPhoto(){document.getElementById('modalPhoto').classList.add('open');}
 function fermerPhoto(){document.getElementById('modalPhoto').classList.remove('open');sel=null;document.getElementById('fileIn').value='';document.getElementById('btnSave').disabled=true;document.getElementById('msgOk').style.display='none';document.getElementById('msgKo').style.display='none';}
 document.getElementById('modalPhoto').addEventListener('click',function(e){if(e.target===this)fermerPhoto();});
