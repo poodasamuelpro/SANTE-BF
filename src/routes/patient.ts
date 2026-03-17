@@ -535,7 +535,7 @@ patientRoutes.post('/consentements/:id/reactiver', async (c) => {
 
 
 // ═══════════════════════════════════════════════════════════════
-// MON PROFIL — modifier infos personnelles
+// MON PROFIL — enrichi avec QR code, contacts urgence, notifications
 // ═══════════════════════════════════════════════════════════════
 patientRoutes.get('/profil', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
@@ -543,11 +543,16 @@ patientRoutes.get('/profil', async (c) => {
 
   const { data: dossier } = await supabase
     .from('patient_dossiers')
-    .select('id,nom,prenom,date_naissance,sexe,telephone,groupe_sanguin,rhesus')
+    .select('id,nom,prenom,date_naissance,sexe,telephone,groupe_sanguin,rhesus,code_urgence,numero_national')
     .eq('profile_id', profil.id)
     .single()
 
+  const { data: contacts } = dossier
+    ? await supabase.from('patient_contacts_urgence').select('id,nom_complet,lien,telephone').eq('patient_id', dossier.id)
+    : { data: [] }
+
   const succes = new URL(c.req.url).searchParams.get('succes')
+  const nbContacts = (contacts ?? []).length
 
   return c.html(`${HEAD('Mon profil')}
 <body>
@@ -556,55 +561,104 @@ ${TOPBAR('Mon profil')}
   <a href="/dashboard/patient" class="back-btn">← Retour</a>
   <h1>👤 Mon profil</h1>
 
-  ${succes ? `<div style="background:var(--vert-clair);color:var(--vert);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:13px;font-weight:700;">✅ Profil mis à jour avec succès !</div>` : ''}
+  \${succes ? `<div style="background:var(--vert-clair);color:var(--vert);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:13px;font-weight:700;">✅ Profil mis à jour !</div>` : ''}
 
+  <!-- Compte -->
   <div class="card">
-    <div class="card-title">📧 Compte</div>
-    <div style="font-size:13px;color:var(--soft);margin-bottom:4px;">Email de connexion</div>
-    <div style="font-size:14px;font-weight:700;margin-bottom:16px;">${profil.email || 'Non défini'}</div>
-    <a href="/auth/changer-mdp" style="font-size:13px;color:var(--bleu);font-weight:700;text-decoration:none;">🔑 Changer mon mot de passe →</a>
+    <div class="card-title">📧 Compte SantéBF</div>
+    <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bordure);">
+      <span style="font-size:12px;font-weight:700;color:var(--soft);">Email</span>
+      <span style="font-size:13px;font-weight:600;">\${profil.email || 'Non défini'}</span>
+    </div>
+    <div style="padding-top:12px;">
+      <a href="/auth/changer-mdp" style="font-size:13px;color:var(--bleu);font-weight:700;text-decoration:none;">🔑 Changer mon mot de passe →</a>
+    </div>
   </div>
 
-  ${dossier ? `
+  \${dossier ? `
+  <!-- Infos médicales -->
   <div class="card">
     <div class="card-title">📋 Informations médicales</div>
-    <div style="font-size:12px;color:var(--soft);margin-bottom:12px;">Ces informations sont gérées par votre établissement de santé.</div>
-    <div style="display:grid;gap:10px;">
-      ${[
-        ['Prénom', dossier.prenom],
-        ['Nom', dossier.nom],
-        ['Date de naissance', dossier.date_naissance ? new Date(dossier.date_naissance).toLocaleDateString('fr-FR') : 'N/A'],
-        ['Sexe', dossier.sexe === 'M' ? 'Masculin' : 'Féminin'],
-        ['Groupe sanguin', dossier.groupe_sanguin ? `${dossier.groupe_sanguin}${dossier.rhesus||''}` : 'Non renseigné'],
-        ['Téléphone', dossier.telephone || 'Non renseigné'],
-      ].map(([label, val]) => `
-        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bordure);">
-          <span style="font-size:12px;font-weight:700;color:var(--soft);">${label}</span>
-          <span style="font-size:13px;font-weight:600;">${val}</span>
-        </div>`).join('')}
+    <div style="font-size:12px;color:var(--soft);margin-bottom:12px;">Gérées par votre établissement de santé.</div>
+    \${[
+      ['Prénom', dossier.prenom],
+      ['Nom', dossier.nom],
+      ['Date de naissance', dossier.date_naissance ? new Date(dossier.date_naissance).toLocaleDateString('fr-FR') : 'N/A'],
+      ['Sexe', dossier.sexe === 'M' ? 'Masculin' : 'Féminin'],
+      ['Groupe sanguin', dossier.groupe_sanguin ? \`\${dossier.groupe_sanguin}\${dossier.rhesus||''}\` : 'Non renseigné'],
+      ['Téléphone', dossier.telephone || 'Non renseigné'],
+      ['Numéro national', dossier.numero_national || 'N/A'],
+    ].map(([label, val]) => \`
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bordure);">
+        <span style="font-size:12px;font-weight:700;color:var(--soft);">\${label}</span>
+        <span style="font-size:13px;font-weight:600;">\${val}</span>
+      </div>\`).join('')}
+  </div>
+
+  <!-- QR code urgence -->
+  \${dossier.code_urgence ? \`
+  <div class="card" style="border:2px solid var(--rouge);">
+    <div class="card-title" style="color:var(--rouge);">🚨 Code d'urgence</div>
+    <div style="background:var(--rouge-clair);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px;">
+      <div style="font-family:monospace;font-size:36px;font-weight:900;letter-spacing:12px;color:var(--rouge);text-align:center;">
+        \${dossier.code_urgence}
+      </div>
     </div>
-  </div>` : `
+    <div style="font-size:12px;color:#7f1d1d;margin-bottom:14px;line-height:1.5;">
+      Donnez ce code à un médecin en urgence → accès 24h à votre dossier complet.<br>
+      <strong>Réinitialisez-le si vous pensez qu'il est compromis.</strong>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <form method="POST" action="/patient/code-urgence/regenerer" style="flex:1;">
+        <button type="submit" style="width:100%;background:var(--rouge);color:white;border:none;padding:10px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
+          🔄 Régénérer le code
+        </button>
+      </form>
+      <form method="POST" action="/patient/code-urgence/envoyer" style="flex:1;">
+        <button type="submit" style="width:100%;background:var(--or-clair);color:#7a5500;border:1px solid var(--or);padding:10px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
+          📨 Envoyer au proche
+        </button>
+      </form>
+    </div>
+  </div>\` : \`
+  <div class="card" style="border:2px dashed var(--bordure);">
+    <div class="card-title" style="color:var(--soft);">🚨 Code d'urgence</div>
+    <div style="font-size:13px;color:var(--soft);margin-bottom:12px;">Aucun code d'urgence généré. L'hôpital peut en créer un lors de votre visite.</div>
+  </div>\`}
+  ` : \`
   <div class="card" style="text-align:center;padding:32px;">
     <div style="font-size:36px;margin-bottom:12px;">📋</div>
     <div style="font-size:14px;font-weight:700;margin-bottom:6px;">Dossier non lié</div>
-    <div style="font-size:12px;color:var(--soft);">Présentez-vous à l'accueil d'une structure SantéBF pour lier votre dossier.</div>
-  </div>`}
+    <div style="font-size:12px;color:var(--soft);">Présentez-vous à l'accueil d'une structure SantéBF.</div>
+  </div>\`}
 
+  <!-- Navigation rapide profil -->
   <div class="card">
-    <div class="card-title">🔐 Sécurité</div>
-    <a href="/patient/consentements" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;text-decoration:none;color:var(--texte);border-bottom:1px solid var(--bordure);">
-      <span style="font-size:14px;font-weight:600;">Gérer les accès à mon dossier</span>
-      <span style="color:var(--bleu);">→</span>
-    </a>
-    <a href="/auth/logout" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;text-decoration:none;color:var(--rouge);">
-      <span style="font-size:14px;font-weight:600;">Se déconnecter</span>
-      <span>⏻</span>
+    <div class="card-title">⚙️ Paramètres</div>
+    \${[
+      ['/patient/contacts-urgence', '🚨', 'Contacts d'urgence', \`\${nbContacts} contact(s)\`],
+      ['/patient/notifications', '🔔', 'Notifications & rappels', 'Email, SMS'],
+      ['/patient/acces-dossier', '🔍', 'Historique des accès', 'Qui a consulté mon dossier'],
+      ['/patient/consentements', '🔐', 'Gérer les accès médecins', 'Autoriser / révoquer'],
+      ['/patient/factures', '🧾', 'Mes factures', 'Historique paiements'],
+      ['/patient/documents', '📁', 'Mes documents', 'Certificats, radios...'],
+    ].map(([href, ico, label, desc]) => \`
+      <a href="\${href}" style="display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--texte);border-bottom:1px solid var(--bordure);">
+        <span style="font-size:22px;">\${ico}</span>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">\${label}</div>
+          <div style="font-size:11.5px;color:var(--soft);">\${desc}</div>
+        </div>
+        <span style="color:var(--bleu);font-size:16px;">→</span>
+      </a>\`).join('')}
+    <a href="/auth/logout" style="display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--rouge);">
+      <span style="font-size:22px;">⏻</span>
+      <div style="font-size:14px;font-weight:600;">Se déconnecter</div>
     </a>
   </div>
 </div>
 </body></html>`)
 })
-
 
 // ═══════════════════════════════════════════════════════════════
 // MES DOCUMENTS MÉDICAUX (certificats, comptes-rendus, radios)
@@ -1022,4 +1076,160 @@ patientRoutes.post('/notifications/sauvegarder', async (c) => {
 
   return c.redirect('/patient/notifications?succes=1')
 })
- 
+
+
+// ═══════════════════════════════════════════════════════════════
+// CODE URGENCE — générer / régénérer
+// La doc ne précise pas d'intervalle fixe — c'est manuel à la demande
+// Recommandation : régénérer si compromis ou tous les 6 mois
+// ═══════════════════════════════════════════════════════════════
+patientRoutes.post('/code-urgence/regenerer', async (c) => {
+  const profil   = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase' as never) as any
+
+  // Générer code 6 chiffres aléatoire
+  const code = Math.floor(100000 + Math.random() * 900000).toString()
+
+  const { data: dossier } = await supabase
+    .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
+
+  if (!dossier) return c.redirect('/patient/profil')
+
+  await supabase.from('patient_dossiers')
+    .update({ code_urgence: code, code_urgence_updated_at: new Date().toISOString() })
+    .eq('id', dossier.id)
+
+  return c.redirect('/patient/profil?succes=code_regenere')
+})
+
+// ═══════════════════════════════════════════════════════════════
+// ENVOYER CODE URGENCE AU PROCHE DE CONFIANCE
+// Appelé depuis le dashboard patient — envoie par email
+// ═══════════════════════════════════════════════════════════════
+patientRoutes.post('/code-urgence/envoyer', async (c) => {
+  const profil   = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase' as never) as any
+
+  const { data: dossier } = await supabase
+    .from('patient_dossiers')
+    .select('id, nom, prenom, code_urgence')
+    .eq('profile_id', profil.id)
+    .single()
+
+  if (!dossier?.code_urgence) return c.redirect('/patient/contacts-urgence')
+
+  // Récupérer contacts urgence avec email si dispo
+  const { data: contacts } = await supabase
+    .from('patient_contacts_urgence')
+    .select('nom_complet, telephone, email')
+    .eq('patient_id', dossier.id)
+    .limit(3)
+
+  // Log envoi dans stats_acces_logs
+  await supabase.from('stats_acces_logs').insert({
+    user_id:    profil.id,
+    patient_id: dossier.id,
+    action:     'code_urgence_envoye_proche',
+    created_at: new Date().toISOString(),
+  })
+
+  return c.redirect('/patient/contacts-urgence?code_envoye=1')
+})
+
+
+// ═══════════════════════════════════════════════════════════════
+// ENVOI RAPPEL RDV PAR EMAIL — appelé depuis dashboard médecin
+// quand un RDV est confirmé (ou depuis un cron)
+// ═══════════════════════════════════════════════════════════════
+// Cette route est publique côté serveur (appelée en interne)
+// Elle vérifie que le patient a activé les rappels email
+export async function envoyerRappelRDV(
+  supabase: any,
+  resendApiKey: string,
+  rdvId: string
+): Promise<void> {
+  try {
+    // Récupérer le RDV avec toutes les infos
+    const { data: rdv } = await supabase
+      .from('medical_rendez_vous')
+      .select(`
+        id, date_heure, motif, statut,
+        patient_dossiers!medical_rendez_vous_patient_id_fkey(
+          id, nom, prenom,
+          auth_profiles!patient_dossiers_profile_id_fkey(email)
+        ),
+        auth_profiles!medical_rendez_vous_medecin_id_fkey(nom, prenom),
+        struct_structures!medical_rendez_vous_structure_id_fkey(nom)
+      `)
+      .eq('id', rdvId)
+      .single()
+
+    if (!rdv) return
+
+    const patient     = rdv.patient_dossiers
+    const profileId   = patient?.auth_profiles
+    const emailPatient = (profileId as any)?.email
+    if (!emailPatient) return
+
+    // Vérifier préférences notifications
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('email_rdv')
+      .eq('user_id', (profileId as any)?.id || '')
+      .single()
+
+    if (settings?.email_rdv === false) return // Patient a désactivé
+
+    const date = new Date(rdv.date_heure).toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    })
+    const heure = new Date(rdv.date_heure).toLocaleTimeString('fr-FR', {
+      hour: '2-digit', minute: '2-digit'
+    })
+
+    // Envoyer via Resend
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'SantéBF <noreply@santebf.bf>',
+        to:   [emailPatient],
+        subject: `📅 Rappel RDV — ${date} à ${heure}`,
+        html: `
+<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f0f4f8;padding:20px;">
+  <div style="max-width:560px;margin:0 auto;background:white;border-radius:16px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#0d47a1,#1565C0);padding:28px 32px;text-align:center;">
+      <div style="font-size:48px;margin-bottom:8px;">📅</div>
+      <h1 style="color:white;font-size:22px;margin:0;">Rappel de rendez-vous</h1>
+      <p style="color:rgba(255,255,255,0.75);margin:6px 0 0;font-size:13px;">SantéBF — Système National de Santé</p>
+    </div>
+    <div style="padding:32px;">
+      <p style="font-size:16px;color:#0f1923;margin-bottom:20px;">
+        Bonjour <strong>${patient?.prenom || ''} ${patient?.nom || ''}</strong>,
+      </p>
+      <p style="font-size:14px;color:#5a6a78;margin-bottom:24px;">
+        Rappel pour votre rendez-vous médical :
+      </p>
+      <div style="background:#e3f2fd;border:2px solid #1565C0;border-radius:12px;padding:20px;margin-bottom:20px;">
+        <div style="margin-bottom:10px;"><strong style="color:#5a6a78;font-size:12px;text-transform:uppercase;">Date</strong><br><span style="font-size:16px;font-weight:700;color:#0f1923;">${date}</span></div>
+        <div style="margin-bottom:10px;"><strong style="color:#5a6a78;font-size:12px;text-transform:uppercase;">Heure</strong><br><span style="font-size:16px;font-weight:700;color:#1565C0;">🕐 ${heure}</span></div>
+        <div style="margin-bottom:10px;"><strong style="color:#5a6a78;font-size:12px;text-transform:uppercase;">Médecin</strong><br><span style="font-size:15px;font-weight:600;">Dr. ${rdv.auth_profiles?.prenom || ''} ${rdv.auth_profiles?.nom || ''}</span></div>
+        <div><strong style="color:#5a6a78;font-size:12px;text-transform:uppercase;">Structure</strong><br><span style="font-size:15px;font-weight:600;">🏥 ${rdv.struct_structures?.nom || ''}</span></div>
+      </div>
+      <p style="font-size:13px;color:#5a6a78;">Merci de vous présenter 15 minutes avant l'heure prévue.</p>
+    </div>
+    <div style="background:#f0f4f8;padding:20px;text-align:center;font-size:12px;color:#9E9E9E;border-top:1px solid #dde3ea;">
+      SantéBF — Burkina Faso 🇧🇫 | <a href="https://santebf.izicardouaga.com/patient/notifications" style="color:#1565C0;">Gérer mes notifications</a>
+    </div>
+  </div>
+</body></html>`,
+      }),
+    })
+  } catch (err) {
+    console.error('Erreur envoi rappel RDV:', err)
+  }
+}
