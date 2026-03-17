@@ -1022,3 +1022,4 @@ patientRoutes.post('/notifications/sauvegarder', async (c) => {
 
   return c.redirect('/patient/notifications?succes=1')
 })
+ 
