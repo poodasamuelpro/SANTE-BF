@@ -77,3 +77,4 @@ export function redirectionParRole(role: Role): string {
   }
   return routes[role] ?? '/auth/login'
 }
+ 
