@@ -548,7 +548,7 @@ export function dashboardPatientPage(profil: any, data: {
               </a>
               <a href="/patient-pdf/ordonnances" class="action-card">
                 <span class="action-icon">💊</span><span class="action-lbl">Ordonnances</span>
-                \${ordonnancesActives > 0 ? `<span class="action-count">\${ordonnancesActives} active(s)</span>` : ''}
+                ${ordonnancesActives > 0 ? `<span class="action-count">${ordonnancesActives} active(s)</span>` : ''}
               </a>
               <a href="/patient/rdv" class="action-card">
                 <span class="action-icon">📅</span><span class="action-lbl">Rendez-vous</span>
