@@ -15,9 +15,10 @@ export type AuthProfile = {
   structure_id: string | null
   est_actif: boolean
   doit_changer_mdp: boolean
+  avatar_url?: string | null   // ← AJOUTÉ : photo de profil
 }
 
-// NOUVEAU : Type pour les variables de contexte Hono
+// Type pour les variables de contexte Hono
 export type Variables = {
   profil: AuthProfile
   supabase: ReturnType<typeof getSupabase>
@@ -44,10 +45,11 @@ export async function getProfil(
   try {
     const { data, error } = await supabase
       .from('auth_profiles')
-      .select('id, nom, prenom, role, structure_id, est_actif, doit_changer_mdp')
+      .select('id, nom, prenom, role, structure_id, est_actif, doit_changer_mdp, avatar_url')
+      // ↑ avatar_url ajouté ici
       .eq('id', userId)
       .single()
-    
+
     if (error || !data) {
       console.error('❌ getProfil error:', error?.message)
       return null
