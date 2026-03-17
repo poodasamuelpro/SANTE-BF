@@ -15,10 +15,9 @@ export type AuthProfile = {
   structure_id: string | null
   est_actif: boolean
   doit_changer_mdp: boolean
-  avatar_url?: string | null   // ← AJOUTÉ : photo de profil
+  avatar_url?: string | null
 }
 
-// Type pour les variables de contexte Hono
 export type Variables = {
   profil: AuthProfile
   supabase: ReturnType<typeof getSupabase>
@@ -31,7 +30,7 @@ export type Bindings = {
 
 export function getSupabase(url: string | undefined, anonKey: string | undefined) {
   if (!url || !anonKey) {
-    throw new Error('Variables d\'environnement Supabase manquantes. Configurez SUPABASE_URL et SUPABASE_ANON_KEY dans Cloudflare Pages.')
+    throw new Error('Variables Supabase manquantes')
   }
   return createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false }
@@ -46,17 +45,11 @@ export async function getProfil(
     const { data, error } = await supabase
       .from('auth_profiles')
       .select('id, nom, prenom, role, structure_id, est_actif, doit_changer_mdp, avatar_url')
-      // ↑ avatar_url ajouté ici
       .eq('id', userId)
       .single()
-
-    if (error || !data) {
-      console.error('❌ getProfil error:', error?.message)
-      return null
-    }
+    if (error || !data) return null
     return data as AuthProfile
-  } catch (err) {
-    console.error('❌ getProfil exception:', err)
+  } catch {
     return null
   }
 }
