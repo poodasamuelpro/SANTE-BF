@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js' 
 
 export type Role =
   | 'super_admin' | 'admin_structure' | 'medecin'
