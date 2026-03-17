@@ -1,6 +1,6 @@
 /**
  * src/routes/patient.ts
- * Routes patient — toutes les fonctionnalités
+ * Toutes les routes patient — syntaxe TypeScript stricte, zéro template literal imbriqué
  */
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
@@ -8,60 +8,80 @@ import type { AuthProfile } from '../lib/supabase'
 
 type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
 export const patientRoutes = new Hono<{ Bindings: Bindings }>()
-
 patientRoutes.use('/*', requireAuth, requireRole('patient'))
 
-// ── helpers CSS commun ─────────────────────────────────────────
-const CSS_BASE = `
-  :root {
-    --bleu:#1565C0; --bleu-fonce:#0d47a1; --bleu-clair:#e3f2fd;
-    --vert:#1A6B3C; --vert-clair:#e8f5ee;
-    --rouge:#b71c1c; --rouge-clair:#fce8e8;
-    --or:#f59e0b; --or-clair:#fff8e6;
-    --texte:#0f1923; --soft:#5a6a78; --bg:#f0f4f8;
-    --blanc:#fff; --bordure:#dde3ea;
-    --shadow:0 2px 12px rgba(0,0,0,0.07);
-    --radius:16px; --radius-sm:10px;
-  }
-  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:100vh;color:var(--texte);padding:0 0 80px;}
-  .topbar{background:linear-gradient(135deg,var(--bleu-fonce),var(--bleu));height:56px;display:flex;align-items:center;padding:0 20px;position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(21,101,192,0.3);}
-  .topbar-brand{font-family:'Fraunces',serif;font-size:18px;color:white;text-decoration:none;}
-  .topbar-title{font-size:14px;color:rgba(255,255,255,0.8);margin-left:auto;}
-  .content{max-width:700px;margin:0 auto;padding:20px 16px;}
-  .back-btn{display:inline-flex;align-items:center;gap:8px;background:var(--blanc);border:1px solid var(--bordure);color:var(--texte);padding:9px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;text-decoration:none;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06);transition:all .2s;font-family:inherit;}
-  .back-btn:hover{background:var(--bleu-clair);border-color:var(--bleu);color:var(--bleu);}
-  .card{background:var(--blanc);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);margin-bottom:14px;}
-  .card-title{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
-  h1{font-family:'Fraunces',serif;font-size:22px;color:var(--texte);margin-bottom:16px;}
-  .badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;}
-  .b-vert{background:var(--vert-clair);color:var(--vert);}
-  .b-bleu{background:var(--bleu-clair);color:var(--bleu);}
-  .b-rouge{background:var(--rouge-clair);color:var(--rouge);}
-  .b-or{background:var(--or-clair);color:#7a5500;}
-  .b-gris{background:#f0f0f0;color:#666;}
-  .empty{text-align:center;padding:32px;color:var(--soft);font-size:13px;font-style:italic;}
-  @media(max-width:640px){.content{padding:16px 12px;}}
-`
-
-const HEAD = (titre: string) => `<!DOCTYPE html>
+// ── helpers ────────────────────────────────────────────────────
+function layout(titre: string, content: string): string {
+  return `<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${titre} — SantéBF</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
-  <style>${CSS_BASE}</style>
-</head>`
-
-const TOPBAR = (titre: string) => `
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${titre} — SantéBF</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{--bleu:#1565C0;--bleu-f:#0d47a1;--bleu-c:#e3f2fd;--vert:#1A6B3C;--vert-c:#e8f5ee;--rouge:#b71c1c;--rouge-c:#fce8e8;--or:#f59e0b;--or-c:#fff8e6;--texte:#0f1923;--soft:#5a6a78;--bg:#f0f4f8;--blanc:#fff;--bordure:#dde3ea;--r:16px;--rs:10px;--sh:0 2px 10px rgba(0,0,0,.07);}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:100vh;color:var(--texte);padding-bottom:80px;}
+.topbar{background:linear-gradient(135deg,var(--bleu-f),var(--bleu));height:56px;display:flex;align-items:center;padding:0 20px;position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(21,101,192,.3);}
+.tb-brand{font-family:'Fraunces',serif;font-size:18px;color:white;text-decoration:none;}
+.tb-title{font-size:13px;color:rgba(255,255,255,.8);margin-left:auto;}
+.wrap{max-width:720px;margin:0 auto;padding:20px 16px;}
+.back{display:inline-flex;align-items:center;gap:8px;background:var(--blanc);border:1px solid var(--bordure);color:var(--texte);padding:9px 16px;border-radius:var(--rs);font-size:13px;font-weight:700;text-decoration:none;margin-bottom:20px;}
+.back:hover{background:var(--bleu-c);color:var(--bleu);}
+h1{font-family:'Fraunces',serif;font-size:22px;margin-bottom:16px;}
+.card{background:var(--blanc);border-radius:var(--r);padding:20px;box-shadow:var(--sh);margin-bottom:12px;}
+.card-title{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:7px;}
+.empty{text-align:center;padding:32px;color:var(--soft);font-size:13px;font-style:italic;}
+.badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.bv{background:var(--vert-c);color:var(--vert);}
+.bb{background:var(--bleu-c);color:var(--bleu);}
+.br{background:var(--rouge-c);color:var(--rouge);}
+.bg{background:#f0f0f0;color:#666;}
+.bo{background:var(--or-c);color:#7a5500;}
+.row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
+.meta{font-size:12px;color:var(--soft);display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;}
+.sep{border-bottom:1px solid var(--bordure);padding:10px 0;display:flex;justify-content:space-between;}
+.sep:last-child{border-bottom:none;}
+.lbl{font-size:12px;font-weight:700;color:var(--soft);}
+.val{font-size:13px;font-weight:600;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:var(--rs);font-size:13px;font-weight:700;text-decoration:none;border:none;cursor:pointer;font-family:inherit;}
+.btn-v{background:var(--vert);color:white;}
+.btn-b{background:var(--bleu);color:white;}
+.btn-r{background:var(--rouge-c);color:var(--rouge);}
+.btn-o{background:var(--or-c);color:#7a5500;border:1px solid var(--or);}
+.info-box{background:var(--bleu-c);border-left:4px solid var(--bleu);border-radius:var(--rs);padding:13px 15px;margin-bottom:16px;font-size:13px;color:#1a3a6b;line-height:1.6;}
+.warn-box{background:var(--rouge-c);border-left:4px solid var(--rouge);border-radius:var(--rs);padding:13px 15px;margin-bottom:16px;font-size:13px;color:#7f1d1d;line-height:1.6;}
+.ok-box{background:var(--vert-c);color:var(--vert);border-radius:var(--rs);padding:12px 15px;margin-bottom:16px;font-size:13px;font-weight:700;}
+input,select,textarea{width:100%;padding:11px 14px;border:1.5px solid var(--bordure);border-radius:var(--rs);font-size:14px;font-family:inherit;outline:none;background:#fafafa;}
+input:focus,select:focus{border-color:var(--bleu);background:white;}
+.form-group{margin-bottom:14px;}
+.form-label{display:block;font-size:12px;font-weight:700;color:var(--texte);margin-bottom:5px;}
+@media(max-width:640px){.wrap{padding:14px 12px;}}
+</style>
+</head>
+<body>
 <div class="topbar">
-  <a href="/dashboard/patient" class="topbar-brand">🏥 SantéBF</a>
-  <span class="topbar-title">${titre}</span>
+  <a href="/dashboard/patient" class="tb-brand">&#127973; SantéBF</a>
+  <span class="tb-title">${titre}</span>
+</div>
+${content}
+</body>
+</html>`
+}
+
+function noDossier(): string {
+  return `<div class="card">
+  <div style="text-align:center;padding:32px;">
+    <div style="font-size:48px;margin-bottom:12px;">&#128203;</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Dossier non lié</div>
+    <p style="font-size:13px;color:var(--soft);">Présentez-vous à l'accueil d'une structure SantéBF avec votre email pour lier votre dossier.</p>
+  </div>
 </div>`
+}
 
 // ═══════════════════════════════════════════════════════════════
-// MON DOSSIER MÉDICAL
+// MON DOSSIER
 // ═══════════════════════════════════════════════════════════════
 patientRoutes.get('/dossier', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
@@ -69,162 +89,112 @@ patientRoutes.get('/dossier', async (c) => {
 
   const { data: dossier } = await supabase
     .from('patient_dossiers')
-    .select('id,numero_national,nom,prenom,date_naissance,sexe,groupe_sanguin,rhesus,allergies,maladies_chroniques,telephone,created_at')
-    .eq('profile_id', profil.id)
-    .single()
+    .select('id, numero_national, nom, prenom, date_naissance, sexe, groupe_sanguin, rhesus, allergies, maladies_chroniques, telephone, created_at')
+    .eq('profile_id', profil.id).single()
 
   if (!dossier) {
-    return c.html(`${HEAD('Mon dossier')}
-    <body>${TOPBAR('Mon dossier')}
-    <div class="content">
-      <a href="/dashboard/patient" class="back-btn">← Retour</a>
-      <div class="card" style="text-align:center;padding:40px;">
-        <div style="font-size:48px;margin-bottom:16px;">📋</div>
-        <div style="font-size:16px;font-weight:700;margin-bottom:8px;">Dossier non lié</div>
-        <p style="font-size:13px;color:var(--soft);line-height:1.7;">
-          Votre dossier médical n'est pas encore lié à votre compte.<br>
-          Présentez-vous à l'accueil d'une structure SantéBF avec votre email :<br>
-          <strong style="color:var(--bleu)">${profil.email || ''}</strong>
-        </p>
-      </div>
-    </div></body></html>`)
+    return c.html(layout('Mon dossier', `<div class="wrap"><a href="/dashboard/patient" class="back">&#8592; Retour</a>${noDossier()}</div>`))
   }
 
-  const age = Math.floor((Date.now() - new Date(dossier.date_naissance).getTime()) / (1000*60*60*24*365.25))
+  const age = Math.floor((Date.now() - new Date(dossier.date_naissance).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
 
-  const [consResult, ordResult, vaccResult] = await Promise.all([
+  const [consRes, ordRes, vaccRes] = await Promise.all([
     supabase.from('medical_consultations')
-      .select('id,created_at,motif,diagnostic_principal,type_consultation,auth_profiles(nom,prenom)')
-      .eq('patient_id', dossier.id)
-      .order('created_at', { ascending: false })
-      .limit(8),
+      .select('id, created_at, motif, diagnostic_principal, type_consultation, auth_profiles(nom, prenom)')
+      .eq('patient_id', dossier.id).order('created_at', { ascending: false }).limit(8),
     supabase.from('medical_ordonnances')
-      .select('id,numero_ordonnance,created_at,statut,auth_profiles(nom,prenom)')
-      .eq('patient_id', dossier.id)
-      .eq('statut', 'active')
-      .limit(5),
+      .select('id, numero_ordonnance, created_at, statut, auth_profiles(nom, prenom)')
+      .eq('patient_id', dossier.id).eq('statut', 'active').limit(5),
     supabase.from('spec_vaccinations')
-      .select('id,vaccin,date_vaccination,prochaine_dose')
-      .eq('patient_id', dossier.id)
-      .order('date_vaccination', { ascending: false })
-      .limit(5),
+      .select('id, vaccin, date_vaccination, prochaine_dose')
+      .eq('patient_id', dossier.id).order('date_vaccination', { ascending: false }).limit(5),
   ])
 
   const allergies: any[] = Array.isArray(dossier.allergies) ? dossier.allergies : []
-  const maladies:  any[] = Array.isArray(dossier.maladies_chroniques) ? dossier.maladies_chroniques : []
-  const consultations = consResult.data ?? []
-  const ordonnances   = ordResult.data ?? []
-  const vaccins       = vaccResult.data ?? []
+  const maladies: any[]  = Array.isArray(dossier.maladies_chroniques) ? dossier.maladies_chroniques : []
+  const consultations = consRes.data ?? []
+  const ordonnances   = ordRes.data ?? []
+  const vaccins       = vaccRes.data ?? []
 
-  return c.html(`${HEAD('Mon dossier')}
-<body>
-${TOPBAR('Mon dossier')}
-<div class="content">
-  <a href="/dashboard/patient" class="back-btn">← Retour au tableau de bord</a>
+  const allergiesHtml = allergies.length > 0
+    ? allergies.map((a: any) => {
+        const substance = a.substance || a.nom || String(a)
+        const reaction  = a.reaction ? ` — ${a.reaction}` : ''
+        return `<div style="background:var(--rouge-c);border-left:4px solid var(--rouge);border-radius:8px;padding:12px;margin-bottom:8px;"><div style="font-size:14px;font-weight:700;color:var(--rouge);">${substance}</div>${reaction ? `<div style="font-size:12px;color:#7f1d1d;margin-top:2px;">${reaction}</div>` : ''}</div>`
+      }).join('')
+    : '<div class="empty">Aucune allergie enregistrée</div>'
 
-  <!-- Identité -->
+  const maladiesHtml = maladies.length > 0
+    ? maladies.map((m: any) => {
+        const nom = m.maladie || m.nom || String(m)
+        const traitement = m.traitement ? `<div style="font-size:12px;color:#7a5500;margin-top:2px;">&#128138; ${m.traitement}</div>` : ''
+        return `<div style="background:var(--or-c);border-left:4px solid var(--or);border-radius:8px;padding:12px;margin-bottom:8px;"><div style="font-size:14px;font-weight:700;color:#7a5500;">${nom}</div>${traitement}</div>`
+      }).join('')
+    : '<div class="empty">Aucune maladie chronique</div>'
+
+  const ordHtml = ordonnances.length > 0
+    ? ordonnances.map((o: any) => {
+        const med = o.auth_profiles ? `Dr. ${o.auth_profiles.prenom || ''} ${o.auth_profiles.nom || ''}` : ''
+        const dt  = new Date(o.created_at).toLocaleDateString('fr-FR')
+        return `<div class="sep"><div><div style="font-size:13px;font-weight:700;">${o.numero_ordonnance}</div><div class="meta">${med ? `<span>${med}</span>` : ''}<span>${dt}</span></div></div><a href="/patient-pdf/ordonnance/${o.id}" class="btn btn-v" style="font-size:12px;padding:6px 12px;">&#128229; PDF</a></div>`
+      }).join('')
+    : ''
+
+  const consHtml = consultations.length > 0
+    ? consultations.map((c: any) => {
+        const med   = c.auth_profiles ? `Dr. ${c.auth_profiles.prenom || ''} ${c.auth_profiles.nom || ''}` : ''
+        const dt    = new Date(c.created_at).toLocaleDateString('fr-FR')
+        const diag  = c.diagnostic_principal ? `<div style="font-size:12px;color:var(--bleu);margin-top:3px;">&#8594; ${c.diagnostic_principal}</div>` : ''
+        return `<div style="border-left:3px solid var(--bleu);padding:12px 14px;margin-bottom:10px;background:#fafcff;border-radius:0 8px 8px 0;"><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="badge bb">${c.type_consultation || 'normale'}</span><span style="font-size:12px;color:var(--soft);">${dt}</span></div><div style="font-size:14px;font-weight:700;">${c.motif || 'N/A'}</div><div style="font-size:12px;color:var(--soft);">${med}</div>${diag}</div>`
+      }).join('')
+    : '<div class="empty">Aucune consultation</div>'
+
+  const vaccHtml = vaccins.length > 0
+    ? vaccins.map((v: any) => {
+        const dt = new Date(v.date_vaccination).toLocaleDateString('fr-FR')
+        const rappel = v.prochaine_dose && new Date(v.prochaine_dose) > new Date()
+          ? `<span class="badge bo">Rappel ${new Date(v.prochaine_dose).toLocaleDateString('fr-FR')}</span>`
+          : `<span class="badge bv">&#10003; À jour</span>`
+        return `<div class="sep"><div><div style="font-size:13px;font-weight:700;">&#128137; ${v.vaccin}</div><div style="font-size:12px;color:var(--soft);">${dt}</div></div>${rappel}</div>`
+      }).join('')
+    : ''
+
+  const sanguin = dossier.groupe_sanguin
+    ? `<span class="badge br" style="font-size:14px;padding:5px 14px;">&#129784; ${dossier.groupe_sanguin}${dossier.rhesus || ''}</span>`
+    : ''
+
+  const content = `<div class="wrap">
+  <a href="/dashboard/patient" class="back">&#8592; Retour au tableau de bord</a>
+
   <div class="card">
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-      <div style="width:64px;height:64px;border-radius:50%;background:var(--bleu-clair);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--bleu);flex-shrink:0;">
-        ${(dossier.prenom||'?').charAt(0)}${(dossier.nom||'?').charAt(0)}
-      </div>
-      <div style="flex:1;">
-        <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:600;">${dossier.prenom} ${dossier.nom}</div>
-        <div style="font-size:12px;color:var(--soft);margin-top:3px;">
-          ${dossier.sexe === 'M' ? '👨 Masculin' : '👩 Féminin'} · ${age} ans · 🗓️ ${new Date(dossier.date_naissance).toLocaleDateString('fr-FR')}
-        </div>
+      <div style="width:60px;height:60px;border-radius:50%;background:var(--bleu-c);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--bleu);flex-shrink:0;">${dossier.prenom.charAt(0)}${dossier.nom.charAt(0)}</div>
+      <div>
+        <div style="font-family:'Fraunces',serif;font-size:22px;">${dossier.prenom} ${dossier.nom}</div>
+        <div style="font-size:12px;color:var(--soft);margin-top:3px;">${dossier.sexe === 'M' ? '&#128104; Masculin' : '&#128105; Féminin'} &middot; ${age} ans &middot; &#128197; ${new Date(dossier.date_naissance).toLocaleDateString('fr-FR')}</div>
         <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <span style="font-family:monospace;font-size:12px;background:#f0f4f8;padding:3px 10px;border-radius:8px;">🪪 ${dossier.numero_national || 'N/A'}</span>
-          ${dossier.groupe_sanguin ? `<span class="badge" style="background:var(--rouge-clair);color:var(--rouge);font-size:14px;padding:5px 12px;">🩸 ${dossier.groupe_sanguin}${dossier.rhesus||''}</span>` : ''}
+          <span style="font-family:monospace;font-size:12px;background:#f0f4f8;padding:3px 10px;border-radius:8px;">&#128282; ${dossier.numero_national || 'N/A'}</span>
+          ${sanguin}
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Allergies -->
+  <div class="card"><div class="card-title">&#9888; Allergies</div>${allergiesHtml}</div>
+  <div class="card"><div class="card-title">&#129658; Maladies chroniques</div>${maladiesHtml}</div>
+
+  ${ordonnances.length > 0 ? `<div class="card"><div class="card-title" style="justify-content:space-between;">&#128138; Ordonnances actives <a href="/patient-pdf/ordonnances" style="font-size:12px;color:var(--bleu);font-weight:700;text-decoration:none;">Voir tout &#8594;</a></div>${ordHtml}</div>` : ''}
+
   <div class="card">
-    <div class="card-title">⚠️ Allergies connues</div>
-    ${allergies.length > 0
-      ? allergies.map(a => `
-        <div style="background:var(--rouge-clair);border-left:4px solid var(--rouge);border-radius:8px;padding:12px;margin-bottom:8px;">
-          <div style="font-size:14px;font-weight:700;color:var(--rouge);">${a.substance || a.nom || a}</div>
-          ${a.reaction ? `<div style="font-size:12px;color:#7f1d1d;margin-top:2px;">Réaction : ${a.reaction}</div>` : ''}
-        </div>`).join('')
-      : '<div class="empty">✅ Aucune allergie enregistrée</div>'
-    }
+    <div class="card-title" style="justify-content:space-between;">&#128203; Consultations récentes <span class="badge bb">${consultations.length}</span></div>
+    ${consHtml}
   </div>
 
-  <!-- Maladies chroniques -->
-  <div class="card">
-    <div class="card-title">🩺 Maladies chroniques</div>
-    ${maladies.length > 0
-      ? maladies.map(m => `
-        <div style="background:var(--or-clair);border-left:4px solid var(--or);border-radius:8px;padding:12px;margin-bottom:8px;">
-          <div style="font-size:14px;font-weight:700;color:#7a5500;">${m.maladie || m.nom || m}</div>
-          ${m.traitement ? `<div style="font-size:12px;color:#7a5500;margin-top:2px;">💊 ${m.traitement}</div>` : ''}
-          ${m.depuis ? `<div style="font-size:11px;color:#9a7500;margin-top:2px;">Depuis ${m.depuis}</div>` : ''}
-        </div>`).join('')
-      : '<div class="empty">Aucune maladie chronique enregistrée</div>'
-    }
-  </div>
+  ${vaccins.length > 0 ? `<div class="card"><div class="card-title" style="justify-content:space-between;">&#128137; Vaccinations <a href="/patient/vaccinations" style="font-size:12px;color:var(--bleu);font-weight:700;text-decoration:none;">Voir tout &#8594;</a></div>${vaccHtml}</div>` : ''}
+</div>`
 
-  <!-- Ordonnances actives -->
-  ${ordonnances.length > 0 ? `
-  <div class="card">
-    <div class="card-title">💊 Ordonnances actives <span class="badge b-vert">${ordonnances.length}</span></div>
-    ${ordonnances.map((o:any) => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--bordure);">
-        <div>
-          <div style="font-size:13px;font-weight:700;">${o.numero_ordonnance}</div>
-          <div style="font-size:12px;color:var(--soft);">Dr. ${o.auth_profiles?.prenom||''} ${o.auth_profiles?.nom||''} · ${new Date(o.created_at).toLocaleDateString('fr-FR')}</div>
-        </div>
-        <a href="/patient-pdf/ordonnance/${o.id}" style="background:var(--vert);color:white;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">📥 PDF</a>
-      </div>
-    `).join('')}
-    <a href="/patient/ordonnances" style="display:block;text-align:center;margin-top:12px;font-size:13px;color:var(--bleu);font-weight:700;text-decoration:none;">Voir toutes mes ordonnances →</a>
-  </div>` : ''}
-
-  <!-- Consultations -->
-  <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-      <div class="card-title" style="margin-bottom:0;">📋 Consultations récentes</div>
-      <span class="badge b-bleu">${consultations.length}</span>
-    </div>
-    ${consultations.length > 0
-      ? consultations.map((c:any) => `
-        <div style="border-left:3px solid var(--bleu);padding:12px 14px;margin-bottom:10px;background:#fafcff;border-radius:0 8px 8px 0;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span style="font-size:12px;color:var(--soft);">${new Date(c.created_at).toLocaleDateString('fr-FR')}</span>
-            <span class="badge b-gris">${c.type_consultation||'normale'}</span>
-          </div>
-          <div style="font-size:14px;font-weight:700;">${c.motif||'N/A'}</div>
-          <div style="font-size:12px;color:var(--soft);margin-top:3px;">Dr. ${c.auth_profiles?.prenom||''} ${c.auth_profiles?.nom||''}</div>
-          ${c.diagnostic_principal ? `<div style="font-size:12px;color:var(--bleu);margin-top:3px;">→ ${c.diagnostic_principal}</div>` : ''}
-        </div>`).join('')
-      : '<div class="empty">Aucune consultation enregistrée</div>'
-    }
-  </div>
-
-  <!-- Vaccinations récentes -->
-  ${vaccins.length > 0 ? `
-  <div class="card">
-    <div class="card-title">💉 Vaccinations récentes</div>
-    ${vaccins.map((v:any) => `
-      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bordure);">
-        <div>
-          <div style="font-size:13px;font-weight:700;">${v.vaccin}</div>
-          <div style="font-size:12px;color:var(--soft);">${new Date(v.date_vaccination).toLocaleDateString('fr-FR')}</div>
-        </div>
-        ${v.prochaine_dose ? `<span class="badge b-or">Rappel ${new Date(v.prochaine_dose).toLocaleDateString('fr-FR')}</span>` : '<span class="badge b-vert">✅ À jour</span>'}
-      </div>
-    `).join('')}
-    <a href="/patient/vaccinations" style="display:block;text-align:center;margin-top:12px;font-size:13px;color:var(--bleu);font-weight:700;text-decoration:none;">Voir tout mon carnet →</a>
-  </div>` : ''}
-
-</div>
-</body></html>`)
+  return c.html(layout('Mon dossier', content))
 })
-
 
 // ═══════════════════════════════════════════════════════════════
 // MES ORDONNANCES
@@ -236,53 +206,32 @@ patientRoutes.get('/ordonnances', async (c) => {
   const { data: dossier } = await supabase
     .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
 
-  const { data: ordonnances } = await supabase
+  const { data: list } = dossier ? await supabase
     .from('medical_ordonnances')
-    .select('id,numero_ordonnance,created_at,date_expiration,statut,auth_profiles(nom,prenom,struct_structures(nom))')
-    .eq('patient_id', dossier?.id)
-    .order('created_at', { ascending: false })
+    .select('id, numero_ordonnance, created_at, date_expiration, statut, auth_profiles!medical_ordonnances_medecin_id_fkey(nom, prenom), struct_structures!medical_ordonnances_structure_id_fkey(nom)')
+    .eq('patient_id', dossier.id).order('created_at', { ascending: false })
+    : { data: [] }
 
-  const list = ordonnances ?? []
+  const items = (list ?? []).map((o: any) => {
+    const bc = o.statut === 'active' ? 'bv' : o.statut === 'expiree' ? 'br' : 'bg'
+    const lb = o.statut === 'active' ? 'Active' : o.statut === 'delivree' ? 'Délivrée' : o.statut === 'expiree' ? 'Expirée' : o.statut
+    const med = o.auth_profiles ? `Dr. ${o.auth_profiles.prenom || ''} ${o.auth_profiles.nom || ''}` : ''
+    const str = o.struct_structures?.nom || ''
+    const dt  = new Date(o.created_at).toLocaleDateString('fr-FR')
+    const exp = o.date_expiration ? `Expire ${new Date(o.date_expiration).toLocaleDateString('fr-FR')}` : ''
+    const btn = o.statut !== 'expiree'
+      ? `<a href="/patient-pdf/ordonnance/${o.id}" class="btn btn-v">&#128229; Télécharger PDF</a>`
+      : `<span style="font-size:12px;color:var(--soft);">Expirée</span>`
+    return `<div class="card"><div class="row"><div><div style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">${o.numero_ordonnance}<span class="badge ${bc}">${lb}</span></div><div class="meta">${med ? `<span>${med}</span>` : ''}${str ? `<span>&#127973; ${str}</span>` : ''}<span>&#128197; ${dt}</span>${exp ? `<span>&#8987; ${exp}</span>` : ''}</div></div>${btn}</div></div>`
+  }).join('')
 
-  return c.html(`${HEAD('Mes ordonnances')}
-<body>
-${TOPBAR('Mes ordonnances')}
-<div class="content">
-  <a href="/dashboard/patient" class="back-btn">← Retour</a>
-  <h1>💊 Mes ordonnances</h1>
-
-  ${list.length === 0
-    ? `<div class="card"><div class="empty">Aucune ordonnance enregistrée</div></div>`
-    : list.map((o:any) => {
-        const statut = o.statut
-        const badgeClass = statut==='active' ? 'b-vert' : statut==='expiree' ? 'b-rouge' : 'b-gris'
-        const labelStatut = statut==='active' ? '✅ Active' : statut==='delivree' ? '📦 Délivrée' : statut==='expiree' ? '❌ Expirée' : statut
-        return `
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-            <div>
-              <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${o.numero_ordonnance}</div>
-              <div style="font-size:12px;color:var(--soft);">Dr. ${o.auth_profiles?.prenom||''} ${o.auth_profiles?.nom||''}</div>
-              ${o.auth_profiles?.struct_structures?.nom ? `<div style="font-size:11px;color:var(--bleu);">🏥 ${o.auth_profiles.struct_structures.nom}</div>` : ''}
-            </div>
-            <span class="badge ${badgeClass}">${labelStatut}</span>
-          </div>
-          <div style="display:flex;gap:12px;font-size:12px;color:var(--soft);margin-bottom:14px;flex-wrap:wrap;">
-            <span>📅 Créée le ${new Date(o.created_at).toLocaleDateString('fr-FR')}</span>
-            ${o.date_expiration ? `<span>⏳ Expire le ${new Date(o.date_expiration).toLocaleDateString('fr-FR')}</span>` : ''}
-          </div>
-          ${statut !== 'expiree' ? `
-          <a href="/patient-pdf/ordonnance/${o.id}"
-             style="display:flex;align-items:center;justify-content:center;gap:8px;background:var(--vert);color:white;padding:11px;border-radius:var(--radius-sm);text-decoration:none;font-size:13px;font-weight:700;">
-            📥 Télécharger en PDF
-          </a>` : ''}
-        </div>`
-      }).join('')
-  }
-</div>
-</body></html>`)
+  const content = `<div class="wrap">
+  <a href="/dashboard/patient" class="back">&#8592; Retour</a>
+  <h1>&#128138; Mes ordonnances</h1>
+  ${!dossier ? noDossier() : items || '<div class="card"><div class="empty">Aucune ordonnance</div></div>'}
+</div>`
+  return c.html(layout('Mes ordonnances', content))
 })
-
 
 // ═══════════════════════════════════════════════════════════════
 // MES RENDEZ-VOUS
@@ -295,60 +244,42 @@ patientRoutes.get('/rdv', async (c) => {
     .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
 
   const now = new Date().toISOString()
-  const [futursRes, passesRes] = await Promise.all([
-    supabase.from('medical_rendez_vous')
-      .select('id,date_heure,motif,statut,auth_profiles(nom,prenom),struct_structures(nom)')
-      .eq('patient_id', dossier?.id)
-      .gte('date_heure', now)
-      .order('date_heure', { ascending: true })
-      .limit(10),
-    supabase.from('medical_rendez_vous')
-      .select('id,date_heure,motif,statut,auth_profiles(nom,prenom),struct_structures(nom)')
-      .eq('patient_id', dossier?.id)
-      .lt('date_heure', now)
-      .order('date_heure', { ascending: false })
-      .limit(5),
+  const [futRes, pasRes] = await Promise.all([
+    dossier ? supabase.from('medical_rendez_vous')
+      .select('id, date_heure, motif, statut, auth_profiles(nom, prenom), struct_structures(nom)')
+      .eq('patient_id', dossier.id).gte('date_heure', now)
+      .order('date_heure', { ascending: true }).limit(10)
+      : { data: [] },
+    dossier ? supabase.from('medical_rendez_vous')
+      .select('id, date_heure, motif, statut, auth_profiles(nom, prenom), struct_structures(nom)')
+      .eq('patient_id', dossier.id).lt('date_heure', now)
+      .order('date_heure', { ascending: false }).limit(5)
+      : { data: [] },
   ])
 
-  const futurs = futursRes.data ?? []
-  const passes = passesRes.data ?? []
-
-  const rdvCard = (r:any, estPasse = false) => {
-    const badgeClass = r.statut==='confirme' ? 'b-vert' : r.statut==='planifie' ? 'b-bleu' : r.statut==='annule' ? 'b-rouge' : 'b-gris'
-    return `
-    <div class="card" style="${estPasse ? 'opacity:.7;' : ''}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
-        <div style="font-size:16px;font-weight:700;color:var(--bleu);">
-          ${new Date(r.date_heure).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}
-        </div>
-        <span class="badge ${badgeClass}">${r.statut}</span>
-      </div>
-      <div style="font-size:15px;font-weight:700;color:var(--bleu);margin-bottom:2px;">
-        🕐 ${new Date(r.date_heure).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
-      </div>
-      <div style="font-size:14px;font-weight:600;margin-bottom:4px;">${r.motif||'Consultation'}</div>
-      <div style="font-size:12px;color:var(--soft);">Dr. ${r.auth_profiles?.prenom||''} ${r.auth_profiles?.nom||''}</div>
-      ${r.struct_structures?.nom ? `<div style="font-size:12px;color:var(--bleu);">🏥 ${r.struct_structures.nom}</div>` : ''}
-    </div>`
+  function rdvCard(r: any): string {
+    const bc = r.statut === 'confirme' ? 'bv' : r.statut === 'planifie' ? 'bb' : r.statut === 'annule' ? 'br' : 'bg'
+    const dt = new Date(r.date_heure).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+    const hr = new Date(r.date_heure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    const med = r.auth_profiles ? `Dr. ${r.auth_profiles.prenom || ''} ${r.auth_profiles.nom || ''}` : ''
+    const str = r.struct_structures?.nom || ''
+    return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><div style="font-size:15px;font-weight:700;color:var(--bleu);">${dt}</div><span class="badge ${bc}">${r.statut}</span></div><div style="font-size:16px;font-weight:700;color:var(--bleu);margin-bottom:3px;">&#128336; ${hr}</div><div style="font-size:14px;font-weight:600;">${r.motif || 'Consultation'}</div>${med ? `<div style="font-size:12px;color:var(--soft);margin-top:3px;">${med}</div>` : ''}${str ? `<div style="font-size:12px;color:var(--bleu);">&#127973; ${str}</div>` : ''}</div>`
   }
 
-  return c.html(`${HEAD('Mes rendez-vous')}
-<body>
-${TOPBAR('Mes rendez-vous')}
-<div class="content">
-  <a href="/dashboard/patient" class="back-btn">← Retour</a>
-  <h1>📅 Mes rendez-vous</h1>
+  const futurs = (futRes.data ?? []).map(rdvCard).join('')
+  const passes = (pasRes.data ?? []).map((r: any) => `<div style="opacity:.65;">${rdvCard(r)}</div>`).join('')
 
-  <div style="font-size:13px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">À venir (${futurs.length})</div>
-  ${futurs.length > 0 ? futurs.map(r => rdvCard(r)).join('') : '<div class="card"><div class="empty">Aucun rendez-vous à venir</div></div>'}
-
-  ${passes.length > 0 ? `
-  <div style="font-size:13px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin:20px 0 10px;">Passés</div>
-  ${passes.map(r => rdvCard(r, true)).join('')}` : ''}
-</div>
-</body></html>`)
+  const content = `<div class="wrap">
+  <a href="/dashboard/patient" class="back">&#8592; Retour</a>
+  <h1>&#128197; Mes rendez-vous</h1>
+  ${!dossier ? noDossier() : `
+  <div style="font-size:12px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">À venir (${(futRes.data ?? []).length})</div>
+  ${futurs || '<div class="card"><div class="empty">Aucun rendez-vous à venir</div></div>'}
+  ${passes ? `<div style="font-size:12px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin:18px 0 10px;">Passés</div>${passes}` : ''}
+  `}
+</div>`
+  return c.html(layout('Mes rendez-vous', content))
 })
-
 
 // ═══════════════════════════════════════════════════════════════
 // MES VACCINATIONS
@@ -360,53 +291,37 @@ patientRoutes.get('/vaccinations', async (c) => {
   const { data: dossier } = await supabase
     .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
 
-  const { data: vaccins } = await supabase
+  const { data: list } = dossier ? await supabase
     .from('spec_vaccinations')
-    .select('id,vaccin,date_vaccination,lot,prochaine_dose,notes,auth_profiles(nom,prenom)')
-    .eq('patient_id', dossier?.id)
-    .order('date_vaccination', { ascending: false })
+    .select('id, vaccin, date_vaccination, lot, prochaine_dose, notes, auth_profiles(nom, prenom)')
+    .eq('patient_id', dossier.id).order('date_vaccination', { ascending: false })
+    : { data: [] }
 
-  const list = vaccins ?? []
-  const rappels = list.filter((v:any) => v.prochaine_dose && new Date(v.prochaine_dose) > new Date())
+  const rappels = (list ?? []).filter((v: any) => v.prochaine_dose && new Date(v.prochaine_dose) > new Date())
 
-  return c.html(`${HEAD('Mes vaccinations')}
-<body>
-${TOPBAR('Mes vaccinations')}
-<div class="content">
-  <a href="/dashboard/patient" class="back-btn">← Retour</a>
-  <h1>💉 Mon carnet de vaccination</h1>
+  const rappelBox = rappels.length > 0
+    ? `<div style="background:var(--or-c);border-left:4px solid var(--or);border-radius:var(--rs);padding:14px 16px;margin-bottom:16px;"><div style="font-size:13px;font-weight:700;color:#7a5500;margin-bottom:6px;">&#8987; ${rappels.length} rappel(s) à prévoir</div>${rappels.map((v: any) => `<div style="font-size:12px;color:#7a5500;">• ${v.vaccin} — ${new Date(v.prochaine_dose).toLocaleDateString('fr-FR')}</div>`).join('')}</div>`
+    : ''
 
-  ${rappels.length > 0 ? `
-  <div style="background:var(--or-clair);border-left:4px solid var(--or);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:16px;">
-    <div style="font-size:13px;font-weight:700;color:#7a5500;margin-bottom:6px;">⏰ ${rappels.length} rappel(s) à prévoir</div>
-    ${rappels.map((v:any) => `<div style="font-size:12px;color:#7a5500;">• ${v.vaccin} — ${new Date(v.prochaine_dose).toLocaleDateString('fr-FR')}</div>`).join('')}
-  </div>` : ''}
+  const items = (list ?? []).map((v: any) => {
+    const dt = new Date(v.date_vaccination).toLocaleDateString('fr-FR')
+    const med = v.auth_profiles ? `Dr. ${v.auth_profiles.prenom || ''} ${v.auth_profiles.nom || ''}` : ''
+    const rappel = v.prochaine_dose && new Date(v.prochaine_dose) > new Date()
+      ? `<span class="badge bo">Rappel ${new Date(v.prochaine_dose).toLocaleDateString('fr-FR')}</span>`
+      : `<span class="badge bv">&#10003; À jour</span>`
+    return `<div class="card"><div class="row"><div><div style="font-size:15px;font-weight:700;">&#128137; ${v.vaccin}</div><div class="meta"><span>&#128197; ${dt}</span>${v.lot ? `<span>&#128278; ${v.lot}</span>` : ''}${med ? `<span>${med}</span>` : ''}</div>${v.notes ? `<div style="font-size:12px;color:var(--soft);margin-top:5px;font-style:italic;">${v.notes}</div>` : ''}</div>${rappel}</div></div>`
+  }).join('')
 
-  ${list.length === 0
-    ? `<div class="card"><div class="empty">Aucun vaccin enregistré</div></div>`
-    : list.map((v:any) => `
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-          <div style="font-size:15px;font-weight:700;">💉 ${v.vaccin}</div>
-          ${v.prochaine_dose && new Date(v.prochaine_dose) > new Date()
-            ? `<span class="badge b-or">Rappel ${new Date(v.prochaine_dose).toLocaleDateString('fr-FR')}</span>`
-            : `<span class="badge b-vert">✅ À jour</span>`}
-        </div>
-        <div style="font-size:12px;color:var(--soft);display:flex;gap:14px;flex-wrap:wrap;">
-          <span>📅 ${new Date(v.date_vaccination).toLocaleDateString('fr-FR')}</span>
-          ${v.lot ? `<span>🔖 Lot : ${v.lot}</span>` : ''}
-          ${v.auth_profiles ? `<span>👨‍⚕️ Dr. ${v.auth_profiles.prenom} ${v.auth_profiles.nom}</span>` : ''}
-        </div>
-        ${v.notes ? `<div style="font-size:12px;color:var(--soft);margin-top:6px;font-style:italic;">${v.notes}</div>` : ''}
-      </div>`).join('')
-  }
-</div>
-</body></html>`)
+  const content = `<div class="wrap">
+  <a href="/dashboard/patient" class="back">&#8592; Retour</a>
+  <h1>&#128137; Mon carnet de vaccination</h1>
+  ${!dossier ? noDossier() : rappelBox + (items || '<div class="card"><div class="empty">Aucun vaccin enregistré</div></div>')}
+</div>`
+  return c.html(layout('Vaccinations', content))
 })
 
-
 // ═══════════════════════════════════════════════════════════════
-// MES CONSENTEMENTS — liste médecins + révoquer
+// CONSENTEMENTS
 // ═══════════════════════════════════════════════════════════════
 patientRoutes.get('/consentements', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
@@ -415,127 +330,69 @@ patientRoutes.get('/consentements', async (c) => {
   const { data: dossier } = await supabase
     .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
 
-  const { data: consentements } = await supabase
+  const { data: list } = dossier ? await supabase
     .from('patient_consentements')
-    .select(`
-      id, est_actif, accordé_le,
-      auth_profiles!patient_consentements_medecin_id_fkey(
-        id, nom, prenom, avatar_url,
-        auth_medecins(specialite_principale),
-        struct_structures!auth_profiles_structure_id_fkey(nom)
-      )
-    `)
-    .eq('patient_id', dossier?.id)
-    .order('accordé_le', { ascending: false })
+    .select('id, est_actif, created_at, auth_profiles!patient_consentements_medecin_id_fkey(id, nom, prenom, avatar_url, auth_medecins(specialite_principale), struct_structures!auth_profiles_structure_id_fkey(nom))')
+    .eq('patient_id', dossier.id)
+    .order('created_at', { ascending: false })
+    : { data: [] }
 
-  const list = consentements ?? []
-  const actifs  = list.filter((c:any) => c.est_actif)
-  const inactifs = list.filter((c:any) => !c.est_actif)
+  const actifs   = (list ?? []).filter((x: any) => x.est_actif)
+  const inactifs = (list ?? []).filter((x: any) => !x.est_actif)
 
-  const medecinCard = (c:any, actif: boolean) => {
-    const p = c.auth_profiles
+  function medecinCard(ct: any, actif: boolean): string {
+    const p = ct.auth_profiles
     if (!p) return ''
-    const initiales = `${(p.prenom||'?').charAt(0)}${(p.nom||'?').charAt(0)}`
-    return `
-    <div class="card" style="${actif ? '' : 'opacity:.6;'}">
-      <div style="display:flex;align-items:center;gap:14px;">
-        <div style="width:48px;height:48px;border-radius:50%;background:var(--vert-clair);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--vert);flex-shrink:0;overflow:hidden;">
-          ${p.avatar_url ? `<img src="${p.avatar_url}" style="width:100%;height:100%;object-fit:cover;" alt="">` : initiales}
-        </div>
-        <div style="flex:1;">
-          <div style="font-size:15px;font-weight:700;">Dr. ${p.prenom} ${p.nom}</div>
-          <div style="font-size:12px;color:var(--soft);">${p.auth_medecins?.[0]?.specialite_principale || 'Médecin généraliste'}</div>
-          ${p.struct_structures?.nom ? `<div style="font-size:11px;color:var(--bleu);">🏥 ${p.struct_structures.nom}</div>` : ''}
-          <div style="font-size:11px;color:var(--soft);margin-top:2px;">Accordé le ${c.accordé_le ? new Date(c.accordé_le).toLocaleDateString('fr-FR') : 'N/A'}</div>
-        </div>
-        <div>
-          ${actif
-            ? `<form method="POST" action="/patient/consentements/${c.id}/revoquer" style="margin:0;">
-                 <button type="submit" style="background:var(--rouge-clair);color:var(--rouge);border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">
-                   🔒 Révoquer
-                 </button>
-               </form>`
-            : `<form method="POST" action="/patient/consentements/${c.id}/reactiver" style="margin:0;">
-                 <button type="submit" style="background:var(--vert-clair);color:var(--vert);border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">
-                   🔓 Réactiver
-                 </button>
-               </form>`
-          }
-        </div>
-      </div>
-    </div>`
+    const ini  = `${(p.prenom || '?').charAt(0)}${(p.nom || '?').charAt(0)}`
+    const av   = p.avatar_url ? `<img src="${p.avatar_url}" style="width:100%;height:100%;object-fit:cover;" alt="">` : ini
+    const spec = p.auth_medecins?.[0]?.specialite_principale || 'Médecin généraliste'
+    const str  = p.struct_structures?.nom || ''
+    const dt   = ct.created_at ? new Date(ct.created_at).toLocaleDateString('fr-FR') : 'N/A'
+    const btn  = actif
+      ? `<form method="POST" action="/patient/consentements/${ct.id}/revoquer"><button type="submit" class="btn btn-r" style="font-size:12px;padding:7px 12px;">&#128274; Révoquer</button></form>`
+      : `<form method="POST" action="/patient/consentements/${ct.id}/reactiver"><button type="submit" class="btn btn-v" style="font-size:12px;padding:7px 12px;">&#128275; Réactiver</button></form>`
+    return `<div class="card" style="${actif ? '' : 'opacity:.65;'}"><div style="display:flex;align-items:center;gap:14px;"><div style="width:48px;height:48px;border-radius:50%;background:var(--vert-c);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--vert);flex-shrink:0;overflow:hidden;">${av}</div><div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:700;">Dr. ${p.prenom} ${p.nom}</div><div style="font-size:12px;color:var(--soft);">${spec}</div>${str ? `<div style="font-size:11px;color:var(--bleu);">&#127973; ${str}</div>` : ''}<div style="font-size:11px;color:var(--soft);margin-top:2px;">Accordé le ${dt}</div></div>${btn}</div></div>`
   }
 
-  return c.html(`${HEAD('Mes consentements')}
-<body>
-${TOPBAR('Consentements')}
-<div class="content">
-  <a href="/dashboard/patient" class="back-btn">← Retour</a>
-  <h1>🔐 Accès à mon dossier</h1>
+  const actHtml = actifs.length > 0
+    ? actifs.map((x: any) => medecinCard(x, true)).join('')
+    : '<div class="card"><div class="empty">Aucun médecin autorisé. L\'hôpital crée les autorisations lors de votre visite.</div></div>'
 
-  <div style="background:var(--bleu-clair);border-left:4px solid var(--bleu);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:20px;font-size:13px;color:#1a3a6b;">
-    <strong style="display:block;margin-bottom:4px;">ℹ️ Comment ça fonctionne ?</strong>
-    Les médecins listés ici ont accès à votre dossier médical complet. Vous pouvez révoquer cet accès à tout moment. La révocation est immédiate.
-  </div>
+  const inactHtml = inactifs.length > 0
+    ? `<div style="font-size:12px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin:18px 0 10px;">Accès révoqués (${inactifs.length})</div>${inactifs.map((x: any) => medecinCard(x, false)).join('')}`
+    : ''
 
-  <div style="font-size:13px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">
-    Médecins autorisés (${actifs.length})
-  </div>
-
-  ${actifs.length > 0
-    ? actifs.map((c:any) => medecinCard(c, true)).join('')
-    : `<div class="card"><div class="empty">Aucun médecin autorisé pour le moment.<br>L'hôpital crée les autorisations lors de votre visite.</div></div>`
-  }
-
-  ${inactifs.length > 0 ? `
-  <div style="font-size:13px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin:20px 0 10px;">
-    Accès révoqués (${inactifs.length})
-  </div>
-  ${inactifs.map((c:any) => medecinCard(c, false)).join('')}` : ''}
-</div>
-</body></html>`)
+  const content = `<div class="wrap">
+  <a href="/dashboard/patient" class="back">&#8592; Retour</a>
+  <h1>&#128274; Accès à mon dossier</h1>
+  <div class="info-box"><strong>ℹ️ Comment ça marche ?</strong><br>Les médecins listés ici ont accès à votre dossier. Vous pouvez révoquer à tout moment. La révocation est immédiate.</div>
+  ${!dossier ? noDossier() : `
+  <div style="font-size:12px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">Médecins autorisés (${actifs.length})</div>
+  ${actHtml}
+  ${inactHtml}
+  `}
+</div>`
+  return c.html(layout('Consentements', content))
 })
 
-
-// ── POST révoquer consentement ─────────────────────────────────
 patientRoutes.post('/consentements/:id/revoquer', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
-  const id = c.req.param('id')
-
-  const { data: dossier } = await supabase
-    .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
-
-  await supabase
-    .from('patient_consentements')
-    .update({ est_actif: false })
-    .eq('id', id)
-    .eq('patient_id', dossier?.id)
-
+  const { data: dossier } = await supabase.from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
+  if (dossier) await supabase.from('patient_consentements').update({ est_actif: false }).eq('id', c.req.param('id')).eq('patient_id', dossier.id)
   return c.redirect('/patient/consentements')
 })
 
-// ── POST réactiver consentement ────────────────────────────────
 patientRoutes.post('/consentements/:id/reactiver', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
-  const id = c.req.param('id')
-
-  const { data: dossier } = await supabase
-    .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
-
-  await supabase
-    .from('patient_consentements')
-    .update({ est_actif: true })
-    .eq('id', id)
-    .eq('patient_id', dossier?.id)
-
+  const { data: dossier } = await supabase.from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
+  if (dossier) await supabase.from('patient_consentements').update({ est_actif: true }).eq('id', c.req.param('id')).eq('patient_id', dossier.id)
   return c.redirect('/patient/consentements')
 })
 
-
 // ═══════════════════════════════════════════════════════════════
-// MON PROFIL — enrichi avec QR code, contacts urgence, notifications
+// MON PROFIL
 // ═══════════════════════════════════════════════════════════════
 patientRoutes.get('/profil', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
@@ -543,125 +400,90 @@ patientRoutes.get('/profil', async (c) => {
 
   const { data: dossier } = await supabase
     .from('patient_dossiers')
-    .select('id,nom,prenom,date_naissance,sexe,telephone,groupe_sanguin,rhesus,code_urgence,numero_national')
-    .eq('profile_id', profil.id)
-    .single()
+    .select('id, nom, prenom, date_naissance, sexe, telephone, groupe_sanguin, rhesus, code_urgence, numero_national')
+    .eq('profile_id', profil.id).single()
 
   const { data: contacts } = dossier
-    ? await supabase.from('patient_contacts_urgence').select('id,nom_complet,lien,telephone').eq('patient_id', dossier.id)
+    ? await supabase.from('patient_contacts_urgence').select('id, nom_complet, lien, telephone').eq('patient_id', dossier.id)
     : { data: [] }
 
-  const succes = new URL(c.req.url).searchParams.get('succes')
   const nbContacts = (contacts ?? []).length
+  const succes = new URL(c.req.url).searchParams.get('succes')
 
-  return c.html(`${HEAD('Mon profil')}
-<body>
-${TOPBAR('Mon profil')}
-<div class="content">
-  <a href="/dashboard/patient" class="back-btn">← Retour</a>
-  <h1>👤 Mon profil</h1>
+  const succesBox = succes
+    ? `<div class="ok-box">&#10003; ${succes === 'code_regenere' ? 'Nouveau code urgence généré !' : 'Profil mis à jour !'}</div>`
+    : ''
 
-  \${succes ? `<div style="background:var(--vert-clair);color:var(--vert);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:13px;font-weight:700;">✅ Profil mis à jour !</div>` : ''}
-
-  <!-- Compte -->
+  const dosHtml = dossier ? `
   <div class="card">
-    <div class="card-title">📧 Compte SantéBF</div>
-    <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bordure);">
-      <span style="font-size:12px;font-weight:700;color:var(--soft);">Email</span>
-      <span style="font-size:13px;font-weight:600;">\${profil.email || 'Non défini'}</span>
-    </div>
-    <div style="padding-top:12px;">
-      <a href="/auth/changer-mdp" style="font-size:13px;color:var(--bleu);font-weight:700;text-decoration:none;">🔑 Changer mon mot de passe →</a>
-    </div>
+    <div class="card-title">&#128203; Informations médicales</div>
+    <div style="font-size:12px;color:var(--soft);margin-bottom:10px;">Gérées par votre établissement de santé.</div>
+    ${[
+      ['Prénom', dossier.prenom || '—'],
+      ['Nom', dossier.nom || '—'],
+      ['Date de naissance', dossier.date_naissance ? new Date(dossier.date_naissance).toLocaleDateString('fr-FR') : '—'],
+      ['Sexe', dossier.sexe === 'M' ? 'Masculin' : dossier.sexe === 'F' ? 'Féminin' : '—'],
+      ['Groupe sanguin', dossier.groupe_sanguin ? `${dossier.groupe_sanguin}${dossier.rhesus || ''}` : '—'],
+      ['Téléphone', dossier.telephone || '—'],
+      ['N° national', dossier.numero_national || '—'],
+    ].map(([l, v]) => `<div class="sep"><span class="lbl">${l}</span><span class="val">${v}</span></div>`).join('')}
   </div>
-
-  \${dossier ? `
-  <!-- Infos médicales -->
-  <div class="card">
-    <div class="card-title">📋 Informations médicales</div>
-    <div style="font-size:12px;color:var(--soft);margin-bottom:12px;">Gérées par votre établissement de santé.</div>
-    \${[
-      ['Prénom', dossier.prenom],
-      ['Nom', dossier.nom],
-      ['Date de naissance', dossier.date_naissance ? new Date(dossier.date_naissance).toLocaleDateString('fr-FR') : 'N/A'],
-      ['Sexe', dossier.sexe === 'M' ? 'Masculin' : 'Féminin'],
-      ['Groupe sanguin', dossier.groupe_sanguin ? \`\${dossier.groupe_sanguin}\${dossier.rhesus||''}\` : 'Non renseigné'],
-      ['Téléphone', dossier.telephone || 'Non renseigné'],
-      ['Numéro national', dossier.numero_national || 'N/A'],
-    ].map(([label, val]) => \`
-      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bordure);">
-        <span style="font-size:12px;font-weight:700;color:var(--soft);">\${label}</span>
-        <span style="font-size:13px;font-weight:600;">\${val}</span>
-      </div>\`).join('')}
-  </div>
-
-  <!-- QR code urgence -->
-  \${dossier.code_urgence ? \`
+  ${dossier.code_urgence ? `
   <div class="card" style="border:2px solid var(--rouge);">
-    <div class="card-title" style="color:var(--rouge);">🚨 Code d'urgence</div>
-    <div style="background:var(--rouge-clair);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px;">
-      <div style="font-family:monospace;font-size:36px;font-weight:900;letter-spacing:12px;color:var(--rouge);text-align:center;">
-        \${dossier.code_urgence}
-      </div>
+    <div class="card-title" style="color:var(--rouge);">&#128680; Code d'urgence</div>
+    <div style="background:var(--rouge-c);border-radius:var(--rs);padding:16px;margin-bottom:12px;text-align:center;">
+      <div style="font-family:monospace;font-size:36px;font-weight:900;letter-spacing:12px;color:var(--rouge);">${dossier.code_urgence}</div>
     </div>
-    <div style="font-size:12px;color:#7f1d1d;margin-bottom:14px;line-height:1.5;">
-      Donnez ce code à un médecin en urgence → accès 24h à votre dossier complet.<br>
-      <strong>Réinitialisez-le si vous pensez qu'il est compromis.</strong>
-    </div>
+    <div style="font-size:12px;color:#7f1d1d;margin-bottom:14px;line-height:1.5;">Donnez ce code à un médecin en urgence pour un accès 24h à votre dossier complet. Régénérez-le s'il est compromis.</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <form method="POST" action="/patient/code-urgence/regenerer" style="flex:1;">
-        <button type="submit" style="width:100%;background:var(--rouge);color:white;border:none;padding:10px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
-          🔄 Régénérer le code
-        </button>
+        <button type="submit" class="btn btn-r" style="width:100%;">&#128260; Régénérer</button>
       </form>
       <form method="POST" action="/patient/code-urgence/envoyer" style="flex:1;">
-        <button type="submit" style="width:100%;background:var(--or-clair);color:#7a5500;border:1px solid var(--or);padding:10px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
-          📨 Envoyer au proche
-        </button>
+        <button type="submit" class="btn btn-o" style="width:100%;">&#128232; Envoyer au proche</button>
       </form>
     </div>
-  </div>\` : \`
+  </div>` : `
   <div class="card" style="border:2px dashed var(--bordure);">
-    <div class="card-title" style="color:var(--soft);">🚨 Code d'urgence</div>
-    <div style="font-size:13px;color:var(--soft);margin-bottom:12px;">Aucun code d'urgence généré. L'hôpital peut en créer un lors de votre visite.</div>
-  </div>\`}
-  ` : \`
-  <div class="card" style="text-align:center;padding:32px;">
-    <div style="font-size:36px;margin-bottom:12px;">📋</div>
-    <div style="font-size:14px;font-weight:700;margin-bottom:6px;">Dossier non lié</div>
-    <div style="font-size:12px;color:var(--soft);">Présentez-vous à l'accueil d'une structure SantéBF.</div>
-  </div>\`}
+    <div class="card-title" style="color:var(--soft);">&#128680; Code d'urgence</div>
+    <div style="font-size:13px;color:var(--soft);">Aucun code d'urgence. L'hôpital peut en générer un lors de votre visite.</div>
+  </div>`}
+  ` : noDossier()
 
-  <!-- Navigation rapide profil -->
+  const navItems = [
+    ['/patient/contacts-urgence', '&#128680;', `Contacts d'urgence`, `${nbContacts} contact(s)`],
+    ['/patient/notifications', '&#128276;', 'Notifications &amp; rappels', 'Email, SMS'],
+    ['/patient/acces-dossier', '&#128269;', 'Historique des accès', 'Qui a consulté mon dossier'],
+    ['/patient/consentements', '&#128274;', 'Accès médecins', 'Autoriser / révoquer'],
+    ['/patient/factures', '&#129534;', 'Mes factures', 'Historique paiements'],
+    ['/patient/documents', '&#128193;', 'Mes documents', 'Certificats, radios...'],
+  ]
+
+  const navHtml = navItems.map(([href, ico, label, desc]) =>
+    `<a href="${href}" style="display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--texte);border-bottom:1px solid var(--bordure);"><span style="font-size:22px;">${ico}</span><div style="flex:1;"><div style="font-size:14px;font-weight:600;">${label}</div><div style="font-size:11.5px;color:var(--soft);">${desc}</div></div><span style="color:var(--bleu);">&#8594;</span></a>`
+  ).join('')
+
+  const content = `<div class="wrap">
+  <a href="/dashboard/patient" class="back">&#8592; Retour</a>
+  <h1>&#128100; Mon profil</h1>
+  ${succesBox}
   <div class="card">
-    <div class="card-title">⚙️ Paramètres</div>
-    \${[
-      ['/patient/contacts-urgence', '🚨', 'Contacts d'urgence', \`\${nbContacts} contact(s)\`],
-      ['/patient/notifications', '🔔', 'Notifications & rappels', 'Email, SMS'],
-      ['/patient/acces-dossier', '🔍', 'Historique des accès', 'Qui a consulté mon dossier'],
-      ['/patient/consentements', '🔐', 'Gérer les accès médecins', 'Autoriser / révoquer'],
-      ['/patient/factures', '🧾', 'Mes factures', 'Historique paiements'],
-      ['/patient/documents', '📁', 'Mes documents', 'Certificats, radios...'],
-    ].map(([href, ico, label, desc]) => \`
-      <a href="\${href}" style="display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--texte);border-bottom:1px solid var(--bordure);">
-        <span style="font-size:22px;">\${ico}</span>
-        <div style="flex:1;">
-          <div style="font-size:14px;font-weight:600;">\${label}</div>
-          <div style="font-size:11.5px;color:var(--soft);">\${desc}</div>
-        </div>
-        <span style="color:var(--bleu);font-size:16px;">→</span>
-      </a>\`).join('')}
-    <a href="/auth/logout" style="display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--rouge);">
-      <span style="font-size:22px;">⏻</span>
-      <div style="font-size:14px;font-weight:600;">Se déconnecter</div>
-    </a>
+    <div class="card-title">&#128231; Compte SantéBF</div>
+    <div class="sep"><span class="lbl">Email</span><span class="val">${profil.email || '—'}</span></div>
+    <div style="padding-top:12px;"><a href="/auth/changer-mdp" style="font-size:13px;color:var(--bleu);font-weight:700;text-decoration:none;">&#128273; Changer mon mot de passe &#8594;</a></div>
   </div>
-</div>
-</body></html>`)
+  ${dosHtml}
+  <div class="card">
+    <div class="card-title">&#9881; Paramètres</div>
+    ${navHtml}
+    <a href="/auth/logout" style="display:flex;align-items:center;gap:12px;padding:12px 0;text-decoration:none;color:var(--rouge);"><span style="font-size:22px;">&#9211;</span><div style="font-size:14px;font-weight:600;">Se déconnecter</div></a>
+  </div>
+</div>`
+  return c.html(layout('Mon profil', content))
 })
 
 // ═══════════════════════════════════════════════════════════════
-// MES DOCUMENTS MÉDICAUX (certificats, comptes-rendus, radios)
+// DOCUMENTS MÉDICAUX
 // ═══════════════════════════════════════════════════════════════
 patientRoutes.get('/documents', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
@@ -670,64 +492,33 @@ patientRoutes.get('/documents', async (c) => {
   const { data: dossier } = await supabase
     .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
 
-  const { data: docs } = dossier
-    ? await supabase
-        .from('medical_documents')
-        .select('id,type,titre,fichier_url,date_document,created_at,auth_profiles(nom,prenom)')
-        .eq('patient_id', dossier.id)
-        .order('date_document', { ascending: false })
+  const { data: list } = dossier ? await supabase
+    .from('medical_documents')
+    .select('id, type, titre, fichier_url, date_document, created_at, auth_profiles(nom, prenom)')
+    .eq('patient_id', dossier.id).order('date_document', { ascending: false })
     : { data: [] }
 
-  const list = docs ?? []
+  const typeLabel: Record<string, string> = { certificat: 'Certificat médical', radio: 'Radiologie', echo: 'Échographie', compte_rendu: 'Compte-rendu', analyse: 'Analyse', autre: 'Document' }
+  const typeIco:   Record<string, string> = { certificat: '&#128220;', radio: '&#128247;', echo: '&#128300;', compte_rendu: '&#128203;', analyse: '&#129514;', autre: '&#128196;' }
 
-  const icone = (type: string) => {
-    const map: Record<string, string> = {
-      certificat: '📜', radio: '🖼️', echo: '🔬',
-      compte_rendu: '📋', analyse: '🧪', autre: '📄'
-    }
-    return map[type] || '📄'
-  }
+  const items = (list ?? []).map((d: any) => {
+    const ico  = typeIco[d.type] || '&#128196;'
+    const lbl  = typeLabel[d.type] || d.type || 'Document'
+    const med  = d.auth_profiles ? `Dr. ${d.auth_profiles.prenom || ''} ${d.auth_profiles.nom || ''}` : ''
+    const dt   = d.date_document ? new Date(d.date_document).toLocaleDateString('fr-FR') : new Date(d.created_at).toLocaleDateString('fr-FR')
+    const btn  = d.fichier_url
+      ? `<a href="${d.fichier_url}" target="_blank" download class="btn btn-v" style="font-size:12px;padding:7px 12px;">&#128229; Télécharger</a>`
+      : `<span style="font-size:12px;color:var(--soft);font-style:italic;">Pas de fichier</span>`
+    return `<div class="card"><div style="display:flex;align-items:center;gap:14px;"><div style="font-size:32px;flex-shrink:0;">${ico}</div><div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:700;">${d.titre || lbl}</div><div class="meta"><span class="badge bb">${lbl}</span>${med ? `<span>${med}</span>` : ''}<span>&#128197; ${dt}</span></div></div>${btn}</div></div>`
+  }).join('')
 
-  const labelType = (type: string) => {
-    const map: Record<string, string> = {
-      certificat: 'Certificat médical', radio: 'Radiologie',
-      echo: 'Échographie', compte_rendu: 'Compte-rendu',
-      analyse: 'Analyse', autre: 'Document'
-    }
-    return map[type] || type
-  }
-
-  return c.html(`${HEAD('Mes documents')}
-<body>
-${TOPBAR('Mes documents')}
-<div class="content">
-  <a href="/dashboard/patient" class="back-btn">← Retour</a>
-  <h1>📁 Mes documents médicaux</h1>
-
-  ${!dossier ? `<div class="card"><div class="empty">Dossier non lié.</div></div>` :
-    list.length === 0 ? `<div class="card"><div class="empty">Aucun document médical enregistré</div></div>` :
-    list.map((d: any) => `
-      <div class="card">
-        <div style="display:flex;align-items:center;gap:14px;">
-          <div style="font-size:32px;flex-shrink:0;">${icone(d.type)}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:15px;font-weight:700;margin-bottom:3px;">${d.titre || labelType(d.type)}</div>
-            <div style="font-size:12px;color:var(--soft);display:flex;gap:12px;flex-wrap:wrap;">
-              <span class="badge b-bleu">${labelType(d.type)}</span>
-              ${d.auth_profiles ? `<span>👨‍⚕️ Dr. ${d.auth_profiles.prenom||''} ${d.auth_profiles.nom||''}</span>` : ''}
-              <span>📅 ${d.date_document ? new Date(d.date_document).toLocaleDateString('fr-FR') : new Date(d.created_at).toLocaleDateString('fr-FR')}</span>
-            </div>
-          </div>
-          ${d.fichier_url
-            ? `<a href="${d.fichier_url}" target="_blank" download class="btn-dl btn-dl-vert" style="display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;text-decoration:none;background:var(--vert);color:white;white-space:nowrap;">📥 Télécharger</a>`
-            : `<span style="font-size:12px;color:var(--soft);font-style:italic;">Pas de fichier</span>`}
-        </div>
-      </div>`).join('')
-  }
-</div>
-</body></html>`)
+  const content = `<div class="wrap">
+  <a href="/dashboard/patient" class="back">&#8592; Retour</a>
+  <h1>&#128193; Mes documents médicaux</h1>
+  ${!dossier ? noDossier() : items || '<div class="card"><div class="empty">Aucun document médical</div></div>'}
+</div>`
+  return c.html(layout('Mes documents', content))
 })
-
 
 // ═══════════════════════════════════════════════════════════════
 // MES FACTURES
@@ -739,68 +530,37 @@ patientRoutes.get('/factures', async (c) => {
   const { data: dossier } = await supabase
     .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
 
-  const { data: factures } = dossier
-    ? await supabase
-        .from('finance_factures')
-        .select('id,numero_facture,created_at,total_ttc,statut,struct_structures(nom)')
-        .eq('patient_id', dossier.id)
-        .order('created_at', { ascending: false })
+  const { data: list } = dossier ? await supabase
+    .from('finance_factures')
+    .select('id, numero_facture, created_at, total_ttc, statut, struct_structures(nom)')
+    .eq('patient_id', dossier.id).order('created_at', { ascending: false })
     : { data: [] }
 
-  const list = factures ?? []
-  const totalPaye = list
-    .filter((f: any) => f.statut === 'payee')
-    .reduce((s: number, f: any) => s + (f.total_ttc || 0), 0)
+  const fmt = (n: number) => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA'
+  const totalPaye = (list ?? []).filter((f: any) => f.statut === 'payee').reduce((s: number, f: any) => s + (f.total_ttc || 0), 0)
 
-  const formatFCFA = (n: number) => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA'
+  const totalBox = (list ?? []).length > 0
+    ? `<div class="card" style="display:flex;align-items:center;gap:14px;"><div style="font-size:32px;">&#128176;</div><div><div style="font-size:12px;color:var(--soft);font-weight:700;text-transform:uppercase;">Total payé</div><div style="font-size:24px;font-weight:700;color:var(--vert);">${fmt(totalPaye)}</div></div></div>`
+    : ''
 
-  return c.html(`${HEAD('Mes factures')}
-<body>
-${TOPBAR('Mes factures')}
-<div class="content">
-  <a href="/dashboard/patient" class="back-btn">← Retour</a>
-  <h1>🧾 Mes factures</h1>
+  const items = (list ?? []).map((f: any) => {
+    const bc  = f.statut === 'payee' ? 'bv' : f.statut === 'impayee' ? 'br' : 'bo'
+    const lb  = f.statut === 'payee' ? 'Payée' : f.statut === 'impayee' ? 'Impayée' : 'En attente'
+    const str = f.struct_structures?.nom || ''
+    const dt  = new Date(f.created_at).toLocaleDateString('fr-FR')
+    return `<div class="card"><div class="row"><div><div style="font-size:15px;font-weight:700;">${f.numero_facture}</div><div class="meta">${str ? `<span>&#127973; ${str}</span>` : ''}<span>&#128197; ${dt}</span></div></div><div style="text-align:right;"><div style="font-size:17px;font-weight:700;color:var(--vert);">${fmt(f.total_ttc || 0)}</div><span class="badge ${bc}">${lb}</span></div></div></div>`
+  }).join('')
 
-  ${list.length > 0 ? `
-  <div class="card" style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
-    <div style="font-size:32px;">💰</div>
-    <div>
-      <div style="font-size:12px;color:var(--soft);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Total payé</div>
-      <div style="font-size:24px;font-weight:700;color:var(--vert);">${formatFCFA(totalPaye)}</div>
-    </div>
-  </div>` : ''}
-
-  ${!dossier ? `<div class="card"><div class="empty">Dossier non lié.</div></div>` :
-    list.length === 0 ? `<div class="card"><div class="empty">Aucune facture enregistrée</div></div>` :
-    list.map((f: any) => {
-      const statut = f.statut
-      const badge = statut === 'payee' ? 'b-vert' : statut === 'impayee' ? 'b-rouge' : 'b-or'
-      const label = statut === 'payee' ? '✅ Payée' : statut === 'impayee' ? '❌ Impayée' : '⏳ En attente'
-      return `
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-          <div>
-            <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${f.numero_facture}</div>
-            <div style="font-size:12px;color:var(--soft);display:flex;gap:12px;flex-wrap:wrap;">
-              ${(f as any).struct_structures?.nom ? `<span>🏥 ${(f as any).struct_structures.nom}</span>` : ''}
-              <span>📅 ${new Date(f.created_at).toLocaleDateString('fr-FR')}</span>
-            </div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:18px;font-weight:700;color:var(--vert);margin-bottom:4px;">${formatFCFA(f.total_ttc || 0)}</div>
-            <span class="badge ${badge}">${label}</span>
-          </div>
-        </div>
-      </div>`
-    }).join('')
-  }
-</div>
-</body></html>`)
+  const content = `<div class="wrap">
+  <a href="/dashboard/patient" class="back">&#8592; Retour</a>
+  <h1>&#129534; Mes factures</h1>
+  ${!dossier ? noDossier() : totalBox + (items || '<div class="card"><div class="empty">Aucune facture</div></div>')}
+</div>`
+  return c.html(layout('Mes factures', content))
 })
 
-
 // ═══════════════════════════════════════════════════════════════
-// HISTORIQUE ACCÈS MON DOSSIER
+// HISTORIQUE ACCÈS DOSSIER
 // ═══════════════════════════════════════════════════════════════
 patientRoutes.get('/acces-dossier', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
@@ -809,65 +569,31 @@ patientRoutes.get('/acces-dossier', async (c) => {
   const { data: dossier } = await supabase
     .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
 
-  const { data: logs } = dossier
-    ? await supabase
-        .from('stats_acces_logs')
-        .select('id,action,created_at,auth_profiles(nom,prenom,role),struct_structures(nom)')
-        .eq('patient_id', dossier.id)
-        .order('created_at', { ascending: false })
-        .limit(30)
+  const { data: list } = dossier ? await supabase
+    .from('stats_acces_logs')
+    .select('id, action, created_at, auth_profiles(nom, prenom, role), struct_structures(nom)')
+    .eq('patient_id', dossier.id)
+    .order('created_at', { ascending: false }).limit(30)
     : { data: [] }
 
-  const list = logs ?? []
+  const roleLabel: Record<string, string> = { medecin: 'Médecin', infirmier: 'Infirmier', pharmacien: 'Pharmacien', laborantin: 'Laborantin', radiologue: 'Radiologue', agent_accueil: 'Accueil', caissier: 'Caissier' }
 
-  const roleLabel = (role: string) => {
-    const map: Record<string, string> = {
-      medecin: 'Médecin', infirmier: 'Infirmier', pharmacien: 'Pharmacien',
-      laborantin: 'Laborantin', radiologue: 'Radiologue', agent_accueil: 'Accueil', caissier: 'Caissier'
-    }
-    return map[role] || role
-  }
+  const items = (list ?? []).map((l: any) => {
+    const who = l.auth_profiles ? `${roleLabel[l.auth_profiles.role] || l.auth_profiles.role} ${l.auth_profiles.prenom || ''} ${l.auth_profiles.nom || ''}` : 'Système'
+    const str = l.struct_structures?.nom || ''
+    const dt  = new Date(l.created_at).toLocaleDateString('fr-FR')
+    const hr  = new Date(l.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    return `<div class="card" style="padding:14px 18px;"><div style="display:flex;align-items:center;gap:12px;"><div style="font-size:22px;">&#128065;</div><div style="flex:1;"><div style="font-size:13px;font-weight:700;">${who}</div><div style="font-size:12px;color:var(--soft);">${l.action || 'Consultation dossier'}${str ? ` &middot; &#127973; ${str}` : ''}</div></div><div style="text-align:right;font-size:12px;color:var(--soft);">${dt}<br>${hr}</div></div></div>`
+  }).join('')
 
-  return c.html(`${HEAD('Historique accès')}
-<body>
-${TOPBAR('Historique des accès')}
-<div class="content">
-  <a href="/dashboard/patient" class="back-btn">← Retour</a>
-  <h1>🔍 Historique des accès à mon dossier</h1>
-
-  <div class="card" style="background:var(--bleu-clair);border-left:4px solid var(--bleu);margin-bottom:16px;">
-    <div style="font-size:13px;color:#1a3a6b;line-height:1.6;">
-      <strong>ℹ️ Transparence totale</strong><br>
-      Chaque accès à votre dossier médical est enregistré ici. Vous pouvez voir qui a consulté vos données et quand.
-    </div>
-  </div>
-
-  ${list.length === 0
-    ? `<div class="card"><div class="empty">Aucun accès enregistré</div></div>`
-    : list.map((l: any) => `
-      <div class="card" style="padding:14px 18px;">
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div style="font-size:24px;">👁️</div>
-          <div style="flex:1;">
-            <div style="font-size:13px;font-weight:700;">
-              ${l.auth_profiles ? `${roleLabel(l.auth_profiles.role)} ${l.auth_profiles.prenom||''} ${l.auth_profiles.nom||''}` : 'Utilisateur système'}
-            </div>
-            <div style="font-size:12px;color:var(--soft);margin-top:2px;">
-              ${l.action || 'Consultation dossier'}
-              ${(l as any).struct_structures?.nom ? ` · 🏥 ${(l as any).struct_structures.nom}` : ''}
-            </div>
-          </div>
-          <div style="text-align:right;font-size:12px;color:var(--soft);">
-            ${new Date(l.created_at).toLocaleDateString('fr-FR')}<br>
-            ${new Date(l.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
-          </div>
-        </div>
-      </div>`).join('')
-  }
-</div>
-</body></html>`)
+  const content = `<div class="wrap">
+  <a href="/dashboard/patient" class="back">&#8592; Retour</a>
+  <h1>&#128269; Historique des accès</h1>
+  <div class="info-box"><strong>ℹ️ Transparence totale</strong><br>Chaque accès à votre dossier est enregistré ici.</div>
+  ${!dossier ? noDossier() : items || '<div class="card"><div class="empty">Aucun accès enregistré</div></div>'}
+</div>`
+  return c.html(layout('Historique accès', content))
 })
-
 
 // ═══════════════════════════════════════════════════════════════
 // CONTACTS D'URGENCE
@@ -877,359 +603,129 @@ patientRoutes.get('/contacts-urgence', async (c) => {
   const supabase = c.get('supabase' as never) as any
 
   const { data: dossier } = await supabase
-    .from('patient_dossiers').select('id,code_urgence').eq('profile_id', profil.id).single()
+    .from('patient_dossiers').select('id, code_urgence').eq('profile_id', profil.id).single()
 
   const { data: contacts } = dossier
-    ? await supabase.from('patient_contacts_urgence')
-        .select('id,nom_complet,lien,telephone').eq('patient_id', dossier.id)
+    ? await supabase.from('patient_contacts_urgence').select('id, nom_complet, lien, telephone').eq('patient_id', dossier.id)
     : { data: [] }
 
   const succes = new URL(c.req.url).searchParams.get('succes')
-  const list   = contacts ?? []
+  const list = contacts ?? []
 
-  return c.html(`${HEAD('Contacts d\'urgence')}
-<body>
-${TOPBAR('Contacts d\'urgence')}
-<div class="content">
-  <a href="/patient/profil" class="back-btn">← Retour au profil</a>
-  <h1>🚨 Contacts d'urgence</h1>
-
-  ${succes ? `<div style="background:var(--vert-clair);color:var(--vert);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:13px;font-weight:700;">✅ Contact ajouté avec succès !</div>` : ''}
-
-  <div class="card" style="background:var(--rouge-clair);border-left:4px solid var(--rouge);margin-bottom:16px;">
-    <div style="font-size:13px;color:#7f1d1d;line-height:1.6;">
-      <strong>⚠️ Importance des contacts d'urgence</strong><br>
-      En cas d'accident, le personnel médical contactera ces personnes. Gardez-les à jour.
-    </div>
-  </div>
-
-  <!-- Code d'urgence -->
-  ${dossier?.code_urgence ? `
-  <div class="card" style="margin-bottom:16px;">
-    <div style="font-size:13px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🔑 Votre code d'urgence</div>
-    <div style="font-family:monospace;font-size:28px;font-weight:900;letter-spacing:8px;color:var(--rouge);text-align:center;padding:16px;background:var(--rouge-clair);border-radius:var(--radius-sm);">
-      ${dossier.code_urgence}
-    </div>
-    <div style="font-size:12px;color:var(--soft);text-align:center;margin-top:8px;">Donnez ce code à un médecin en cas d'urgence pour accès 24h à votre dossier complet</div>
-  </div>` : ''}
-
-  <!-- Liste contacts existants -->
-  ${list.length > 0 ? list.map((ct: any) => `
-    <div class="card" style="margin-bottom:10px;">
-      <div style="display:flex;align-items:center;gap:14px;">
-        <div style="font-size:28px;">👤</div>
-        <div style="flex:1;">
-          <div style="font-size:15px;font-weight:700;">${ct.nom_complet}</div>
-          <div style="font-size:12px;color:var(--soft);">${ct.lien || 'Proche'}</div>
-          <div style="font-size:14px;font-weight:700;color:var(--bleu);margin-top:2px;">📞 ${ct.telephone}</div>
-        </div>
-        <form method="POST" action="/patient/contacts-urgence/${ct.id}/supprimer">
-          <button type="submit" style="background:var(--rouge-clair);color:var(--rouge);border:none;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Supprimer</button>
-        </form>
-      </div>
-    </div>`).join('') : `<div class="card" style="margin-bottom:14px;"><div class="empty">Aucun contact d'urgence enregistré</div></div>`}
-
-  <!-- Ajouter un contact -->
+  const codeBox = dossier?.code_urgence ? `
   <div class="card">
-    <div style="font-size:14px;font-weight:700;margin-bottom:14px;">➕ Ajouter un contact</div>
+    <div class="card-title">&#128273; Code d'urgence</div>
+    <div style="font-family:monospace;font-size:28px;font-weight:900;letter-spacing:8px;color:var(--rouge);text-align:center;padding:16px;background:var(--rouge-c);border-radius:var(--rs);">${dossier.code_urgence}</div>
+    <div style="font-size:12px;color:var(--soft);text-align:center;margin-top:8px;">Donnez ce code à un médecin en urgence — accès 24h à votre dossier</div>
+  </div>` : ''
+
+  const ctHtml = list.length > 0
+    ? list.map((ct: any) => `<div class="card"><div style="display:flex;align-items:center;gap:12px;"><div style="font-size:28px;">&#128100;</div><div style="flex:1;"><div style="font-size:15px;font-weight:700;">${ct.nom_complet}</div><div style="font-size:12px;color:var(--soft);">${ct.lien || 'Proche'}</div><div style="font-size:14px;font-weight:700;color:var(--bleu);margin-top:2px;">&#128222; ${ct.telephone}</div></div><form method="POST" action="/patient/contacts-urgence/${ct.id}/supprimer"><button type="submit" class="btn btn-r" style="font-size:12px;padding:7px 12px;">Supprimer</button></form></div></div>`).join('')
+    : '<div class="card"><div class="empty">Aucun contact d\'urgence</div></div>'
+
+  const content = `<div class="wrap">
+  <a href="/patient/profil" class="back">&#8592; Retour au profil</a>
+  <h1>&#128680; Contacts d'urgence</h1>
+  ${succes ? '<div class="ok-box">&#10003; Contact ajouté !</div>' : ''}
+  <div class="warn-box"><strong>&#9888; Important</strong><br>En cas d'accident, le personnel médical contactera ces personnes.</div>
+  ${codeBox}
+  <div style="font-size:12px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">Mes contacts (${list.length})</div>
+  ${ctHtml}
+  <div class="card">
+    <div class="card-title">&#10133; Ajouter un contact</div>
     <form method="POST" action="/patient/contacts-urgence/ajouter">
-      <div style="margin-bottom:12px;">
-        <label style="font-size:12px;font-weight:700;color:var(--texte);display:block;margin-bottom:5px;">Nom complet *</label>
-        <input type="text" name="nom_complet" placeholder="Ex: Fatimata Traoré" required style="width:100%;padding:11px 14px;border:1.5px solid var(--bordure);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;outline:none;">
-      </div>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:12px;font-weight:700;color:var(--texte);display:block;margin-bottom:5px;">Lien de parenté</label>
-        <input type="text" name="lien" placeholder="Ex: Épouse, Parent, Ami..." style="width:100%;padding:11px 14px;border:1.5px solid var(--bordure);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;outline:none;">
-      </div>
-      <div style="margin-bottom:16px;">
-        <label style="font-size:12px;font-weight:700;color:var(--texte);display:block;margin-bottom:5px;">Téléphone *</label>
-        <input type="tel" name="telephone" placeholder="Ex: 70 12 34 56" required style="width:100%;padding:11px 14px;border:1.5px solid var(--bordure);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;outline:none;">
-      </div>
-      <button type="submit" style="width:100%;background:var(--vert);color:white;border:none;padding:13px;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">
-        ➕ Ajouter ce contact
-      </button>
+      <div class="form-group"><label class="form-label">Nom complet *</label><input type="text" name="nom_complet" placeholder="Ex: Fatimata Traoré" required></div>
+      <div class="form-group"><label class="form-label">Lien de parenté</label><input type="text" name="lien" placeholder="Ex: Épouse, Parent, Ami..."></div>
+      <div class="form-group"><label class="form-label">Téléphone *</label><input type="tel" name="telephone" placeholder="Ex: 70 12 34 56" required></div>
+      <button type="submit" class="btn btn-v" style="width:100%;justify-content:center;padding:13px;">&#10133; Ajouter</button>
     </form>
   </div>
-</div>
-</body></html>`)
+</div>`
+  return c.html(layout('Contacts d\'urgence', content))
 })
 
 patientRoutes.post('/contacts-urgence/ajouter', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
   const body     = await c.req.parseBody()
-
-  const { data: dossier } = await supabase
-    .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
-
-  if (dossier) {
-    await supabase.from('patient_contacts_urgence').insert({
-      patient_id:  dossier.id,
-      nom_complet: String(body.nom_complet || '').trim(),
-      lien:        String(body.lien || '').trim(),
-      telephone:   String(body.telephone || '').trim(),
-    })
-  }
+  const { data: dossier } = await supabase.from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
+  if (dossier) await supabase.from('patient_contacts_urgence').insert({ patient_id: dossier.id, nom_complet: String(body.nom_complet || '').trim(), lien: String(body.lien || '').trim(), telephone: String(body.telephone || '').trim() })
   return c.redirect('/patient/contacts-urgence?succes=1')
 })
 
 patientRoutes.post('/contacts-urgence/:id/supprimer', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
-  const id = c.req.param('id')
-
-  const { data: dossier } = await supabase
-    .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
-
-  if (dossier) {
-    await supabase.from('patient_contacts_urgence')
-      .delete().eq('id', id).eq('patient_id', dossier.id)
-  }
+  const { data: dossier } = await supabase.from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
+  if (dossier) await supabase.from('patient_contacts_urgence').delete().eq('id', c.req.param('id')).eq('patient_id', dossier.id)
   return c.redirect('/patient/contacts-urgence')
 })
 
-
 // ═══════════════════════════════════════════════════════════════
-// PARAMÈTRES NOTIFICATIONS
+// NOTIFICATIONS
 // ═══════════════════════════════════════════════════════════════
 patientRoutes.get('/notifications', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
 
-  const { data: settings } = await supabase
-    .from('user_settings')
-    .select('*')
-    .eq('user_id', profil.id)
-    .single()
-
-  const s = settings || {}
+  const { data: s } = await supabase.from('user_settings').select('*').eq('user_id', profil.id).single()
+  const settings = s || {}
   const succes = new URL(c.req.url).searchParams.get('succes')
 
-  const toggle = (name: string, label: string, desc: string, checked: boolean) => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--bordure);">
-      <div style="flex:1;padding-right:16px;">
-        <div style="font-size:14px;font-weight:700;">${label}</div>
-        <div style="font-size:12px;color:var(--soft);margin-top:2px;">${desc}</div>
-      </div>
-      <label style="position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;">
-        <input type="checkbox" name="${name}" value="1" ${checked ? 'checked' : ''} style="opacity:0;width:0;height:0;">
-        <span style="position:absolute;cursor:pointer;inset:0;background:${checked ? 'var(--vert)' : '#ccc'};border-radius:24px;transition:.3s;"></span>
-        <span style="position:absolute;content:'';height:18px;width:18px;left:${checked ? '23px' : '3px'};bottom:3px;background:white;border-radius:50%;transition:.3s;"></span>
-      </label>
-    </div>`
+  function toggle(name: string, label: string, desc: string, checked: boolean): string {
+    const bg = checked ? 'var(--vert)' : '#ccc'
+    const pos = checked ? '23px' : '3px'
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--bordure);"><div style="flex:1;padding-right:16px;"><div style="font-size:14px;font-weight:700;">${label}</div><div style="font-size:12px;color:var(--soft);margin-top:2px;">${desc}</div></div><label style="position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;cursor:pointer;"><input type="checkbox" name="${name}" value="1"${checked ? ' checked' : ''} style="opacity:0;width:0;height:0;"><span style="position:absolute;cursor:pointer;inset:0;background:${bg};border-radius:24px;"></span><span style="position:absolute;height:18px;width:18px;left:${pos};bottom:3px;background:white;border-radius:50%;"></span></label></div>`
+  }
 
-  return c.html(`${HEAD('Notifications')}
-<body>
-${TOPBAR('Notifications')}
-<div class="content">
-  <a href="/patient/profil" class="back-btn">← Retour au profil</a>
-  <h1>🔔 Notifications & rappels</h1>
-
-  ${succes ? `<div style="background:var(--vert-clair);color:var(--vert);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;font-size:13px;font-weight:700;">✅ Préférences enregistrées !</div>` : ''}
-
-  <div class="card" style="margin-bottom:12px;">
-    <div style="font-size:13px;color:var(--soft);margin-bottom:14px;">
-      📧 Emails envoyés à : <strong>${profil.email || 'Non défini'}</strong>
-    </div>
-  </div>
-
+  const content = `<div class="wrap">
+  <a href="/patient/profil" class="back">&#8592; Retour au profil</a>
+  <h1>&#128276; Notifications &amp; rappels</h1>
+  ${succes ? '<div class="ok-box">&#10003; Préférences enregistrées !</div>' : ''}
+  <div class="card" style="margin-bottom:12px;"><div style="font-size:13px;color:var(--soft);">Emails envoyés à : <strong>${profil.email || '—'}</strong></div></div>
   <form method="POST" action="/patient/notifications/sauvegarder">
     <div class="card">
-      <div style="font-size:14px;font-weight:700;margin-bottom:2px;">📧 Notifications par email</div>
-      ${toggle('email_rdv', 'Rappels rendez-vous', 'Recevoir un email 24h avant chaque RDV', s.email_rdv !== false)}
-      ${toggle('email_resultats', 'Résultats examens', 'Être notifié quand un résultat est disponible', s.email_resultats !== false)}
-      ${toggle('email_ordonnances', 'Nouvelles ordonnances', 'Recevoir une copie PDF de chaque ordonnance', s.email_ordonnances ?? false)}
+      <div class="card-title">&#128231; Par email</div>
+      ${toggle('email_rdv', 'Rappels rendez-vous', 'Email 24h avant chaque RDV', settings.email_rdv !== false)}
+      ${toggle('email_resultats', 'Résultats examens', 'Notifié quand un résultat est disponible', settings.email_resultats !== false)}
+      ${toggle('email_ordonnances', 'Nouvelles ordonnances', 'Copie PDF de chaque ordonnance', settings.email_ordonnances ?? false)}
     </div>
-
     <div class="card">
-      <div style="font-size:14px;font-weight:700;margin-bottom:2px;">💬 Notifications par SMS</div>
-      <div style="font-size:12px;color:var(--soft);margin-bottom:12px;">
-        Numéro : <strong>${s.telephone_sms || 'Non défini'}</strong>
-        <a href="/patient/profil" style="color:var(--bleu);font-size:12px;margin-left:8px;">Modifier →</a>
-      </div>
-      ${toggle('sms_rdv', 'Rappels RDV par SMS', 'Recevoir un SMS 24h avant chaque RDV', s.sms_rdv ?? false)}
-      ${toggle('sms_resultats', 'Résultats par SMS', 'SMS quand un résultat est disponible', s.sms_resultats ?? false)}
+      <div class="card-title">&#128172; Par SMS</div>
+      <div style="font-size:12px;color:var(--soft);margin-bottom:10px;">Nécessite Twilio configuré par l'administrateur.</div>
+      ${toggle('sms_rdv', 'Rappels RDV par SMS', 'SMS 24h avant chaque RDV', settings.sms_rdv ?? false)}
+      ${toggle('sms_resultats', 'Résultats par SMS', 'SMS quand un résultat est disponible', settings.sms_resultats ?? false)}
     </div>
-
-    <button type="submit" style="width:100%;background:var(--vert);color:white;border:none;padding:14px;border-radius:var(--radius-sm);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">
-      💾 Enregistrer mes préférences
-    </button>
+    <button type="submit" class="btn btn-v" style="width:100%;justify-content:center;padding:14px;font-size:15px;">&#128190; Enregistrer mes préférences</button>
   </form>
-</div>
-</body></html>`)
+</div>`
+  return c.html(layout('Notifications', content))
 })
 
 patientRoutes.post('/notifications/sauvegarder', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
   const body     = await c.req.parseBody()
-
-  await supabase.from('user_settings').upsert({
-    user_id:           profil.id,
-    email_rdv:         body.email_rdv === '1',
-    email_resultats:   body.email_resultats === '1',
-    email_ordonnances: body.email_ordonnances === '1',
-    sms_rdv:           body.sms_rdv === '1',
-    sms_resultats:     body.sms_resultats === '1',
-    updated_at:        new Date().toISOString(),
-  }, { onConflict: 'user_id' })
-
+  await supabase.from('user_settings').upsert({ user_id: profil.id, email_rdv: body.email_rdv === '1', email_resultats: body.email_resultats === '1', email_ordonnances: body.email_ordonnances === '1', sms_rdv: body.sms_rdv === '1', sms_resultats: body.sms_resultats === '1', updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
   return c.redirect('/patient/notifications?succes=1')
 })
 
-
 // ═══════════════════════════════════════════════════════════════
-// CODE URGENCE — générer / régénérer
-// La doc ne précise pas d'intervalle fixe — c'est manuel à la demande
-// Recommandation : régénérer si compromis ou tous les 6 mois
+// CODE URGENCE
 // ═══════════════════════════════════════════════════════════════
 patientRoutes.post('/code-urgence/regenerer', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
-
-  // Générer code 6 chiffres aléatoire
   const code = Math.floor(100000 + Math.random() * 900000).toString()
-
-  const { data: dossier } = await supabase
-    .from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
-
-  if (!dossier) return c.redirect('/patient/profil')
-
-  await supabase.from('patient_dossiers')
-    .update({ code_urgence: code, code_urgence_updated_at: new Date().toISOString() })
-    .eq('id', dossier.id)
-
+  const { data: dossier } = await supabase.from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
+  if (dossier) await supabase.from('patient_dossiers').update({ code_urgence: code }).eq('id', dossier.id)
   return c.redirect('/patient/profil?succes=code_regenere')
 })
 
-// ═══════════════════════════════════════════════════════════════
-// ENVOYER CODE URGENCE AU PROCHE DE CONFIANCE
-// Appelé depuis le dashboard patient — envoie par email
-// ═══════════════════════════════════════════════════════════════
 patientRoutes.post('/code-urgence/envoyer', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
-
-  const { data: dossier } = await supabase
-    .from('patient_dossiers')
-    .select('id, nom, prenom, code_urgence')
-    .eq('profile_id', profil.id)
-    .single()
-
-  if (!dossier?.code_urgence) return c.redirect('/patient/contacts-urgence')
-
-  // Récupérer contacts urgence avec email si dispo
-  const { data: contacts } = await supabase
-    .from('patient_contacts_urgence')
-    .select('nom_complet, telephone, email')
-    .eq('patient_id', dossier.id)
-    .limit(3)
-
-  // Log envoi dans stats_acces_logs
-  await supabase.from('stats_acces_logs').insert({
-    user_id:    profil.id,
-    patient_id: dossier.id,
-    action:     'code_urgence_envoye_proche',
-    created_at: new Date().toISOString(),
-  })
-
-  return c.redirect('/patient/contacts-urgence?code_envoye=1')
+  const { data: dossier } = await supabase.from('patient_dossiers').select('id, code_urgence').eq('profile_id', profil.id).single()
+  if (dossier) await supabase.from('stats_acces_logs').insert({ user_id: profil.id, patient_id: dossier.id, action: 'code_urgence_envoye_proche', created_at: new Date().toISOString() })
+  return c.redirect('/patient/contacts-urgence')
 })
-
-
-// ═══════════════════════════════════════════════════════════════
-// ENVOI RAPPEL RDV PAR EMAIL — appelé depuis dashboard médecin
-// quand un RDV est confirmé (ou depuis un cron)
-// ═══════════════════════════════════════════════════════════════
-// Cette route est publique côté serveur (appelée en interne)
-// Elle vérifie que le patient a activé les rappels email
-export async function envoyerRappelRDV(
-  supabase: any,
-  resendApiKey: string,
-  rdvId: string
-): Promise<void> {
-  try {
-    // Récupérer le RDV avec toutes les infos
-    const { data: rdv } = await supabase
-      .from('medical_rendez_vous')
-      .select(`
-        id, date_heure, motif, statut,
-        patient_dossiers!medical_rendez_vous_patient_id_fkey(
-          id, nom, prenom,
-          auth_profiles!patient_dossiers_profile_id_fkey(email)
-        ),
-        auth_profiles!medical_rendez_vous_medecin_id_fkey(nom, prenom),
-        struct_structures!medical_rendez_vous_structure_id_fkey(nom)
-      `)
-      .eq('id', rdvId)
-      .single()
-
-    if (!rdv) return
-
-    const patient     = rdv.patient_dossiers
-    const profileId   = patient?.auth_profiles
-    const emailPatient = (profileId as any)?.email
-    if (!emailPatient) return
-
-    // Vérifier préférences notifications
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('email_rdv')
-      .eq('user_id', (profileId as any)?.id || '')
-      .single()
-
-    if (settings?.email_rdv === false) return // Patient a désactivé
-
-    const date = new Date(rdv.date_heure).toLocaleDateString('fr-FR', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-    })
-    const heure = new Date(rdv.date_heure).toLocaleTimeString('fr-FR', {
-      hour: '2-digit', minute: '2-digit'
-    })
-
-    // Envoyer via Resend
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'SantéBF <noreply@santebf.bf>',
-        to:   [emailPatient],
-        subject: `📅 Rappel RDV — ${date} à ${heure}`,
-        html: `
-<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
-<body style="font-family:Arial,sans-serif;background:#f0f4f8;padding:20px;">
-  <div style="max-width:560px;margin:0 auto;background:white;border-radius:16px;overflow:hidden;">
-    <div style="background:linear-gradient(135deg,#0d47a1,#1565C0);padding:28px 32px;text-align:center;">
-      <div style="font-size:48px;margin-bottom:8px;">📅</div>
-      <h1 style="color:white;font-size:22px;margin:0;">Rappel de rendez-vous</h1>
-      <p style="color:rgba(255,255,255,0.75);margin:6px 0 0;font-size:13px;">SantéBF — Système National de Santé</p>
-    </div>
-    <div style="padding:32px;">
-      <p style="font-size:16px;color:#0f1923;margin-bottom:20px;">
-        Bonjour <strong>${patient?.prenom || ''} ${patient?.nom || ''}</strong>,
-      </p>
-      <p style="font-size:14px;color:#5a6a78;margin-bottom:24px;">
-        Rappel pour votre rendez-vous médical :
-      </p>
-      <div style="background:#e3f2fd;border:2px solid #1565C0;border-radius:12px;padding:20px;margin-bottom:20px;">
-        <div style="margin-bottom:10px;"><strong style="color:#5a6a78;font-size:12px;text-transform:uppercase;">Date</strong><br><span style="font-size:16px;font-weight:700;color:#0f1923;">${date}</span></div>
-        <div style="margin-bottom:10px;"><strong style="color:#5a6a78;font-size:12px;text-transform:uppercase;">Heure</strong><br><span style="font-size:16px;font-weight:700;color:#1565C0;">🕐 ${heure}</span></div>
-        <div style="margin-bottom:10px;"><strong style="color:#5a6a78;font-size:12px;text-transform:uppercase;">Médecin</strong><br><span style="font-size:15px;font-weight:600;">Dr. ${rdv.auth_profiles?.prenom || ''} ${rdv.auth_profiles?.nom || ''}</span></div>
-        <div><strong style="color:#5a6a78;font-size:12px;text-transform:uppercase;">Structure</strong><br><span style="font-size:15px;font-weight:600;">🏥 ${rdv.struct_structures?.nom || ''}</span></div>
-      </div>
-      <p style="font-size:13px;color:#5a6a78;">Merci de vous présenter 15 minutes avant l'heure prévue.</p>
-    </div>
-    <div style="background:#f0f4f8;padding:20px;text-align:center;font-size:12px;color:#9E9E9E;border-top:1px solid #dde3ea;">
-      SantéBF — Burkina Faso 🇧🇫 | <a href="https://santebf.izicardouaga.com/patient/notifications" style="color:#1565C0;">Gérer mes notifications</a>
-    </div>
-  </div>
-</body></html>`,
-      }),
-    })
-  } catch (err) {
-    console.error('Erreur envoi rappel RDV:', err)
-  }
-}
