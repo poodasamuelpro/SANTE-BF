@@ -8,11 +8,11 @@ type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
 
 export const medecinRoutes = new Hono<{ Bindings: Bindings }>()
 
-// Appliquer l'authentification et le rôle pour toutes les routes
+// Middleware d'authentification et de rôle (médecin ou assimilés)
 medecinRoutes.use('/*', requireAuth, requireRole('medecin', 'infirmier', 'sage_femme', 'laborantin', 'radiologue'))
 
 // ─────────────────────────────────────────────────────────────
-// DASHBOARD PRINCIPAL (stats + données pour la page d'accueil)
+// DASHBOARD PRINCIPAL (page d'accueil du médecin)
 // ─────────────────────────────────────────────────────────────
 medecinRoutes.get('/dashboard', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
@@ -21,7 +21,7 @@ medecinRoutes.get('/dashboard', async (c) => {
   const today = new Date().toISOString().split('T')[0]
   const now = new Date().toISOString()
 
-  // Requêtes parallèles pour les statistiques
+  // Récupération des données pour le dashboard
   const [
     rdvJourRes,
     consultationsJourRes,
@@ -80,9 +80,6 @@ medecinRoutes.get('/dashboard', async (c) => {
     nbPatientsConsentement: patientsConsentementRes.count ?? 0
   }
 
-  // Rediriger vers la page du dashboard (qui sera rendue par une autre route ou directement ici)
-  // Ici on pourrait renvoyer du JSON pour une API, mais on va plutôt renvoyer la page HTML
-  // On utilise la fonction dashboardMedecinPage définie dans pages/dashboard-medecin
   const { dashboardMedecinPage } = await import('../pages/dashboard-medecin')
   return c.html(dashboardMedecinPage(profil, data))
 })
@@ -104,7 +101,6 @@ medecinRoutes.get('/patients', async (c) => {
       .limit(20)
     patients = data ?? []
   } else {
-    // Patients avec consentement actif pour ce médecin
     const { data: consentements } = await sb
       .from('patient_consentements')
       .select(`
@@ -115,24 +111,21 @@ medecinRoutes.get('/patients', async (c) => {
     patients = (consentements ?? []).map((c: any) => c.patient_dossiers).filter(Boolean)
   }
 
-  // Calcul de l'âge
   const age = (ddn: string) => Math.floor((Date.now() - new Date(ddn).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
 
-  // Retourner la page HTML (on utilisera une fonction de rendu)
   const { patientsListPage } = await import('../pages/medecin-patients')
   return c.html(patientsListPage(profil, patients, q, age))
 })
 
 // ─────────────────────────────────────────────────────────────
-// FICHE PATIENT
+// FICHE PATIENT (avec gestion consentement / urgence)
 // ─────────────────────────────────────────────────────────────
 medecinRoutes.get('/patients/:id', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
   const id = c.req.param('id')
 
-  // Vérifier si le médecin a un consentement actif pour ce patient (sauf si c'est une urgence)
-  // Pour simplifier, on vérifie d'abord le consentement
+  // Vérifier consentement actif
   const { data: consent } = await sb
     .from('patient_consentements')
     .select('id')
@@ -141,25 +134,22 @@ medecinRoutes.get('/patients/:id', async (c) => {
     .eq('est_actif', true)
     .maybeSingle()
 
-  // Si pas de consentement, on vérifie s'il y a un accès urgence valide
   let accesUrgence = false
   if (!consent) {
     const { data: urgence } = await sb
       .from('patient_acces_urgence')
       .select('id')
       .eq('patient_id', id)
-      .eq('code_utilise', true) // ou un champ date_expiration
+      .eq('code_utilise', true)
       .gte('date_expiration', new Date().toISOString())
       .maybeSingle()
     accesUrgence = !!urgence
   }
 
   if (!consent && !accesUrgence) {
-    // Accès non autorisé, on redirige
     return c.redirect('/medecin/patients?error=acces_refuse')
   }
 
-  // Récupérer toutes les infos du patient
   const [patientRes, consultRes, ordRes, examRes, hospitRes, chroniqueRes, grossesseRes] = await Promise.all([
     sb.from('patient_dossiers').select('*, patient_contacts_urgence(*)').eq('id', id).single(),
     sb.from('medical_consultations').select('id, created_at, motif, diagnostic_principal, type_consultation').eq('patient_id', id).order('created_at', { ascending: false }).limit(10),
@@ -177,15 +167,15 @@ medecinRoutes.get('/patients/:id', async (c) => {
   const allergies = Array.isArray(patient.allergies) ? patient.allergies : []
   const maladies = Array.isArray(patient.maladies_chroniques) ? patient.maladies_chroniques : []
 
-  // Rendu de la page fiche patient
   const { patientFichePage } = await import('../pages/medecin-patient-fiche')
-  return c.html(patientFichePage(profil, patient, age, allergies, maladies, consultRes.data ?? [], ordRes.data ?? [], examRes.data ?? [], hospitRes.data ?? [], chroniqueRes.data, grossesseRes.data, accesUrgence))
+  return c.html(patientFichePage(profil, patient, age, allergies, maladies,
+    consultRes.data ?? [], ordRes.data ?? [], examRes.data ?? [], hospitRes.data ?? [],
+    chroniqueRes.data, grossesseRes.data, accesUrgence))
 })
 
 // ─────────────────────────────────────────────────────────────
 // CONSULTATIONS
 // ─────────────────────────────────────────────────────────────
-
 // Formulaire nouvelle consultation
 medecinRoutes.get('/consultations/nouvelle', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
@@ -211,7 +201,6 @@ medecinRoutes.post('/consultations/nouvelle', async (c) => {
   const patientId = String(body.patient_id ?? '')
   if (!patientId) return c.redirect('/medecin/patients')
 
-  // Insertion consultation
   const { data: consultation, error } = await sb
     .from('medical_consultations')
     .insert({
@@ -232,11 +221,10 @@ medecinRoutes.post('/consultations/nouvelle', async (c) => {
     .single()
 
   if (error || !consultation) {
-    // Gérer l'erreur
     return c.redirect(`/medecin/consultations/nouvelle?patient_id=${patientId}&error=insert`)
   }
 
-  // Sauvegarder les constantes
+  // Insertion des constantes
   const tensionSys = parseInt(String(body.tension_sys ?? ''))
   const tensionDia = parseInt(String(body.tension_dia ?? ''))
   const temperature = parseFloat(String(body.temperature ?? ''))
@@ -259,17 +247,14 @@ medecinRoutes.post('/consultations/nouvelle', async (c) => {
       taille: taille || null,
     })
 
-    // Vérifier les alertes valeurs anormales
+    // Alertes automatiques (simples)
     const alertes = []
-    if (tensionSys > 160) alertes.push('Tension systolique élevée (>160 mmHg)')
-    if (tensionSys < 90) alertes.push('Tension systolique basse (<90 mmHg)')
-    if (temperature > 38.5) alertes.push('Fièvre (>38.5°C)')
-    if (spo2 < 92) alertes.push('Désaturation O2 (<92%)')
-    // etc.
-
+    if (tensionSys > 160) alertes.push('HTA sévère')
+    if (tensionSys < 90) alertes.push('Hypotension')
+    if (temperature > 38.5) alertes.push('Fièvre')
+    if (spo2 < 92) alertes.push('Désaturation')
     if (alertes.length > 0) {
-      // On peut stocker les alertes dans une table ou les renvoyer en session
-      // Pour l'instant, on les passe en query
+      // On peut stocker les alertes ou les passer en paramètre
       return c.redirect(`/medecin/patients/${patientId}?consult=ok&alertes=${encodeURIComponent(alertes.join(';'))}`)
     }
   }
@@ -277,7 +262,7 @@ medecinRoutes.post('/consultations/nouvelle', async (c) => {
   return c.redirect(`/medecin/patients/${patientId}?consult=ok`)
 })
 
-// Liste des consultations (pour un patient ou général)
+// Liste des consultations (générale ou par patient)
 medecinRoutes.get('/consultations', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -289,9 +274,7 @@ medecinRoutes.get('/consultations', async (c) => {
     .eq('medecin_id', profil.id)
     .order('created_at', { ascending: false })
 
-  if (patientId) {
-    query = query.eq('patient_id', patientId)
-  }
+  if (patientId) query = query.eq('patient_id', patientId)
 
   const { data: consultations } = await query.limit(50)
 
@@ -302,7 +285,6 @@ medecinRoutes.get('/consultations', async (c) => {
 // ─────────────────────────────────────────────────────────────
 // ORDONNANCES
 // ─────────────────────────────────────────────────────────────
-
 // Formulaire nouvelle ordonnance
 medecinRoutes.get('/ordonnances/nouvelle', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
@@ -328,7 +310,6 @@ medecinRoutes.post('/ordonnances/nouvelle', async (c) => {
   const patientId = String(body.patient_id ?? '')
   if (!patientId) return c.redirect('/medecin/patients')
 
-  // Date expiration (3 mois)
   const dateExp = new Date()
   dateExp.setMonth(dateExp.getMonth() + 3)
 
@@ -348,7 +329,6 @@ medecinRoutes.post('/ordonnances/nouvelle', async (c) => {
     return c.redirect(`/medecin/ordonnances/nouvelle?patient_id=${patientId}&error=insert`)
   }
 
-  // Insérer les lignes
   const medicaments = JSON.parse(String(body.medicaments ?? '[]'))
   if (medicaments.length > 0) {
     await sb.from('medical_ordonnance_lignes').insert(
@@ -365,14 +345,13 @@ medecinRoutes.post('/ordonnances/nouvelle', async (c) => {
     )
   }
 
-  // Générer le QR code (optionnel, via un worker ou lib)
-  // On peut appeler une fonction pour générer et stocker le QR code
+  // Génération du QR code (fonction à implémenter dans utils)
   // await generateQRCode(ordonnance.id, ordonnance.numero_ordonnance)
 
   return c.redirect(`/medecin/patients/${patientId}?ord=ok`)
 })
 
-// Liste des ordonnances émises
+// Liste des ordonnances
 medecinRoutes.get('/ordonnances', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -384,9 +363,7 @@ medecinRoutes.get('/ordonnances', async (c) => {
     .eq('medecin_id', profil.id)
     .order('created_at', { ascending: false })
 
-  if (patientId) {
-    query = query.eq('patient_id', patientId)
-  }
+  if (patientId) query = query.eq('patient_id', patientId)
 
   const { data: ordonnances } = await query.limit(50)
 
@@ -394,13 +371,12 @@ medecinRoutes.get('/ordonnances', async (c) => {
   return c.html(ordonnancesListPage(profil, ordonnances ?? [], patientId))
 })
 
-// Télécharger PDF ordonnance
+// Téléchargement PDF d'une ordonnance
 medecinRoutes.get('/ordonnances/:id/pdf', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
   const id = c.req.param('id')
 
-  // Récupérer l'ordonnance avec les lignes
   const { data: ordonnance } = await sb
     .from('medical_ordonnances')
     .select('*, medical_ordonnance_lignes(*), patient_dossiers(*), auth_medecins(*)')
@@ -409,7 +385,6 @@ medecinRoutes.get('/ordonnances/:id/pdf', async (c) => {
 
   if (!ordonnance) return c.notFound()
 
-  // Générer PDF (fonction utilitaire)
   const { generateOrdonnancePDF } = await import('../utils/pdf')
   const pdfBuffer = await generateOrdonnancePDF(ordonnance)
 
@@ -421,7 +396,6 @@ medecinRoutes.get('/ordonnances/:id/pdf', async (c) => {
 // ─────────────────────────────────────────────────────────────
 // EXAMENS
 // ─────────────────────────────────────────────────────────────
-
 // Formulaire prescription examen
 medecinRoutes.get('/examens/nouveau', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
@@ -471,9 +445,7 @@ medecinRoutes.get('/examens', async (c) => {
     .eq('prescrit_par', profil.id)
     .order('created_at', { ascending: false })
 
-  if (patientId) {
-    query = query.eq('patient_id', patientId)
-  }
+  if (patientId) query = query.eq('patient_id', patientId)
 
   const { data: examens } = await query.limit(50)
 
@@ -481,7 +453,7 @@ medecinRoutes.get('/examens', async (c) => {
   return c.html(examensListPage(profil, examens ?? [], patientId))
 })
 
-// Voir les résultats d'un examen
+// Détail d'un examen (résultats)
 medecinRoutes.get('/examens/:id', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -502,8 +474,7 @@ medecinRoutes.get('/examens/:id', async (c) => {
 // ─────────────────────────────────────────────────────────────
 // RENDEZ-VOUS
 // ─────────────────────────────────────────────────────────────
-
-// Planning RDV (vue calendrier / liste)
+// Liste des RDV (planning)
 medecinRoutes.get('/rdv', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -521,7 +492,7 @@ medecinRoutes.get('/rdv', async (c) => {
   return c.html(rdvListPage(profil, rdvs ?? []))
 })
 
-// Créer un RDV
+// Formulaire nouveau RDV
 medecinRoutes.get('/rdv/nouveau', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -537,6 +508,7 @@ medecinRoutes.get('/rdv/nouveau', async (c) => {
   return c.html(rdvFormPage(profil, patient))
 })
 
+// Création RDV
 medecinRoutes.post('/rdv/nouveau', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -558,13 +530,13 @@ medecinRoutes.post('/rdv/nouveau', async (c) => {
     statut: 'planifie',
   })
 
-  // Envoyer notification au patient (via email/SMS)
+  // Notification au patient (à implémenter)
   // await envoyerNotificationRdv(patientId, dateHeure)
 
   return c.redirect('/medecin/rdv')
 })
 
-// Mettre à jour statut RDV
+// Mise à jour du statut d'un RDV
 medecinRoutes.post('/rdv/:id/statut', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -582,7 +554,6 @@ medecinRoutes.post('/rdv/:id/statut', async (c) => {
 // ─────────────────────────────────────────────────────────────
 // HOSPITALISATIONS
 // ─────────────────────────────────────────────────────────────
-
 // Liste des hospitalisations en cours
 medecinRoutes.get('/hospitalisations', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
@@ -592,7 +563,7 @@ medecinRoutes.get('/hospitalisations', async (c) => {
     .from('medical_hospitalisations')
     .select('*, patient_dossiers(nom, prenom, numero_national)')
     .eq('medecin_referent', profil.id)
-    .is('date_sortie', null) // En cours
+    .is('date_sortie', null) // en cours
     .order('date_entree', { ascending: false })
 
   const { hospitalisationsListPage } = await import('../pages/medecin-hospitalisations-list')
@@ -615,6 +586,7 @@ medecinRoutes.get('/hospitalisations/nouvelle', async (c) => {
   return c.html(hospitFormPage(profil, patient))
 })
 
+// Création hospitalisation
 medecinRoutes.post('/hospitalisations/nouvelle', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -641,7 +613,7 @@ medecinRoutes.post('/hospitalisations/nouvelle', async (c) => {
   return c.redirect(`/medecin/hospitalisations/${hospit?.id}`)
 })
 
-// Détail hospitalisation
+// Détail d'une hospitalisation
 medecinRoutes.get('/hospitalisations/:id', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -655,7 +627,6 @@ medecinRoutes.get('/hospitalisations/:id', async (c) => {
 
   if (!hospit) return c.notFound()
 
-  // Récupérer les évolutions
   const { data: evolutions } = await sb
     .from('medical_hospitalisation_evolutions')
     .select('*')
@@ -705,7 +676,6 @@ medecinRoutes.post('/hospitalisations/:id/sortie', async (c) => {
 // ─────────────────────────────────────────────────────────────
 // TRANSFERTS
 // ─────────────────────────────────────────────────────────────
-
 // Formulaire transfert
 medecinRoutes.get('/transferts/nouveau', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
@@ -718,13 +688,13 @@ medecinRoutes.get('/transferts/nouveau', async (c) => {
     patient = data
   }
 
-  // Récupérer les structures disponibles
   const { data: structures } = await sb.from('structures_sante').select('id, nom')
 
   const { transfertFormPage } = await import('../pages/medecin-transfert-form')
   return c.html(transfertFormPage(profil, patient, structures ?? []))
 })
 
+// Création transfert
 medecinRoutes.post('/transferts/nouveau', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -751,8 +721,7 @@ medecinRoutes.post('/transferts/nouveau', async (c) => {
 // ─────────────────────────────────────────────────────────────
 // SUIVI MALADIES CHRONIQUES
 // ─────────────────────────────────────────────────────────────
-
-// Ouvrir/consulter un suivi chronique
+// Consultation ou création d'un suivi chronique
 medecinRoutes.get('/chroniques/:patientId', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -765,11 +734,9 @@ medecinRoutes.get('/chroniques/:patientId', async (c) => {
     .maybeSingle()
 
   if (!chronique) {
-    // Rediriger vers formulaire création
     return c.redirect(`/medecin/chroniques/${patientId}/nouveau`)
   }
 
-  // Récupérer les bilans
   const { data: bilans } = await sb
     .from('spec_suivi_chronique_bilans')
     .select('*')
@@ -780,7 +747,7 @@ medecinRoutes.get('/chroniques/:patientId', async (c) => {
   return c.html(chroniqueDetailPage(profil, chronique, bilans ?? []))
 })
 
-// Créer un suivi chronique
+// Formulaire création suivi chronique
 medecinRoutes.get('/chroniques/:patientId/nouveau', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -792,6 +759,7 @@ medecinRoutes.get('/chroniques/:patientId/nouveau', async (c) => {
   return c.html(chroniqueFormPage(profil, patient))
 })
 
+// Création suivi chronique
 medecinRoutes.post('/chroniques/:patientId/nouveau', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -808,7 +776,7 @@ medecinRoutes.post('/chroniques/:patientId/nouveau', async (c) => {
   return c.redirect(`/medecin/chroniques/${patientId}`)
 })
 
-// Ajouter un bilan
+// Ajout d'un bilan
 medecinRoutes.post('/chroniques/:suiviId/bilans', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -827,8 +795,7 @@ medecinRoutes.post('/chroniques/:suiviId/bilans', async (c) => {
 // ─────────────────────────────────────────────────────────────
 // SUIVI GROSSESSE
 // ─────────────────────────────────────────────────────────────
-
-// Routes similaires pour grossesse (CPN)
+// Consultation ou création d'un suivi grossesse
 medecinRoutes.get('/grossesse/:patientId', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -864,6 +831,7 @@ medecinRoutes.get('/grossesse/:patientId/nouveau', async (c) => {
   return c.html(grossesseFormPage(profil, patient))
 })
 
+// Création grossesse
 medecinRoutes.post('/grossesse/:patientId/nouveau', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -882,7 +850,7 @@ medecinRoutes.post('/grossesse/:patientId/nouveau', async (c) => {
   return c.redirect(`/medecin/grossesse/${patientId}`)
 })
 
-// Ajouter une CPN
+// Ajout d'une consultation prénatale (CPN)
 medecinRoutes.post('/grossesse/:grossesseId/cpn', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -906,7 +874,6 @@ medecinRoutes.post('/grossesse/:grossesseId/cpn', async (c) => {
 // ─────────────────────────────────────────────────────────────
 // DOCUMENTS MÉDICAUX
 // ─────────────────────────────────────────────────────────────
-
 // Liste des documents d'un patient
 medecinRoutes.get('/patients/:patientId/documents', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
@@ -923,18 +890,16 @@ medecinRoutes.get('/patients/:patientId/documents', async (c) => {
   return c.html(documentsListPage(profil, documents ?? [], patientId))
 })
 
-// Upload document
+// Upload d'un document
 medecinRoutes.post('/patients/:patientId/documents/upload', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
   const patientId = c.req.param('patientId')
   const body = await c.req.parseBody()
 
-  // Gérer l'upload de fichier
   const file = body.file as File
   if (!file) return c.redirect(`/medecin/patients/${patientId}/documents?error=no_file`)
 
-  // Upload vers Supabase Storage
   const fileName = `${Date.now()}-${file.name}`
   const { data: uploadData, error } = await sb.storage
     .from('documents')
@@ -944,7 +909,6 @@ medecinRoutes.post('/patients/:patientId/documents/upload', async (c) => {
     return c.redirect(`/medecin/patients/${patientId}/documents?error=upload`)
   }
 
-  // Enregistrer en base
   await sb.from('medical_documents').insert({
     patient_id: patientId,
     auteur_id: profil.id,
@@ -957,14 +921,13 @@ medecinRoutes.post('/patients/:patientId/documents/upload', async (c) => {
   return c.redirect(`/medecin/patients/${patientId}/documents`)
 })
 
-// Générer certificat médical
+// Génération certificat médical
 medecinRoutes.post('/patients/:patientId/certificat', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
   const patientId = c.req.param('patientId')
   const body = await c.req.parseBody()
 
-  // Générer PDF certificat
   const { generateCertificatPDF } = await import('../utils/pdf')
   const pdfBuffer = await generateCertificatPDF({
     patientId,
@@ -974,7 +937,6 @@ medecinRoutes.post('/patients/:patientId/certificat', async (c) => {
     date: new Date().toISOString(),
   })
 
-  // Uploader le PDF dans le stockage
   const fileName = `certificat-${Date.now()}.pdf`
   const { data: uploadData } = await sb.storage
     .from('documents')
@@ -999,15 +961,11 @@ medecinRoutes.post('/patients/:patientId/certificat', async (c) => {
 // ─────────────────────────────────────────────────────────────
 // CODE URGENCE
 // ─────────────────────────────────────────────────────────────
-
-// Générer ou récupérer code urgence pour un patient
+// Récupérer le code urgence d'un patient
 medecinRoutes.get('/urgence/:patientId/code', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
   const patientId = c.req.param('patientId')
-
-  // Vérifier si le médecin a le droit (consentement ou urgence)
-  // Pour générer un code, on peut le faire sans consentement ? À définir.
 
   const { data: dossier } = await sb
     .from('patient_dossiers')
@@ -1020,14 +978,13 @@ medecinRoutes.get('/urgence/:patientId/code', async (c) => {
   return c.json({ code: dossier.code_urgence })
 })
 
-// Accès via code urgence (route publique ? mais ici c'est pour le médecin qui a le code)
+// Accès via code urgence (le médecin saisit le code)
 medecinRoutes.post('/urgence/acces', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
   const body = await c.req.parseBody()
   const code = String(body.code ?? '')
 
-  // Chercher le patient avec ce code
   const { data: patient } = await sb
     .from('patient_dossiers')
     .select('id, nom, prenom')
@@ -1038,7 +995,6 @@ medecinRoutes.post('/urgence/acces', async (c) => {
     return c.redirect('/medecin/patients?error=code_invalide')
   }
 
-  // Enregistrer l'accès urgence
   await sb.from('patient_acces_urgence').insert({
     patient_id: patient.id,
     medecin_id: profil.id,
@@ -1047,17 +1003,16 @@ medecinRoutes.post('/urgence/acces', async (c) => {
     code_utilise: true,
   })
 
-  // Envoyer une alerte au patient (SMS/email)
+  // Notification au patient (à implémenter)
   // await notifierPatientAccesUrgence(patient.id)
 
   return c.redirect(`/medecin/patients/${patient.id}?urgence=1`)
 })
 
 // ─────────────────────────────────────────────────────────────
-// NOTIFICATIONS / PREFERENCES
+// NOTIFICATIONS / PRÉFÉRENCES
 // ─────────────────────────────────────────────────────────────
-
-// Récupérer les préférences de notification du médecin (pour lui-même)
+// Afficher les préférences de notification du médecin
 medecinRoutes.get('/notifications', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -1072,6 +1027,7 @@ medecinRoutes.get('/notifications', async (c) => {
   return c.html(notificationsPage(profil, settings))
 })
 
+// Mettre à jour les préférences
 medecinRoutes.post('/notifications', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -1091,12 +1047,11 @@ medecinRoutes.post('/notifications', async (c) => {
 // ─────────────────────────────────────────────────────────────
 // PROFIL MÉDECIN
 // ─────────────────────────────────────────────────────────────
-
+// Afficher le profil du médecin
 medecinRoutes.get('/profil', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
 
-  // Récupérer les structures où il exerce
   const { data: structures } = await sb
     .from('auth_medecin_structures')
     .select('structures_sante(*)')
@@ -1106,6 +1061,7 @@ medecinRoutes.get('/profil', async (c) => {
   return c.html(profilMedecinPage(profil, structures ?? []))
 })
 
+// Upload de la photo de profil
 medecinRoutes.post('/profil/photo', async (c) => {
   const sb = c.get('supabase' as never) as ReturnType<typeof getSupabase>
   const profil = c.get('profil' as never) as AuthProfile
@@ -1126,6 +1082,5 @@ medecinRoutes.post('/profil/photo', async (c) => {
   return c.redirect('/medecin/profil')
 })
 
-// ─────────────────────────────────────────────────────────────
-// POINT DE TERMINAISON POUR LE DASHBOARD (alias)
+// Redirection de la racine vers le dashboard
 medecinRoutes.get('/', (c) => c.redirect('/medecin/dashboard'))
