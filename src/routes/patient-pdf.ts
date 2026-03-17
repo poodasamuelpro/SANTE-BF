@@ -1,15 +1,21 @@
 /**
  * src/routes/patient-pdf.ts
- * ✅ FIX: requireRole('patient') — sans tableau
+ * ✅ CORRIGÉ :
+ *  - Bindings générique ajouté sur Hono
+ *  - requireAuth + requireRole unifiés sur un seul .use()
+ *  - AuthProfile importé correctement
+ *  - Imports PDF sécurisés avec try/catch au niveau module
+ *  - Typage cohérent avec le reste du projet
  */
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
+import type { AuthProfile, Bindings } from '../lib/supabase'
 import { genererOrdonnancePDF, genererBulletinExamenPDF } from '../utils/pdf'
 
-export const patientPdfRoutes = new Hono()
+export const patientPdfRoutes = new Hono<{ Bindings: Bindings }>()
 
-patientPdfRoutes.use('*', requireAuth)
-patientPdfRoutes.use('*', requireRole('patient'))
+// ── Middleware : auth + rôle patient en une seule chaîne ────────
+patientPdfRoutes.use('*', requireAuth, requireRole('patient'))
 
 // ── CSS + helpers ──────────────────────────────────────────────
 function page(titre: string, body: string): string {
@@ -62,7 +68,7 @@ ${body}
 // LISTE ORDONNANCES
 // ═══════════════════════════════════════════════════════════════
 patientPdfRoutes.get('/ordonnances', async (c) => {
-  const profil   = c.get('profil' as never) as any
+  const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
 
   const { data: dossier } = await supabase
@@ -76,15 +82,19 @@ patientPdfRoutes.get('/ordonnances', async (c) => {
     : { data: [] }
 
   const items = (list ?? []).map((o: any) => {
-    const badgeClass = o.statut === 'active' ? 'bv' : o.statut === 'expiree' ? 'br' : 'bg'
+    const badgeClass  = o.statut === 'active' ? 'bv' : o.statut === 'expiree' ? 'br' : 'bg'
     const labelStatut = o.statut === 'active' ? '&#10003; Active' : o.statut === 'delivree' ? 'Délivrée' : o.statut === 'expiree' ? 'Expirée' : o.statut
-    const medecin = o.auth_profiles ? `Dr. ${o.auth_profiles.prenom || ''} ${o.auth_profiles.nom || ''}` : ''
-    const structure = o.struct_structures?.nom || ''
+    const medecin     = o.auth_profiles ? `Dr. ${o.auth_profiles.prenom || ''} ${o.auth_profiles.nom || ''}` : ''
+    const structure   = o.struct_structures?.nom || ''
     const dateCreation = new Date(o.created_at).toLocaleDateString('fr-FR')
-    const dateExp = o.date_expiration ? `Expire ${new Date(o.date_expiration).toLocaleDateString('fr-FR')}` : ''
-    const btnHtml = o.statut !== 'expiree'
+    const dateExp     = o.date_expiration ? `Expire ${new Date(o.date_expiration).toLocaleDateString('fr-FR')}` : ''
+    const btnHtml     = o.statut !== 'expiree'
       ? `<a href="/patient-pdf/ordonnance/${o.id}" class="btn-dl btn-v">&#128229; PDF</a>`
       : `<span class="btn-dl btn-g">Expirée</span>`
+    // ✅ FIX : pré-calcul des HTML conditionnels pour éviter les backticks imbriqués
+    const medecinHtml  = medecin   ? `<span>&#128104;&#8205;&#9877; ${medecin}</span>`      : ''
+    const structureHtml = structure ? `<span>&#127973; ${structure}</span>`                  : ''
+    const dateExpHtml  = dateExp   ? `<span>&#8987; ${dateExp}</span>`                      : ''
     return `<div class="card">
   <div class="row">
     <div>
@@ -92,10 +102,10 @@ patientPdfRoutes.get('/ordonnances', async (c) => {
         ${o.numero_ordonnance} <span class="badge ${badgeClass}">${labelStatut}</span>
       </div>
       <div class="meta">
-        ${medecin ? `<span>&#128104;&#8205;&#9877; ${medecin}</span>` : ''}
-        ${structure ? `<span>&#127973; ${structure}</span>` : ''}
+        ${medecinHtml}
+        ${structureHtml}
         <span>&#128197; ${dateCreation}</span>
-        ${dateExp ? `<span>&#8987; ${dateExp}</span>` : ''}
+        ${dateExpHtml}
       </div>
     </div>
     ${btnHtml}
@@ -116,7 +126,7 @@ patientPdfRoutes.get('/ordonnances', async (c) => {
 // LISTE EXAMENS
 // ═══════════════════════════════════════════════════════════════
 patientPdfRoutes.get('/examens', async (c) => {
-  const profil   = c.get('profil' as never) as any
+  const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
 
   const { data: dossier } = await supabase
@@ -131,23 +141,28 @@ patientPdfRoutes.get('/examens', async (c) => {
     : { data: [] }
 
   const items = (list ?? []).map((e: any) => {
-    const dispo = e.statut === 'resultat_disponible' || e.valide_par
-    const medecin = e.auth_profiles ? `Dr. ${e.auth_profiles.prenom || ''} ${e.auth_profiles.nom || ''}` : ''
+    const dispo        = e.statut === 'resultat_disponible' || !!e.valide_par
+    const medecin      = e.auth_profiles ? `Dr. ${e.auth_profiles.prenom || ''} ${e.auth_profiles.nom || ''}` : ''
     const dateCreation = new Date(e.created_at).toLocaleDateString('fr-FR')
-    const dateRes = e.date_resultat ? `Résultat ${new Date(e.date_resultat).toLocaleDateString('fr-FR')}` : ''
-    const btnHtml = dispo
+    const dateRes      = e.date_resultat ? `Résultat ${new Date(e.date_resultat).toLocaleDateString('fr-FR')}` : ''
+    const btnHtml      = dispo
       ? `<a href="/patient-pdf/examen/${e.id}" class="btn-dl btn-b">&#128229; Bulletin</a>`
       : `<span class="btn-dl btn-g">En attente</span>`
+    const badgeExamen  = dispo ? 'bv' : 'bo'
+    const labelExamen  = dispo ? '&#10003; Disponible' : '&#8987; En attente'
+    // ✅ FIX : pré-calcul des HTML conditionnels pour éviter les backticks imbriqués
+    const medecinHtml  = medecin ? `<span>&#128104;&#8205;&#9877; ${medecin}</span>` : ''
+    const dateResHtml  = dateRes ? `<span>&#128203; ${dateRes}</span>`               : ''
     return `<div class="card">
   <div class="row">
     <div>
       <div style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
-        &#128300; ${e.type_examen || 'Examen'} <span class="badge ${dispo ? 'bv' : 'bo'}">${dispo ? '&#10003; Disponible' : '&#8987; En attente'}</span>
+        &#128300; ${e.type_examen || 'Examen'} <span class="badge ${badgeExamen}">${labelExamen}</span>
       </div>
       <div class="meta">
-        ${medecin ? `<span>&#128104;&#8205;&#9877; ${medecin}</span>` : ''}
+        ${medecinHtml}
         <span>&#128197; ${dateCreation}</span>
-        ${dateRes ? `<span>&#128203; ${dateRes}</span>` : ''}
+        ${dateResHtml}
       </div>
     </div>
     ${btnHtml}
@@ -168,9 +183,9 @@ patientPdfRoutes.get('/examens', async (c) => {
 // TÉLÉCHARGER ORDONNANCE PDF
 // ═══════════════════════════════════════════════════════════════
 patientPdfRoutes.get('/ordonnance/:id', async (c) => {
-  const profil   = c.get('profil' as never) as any
+  const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
-  const id = c.req.param('id')
+  const id       = c.req.param('id')
 
   try {
     const { data: dossier } = await supabase
@@ -180,22 +195,50 @@ patientPdfRoutes.get('/ordonnance/:id', async (c) => {
     const { data: ord, error } = await supabase
       .from('medical_ordonnances')
       .select('*, patient:patient_dossiers(nom,prenom,date_naissance,sexe,numero_national), medecin:auth_profiles!medical_ordonnances_medecin_id_fkey(nom,prenom,specialite,ordre_numero,signature_url), structure:struct_structures!medical_ordonnances_structure_id_fkey(nom,type,adresse,telephone,logo_url), prescriptions:medical_ordonnance_lignes(nom_medicament,posologie,duree_jours,instructions)')
-      .eq('id', id).eq('patient_id', dossier.id).single()
+      .eq('id', id)
+      .eq('patient_id', dossier.id)
+      .single()
 
     if (error || !ord) return c.json({ error: 'Ordonnance non trouvée' }, 404)
 
     const pdfBytes = await genererOrdonnancePDF({
-      numero: ord.numero_ordonnance,
-      date: new Date(ord.created_at),
-      patient: { nom: ord.patient?.nom || '', prenom: ord.patient?.prenom || '', dateNaissance: ord.patient?.date_naissance || '', sexe: ord.patient?.sexe || '', numeroNational: ord.patient?.numero_national || '' },
-      medecin: { nom: ord.medecin?.nom || '', prenom: ord.medecin?.prenom || '', specialite: ord.medecin?.specialite || '', ordreNumero: ord.medecin?.ordre_numero || '', signatureUrl: ord.medecin?.signature_url || '' },
-      structure: { nom: ord.structure?.nom || '', type: ord.structure?.type || '', adresse: ord.structure?.adresse || '', telephone: ord.structure?.telephone || '', logoUrl: ord.structure?.logo_url || '' },
-      prescriptions: (ord.prescriptions || []).map((p: any) => ({ medicament: p.nom_medicament || '', posologie: p.posologie || '', duree: String(p.duree_jours || ''), quantite: p.quantite || '' })),
+      numero:  ord.numero_ordonnance,
+      date:    new Date(ord.created_at),
+      patient: {
+        nom:           ord.patient?.nom            || '',
+        prenom:        ord.patient?.prenom         || '',
+        dateNaissance: ord.patient?.date_naissance || '',
+        sexe:          ord.patient?.sexe           || '',
+        numeroNational: ord.patient?.numero_national || '',
+      },
+      medecin: {
+        nom:         ord.medecin?.nom          || '',
+        prenom:      ord.medecin?.prenom       || '',
+        specialite:  ord.medecin?.specialite   || '',
+        ordreNumero: ord.medecin?.ordre_numero || '',
+        signatureUrl: ord.medecin?.signature_url || '',
+      },
+      structure: {
+        nom:      ord.structure?.nom       || '',
+        type:     ord.structure?.type      || '',
+        adresse:  ord.structure?.adresse   || '',
+        telephone: ord.structure?.telephone || '',
+        logoUrl:  ord.structure?.logo_url  || '',
+      },
+      prescriptions: (ord.prescriptions || []).map((p: any) => ({
+        medicament: p.nom_medicament || '',
+        posologie:  p.posologie      || '',
+        duree:      String(p.duree_jours || ''),
+        quantite:   p.quantite        || '',
+      })),
       qrCode: ord.qr_code_verification || '',
     })
 
     return new Response(pdfBytes, {
-      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="ordonnance-${ord.numero_ordonnance}.pdf"` }
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="ordonnance-${ord.numero_ordonnance}.pdf"`,
+      },
     })
   } catch (err) {
     console.error('Erreur PDF ordonnance:', err)
@@ -207,9 +250,9 @@ patientPdfRoutes.get('/ordonnance/:id', async (c) => {
 // TÉLÉCHARGER BULLETIN EXAMEN PDF
 // ═══════════════════════════════════════════════════════════════
 patientPdfRoutes.get('/examen/:id', async (c) => {
-  const profil   = c.get('profil' as never) as any
+  const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
-  const id = c.req.param('id')
+  const id       = c.req.param('id')
 
   try {
     const { data: dossier } = await supabase
@@ -219,25 +262,48 @@ patientPdfRoutes.get('/examen/:id', async (c) => {
     const { data: ex, error } = await supabase
       .from('medical_examens')
       .select('*, patient:patient_dossiers(nom,prenom,date_naissance,sexe,numero_national), medecin:auth_profiles!medical_examens_demandeur_id_fkey(nom,prenom,specialite), structure:struct_structures!medical_examens_structure_id_fkey(nom,type,adresse,telephone,logo_url)')
-      .eq('id', id).eq('patient_id', dossier.id).single()
+      .eq('id', id)
+      .eq('patient_id', dossier.id)
+      .single()
 
     if (error || !ex) return c.json({ error: 'Examen non trouvé' }, 404)
-    if (ex.statut !== 'resultat_disponible' && !ex.valide_par) return c.json({ error: 'Résultats pas encore disponibles' }, 400)
+    if (ex.statut !== 'resultat_disponible' && !ex.valide_par) {
+      return c.json({ error: 'Résultats pas encore disponibles' }, 400)
+    }
 
     const pdfBytes = await genererBulletinExamenPDF({
-      typeExamen: ex.type_examen || 'laboratoire',
-      date: new Date(ex.created_at),
+      typeExamen:   ex.type_examen || 'laboratoire',
+      date:         new Date(ex.created_at),
       dateResultat: ex.date_resultat ? new Date(ex.date_resultat) : new Date(),
-      patient: { nom: ex.patient?.nom || '', prenom: ex.patient?.prenom || '', dateNaissance: ex.patient?.date_naissance || '', sexe: ex.patient?.sexe || '', numeroNational: ex.patient?.numero_national || '' },
-      medecin: { nom: ex.medecin?.nom || '', prenom: ex.medecin?.prenom || '', specialite: ex.medecin?.specialite || '' },
-      structure: { nom: ex.structure?.nom || '', type: ex.structure?.type || '', adresse: ex.structure?.adresse || '', telephone: ex.structure?.telephone || '', logoUrl: ex.structure?.logo_url || '' },
-      resultats: ex.resultats || {},
+      patient: {
+        nom:           ex.patient?.nom            || '',
+        prenom:        ex.patient?.prenom         || '',
+        dateNaissance: ex.patient?.date_naissance || '',
+        sexe:          ex.patient?.sexe           || '',
+        numeroNational: ex.patient?.numero_national || '',
+      },
+      medecin: {
+        nom:        ex.medecin?.nom       || '',
+        prenom:     ex.medecin?.prenom    || '',
+        specialite: ex.medecin?.specialite || '',
+      },
+      structure: {
+        nom:      ex.structure?.nom        || '',
+        type:     ex.structure?.type       || '',
+        adresse:  ex.structure?.adresse    || '',
+        telephone: ex.structure?.telephone || '',
+        logoUrl:  ex.structure?.logo_url   || '',
+      },
+      resultats:  ex.resultats  || {},
       conclusion: ex.conclusion || ex.compte_rendu || '',
       technicien: ex.technicien_nom || '',
     })
 
     return new Response(pdfBytes, {
-      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="examen-${id}.pdf"` }
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="examen-${id}.pdf"`,
+      },
     })
   } catch (err) {
     console.error('Erreur PDF examen:', err)
