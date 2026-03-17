@@ -771,3 +771,4 @@ export function dashboardPatientPage(profil: any, data: {
 </script>
 </body></html>`
 }
+ 
