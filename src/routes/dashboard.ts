@@ -75,7 +75,7 @@ dashboardRoutes.get('/structure',
         stats: {
           personnel:         personnel.count ?? 0,
           patientsJour:      0,
-          litsOccupes:       litsOccupes,
+          litsOccupes,
           litsTotal:         litsData.length,
           consultationsJour: 0
         }
@@ -98,7 +98,7 @@ dashboardRoutes.get('/medecin',
       const today = new Date().toISOString().split('T')[0]
       const { data: rdvJour } = await supabase
         .from('medical_rendez_vous')
-        .select('id, date_heure, motif, statut, patient_dossiers ( nom, prenom )')
+        .select('id, date_heure, motif, statut, patient_dossiers(nom, prenom)')
         .eq('medecin_id', profil.id)
         .gte('date_heure', today + 'T00:00:00')
         .lte('date_heure', today + 'T23:59:59')
@@ -107,7 +107,7 @@ dashboardRoutes.get('/medecin',
 
       const { data: consultations } = await supabase
         .from('medical_consultations')
-        .select('id, created_at, motif, diagnostic_principal, patient_dossiers ( nom, prenom )')
+        .select('id, created_at, motif, diagnostic_principal, patient_dossiers(nom, prenom)')
         .eq('medecin_id', profil.id)
         .order('created_at', { ascending: false })
         .limit(5)
@@ -133,7 +133,7 @@ dashboardRoutes.get('/pharmacien',
 
       const { data: ordonnances } = await supabase
         .from('medical_ordonnances')
-        .select('id, numero_ordonnance, created_at, statut, patient_dossiers ( nom, prenom )')
+        .select('id, numero_ordonnance, created_at, statut, patient_dossiers(nom, prenom)')
         .eq('structure_id', profil.structure_id)
         .eq('statut', 'active')
         .order('created_at', { ascending: false })
@@ -158,7 +158,7 @@ dashboardRoutes.get('/caissier',
       const today = new Date().toISOString().split('T')[0]
       const { data: factures } = await supabase
         .from('finance_factures')
-        .select('id, numero_facture, total_ttc, statut, created_at, patient_dossiers ( nom, prenom )')
+        .select('id, numero_facture, total_ttc, statut, created_at, patient_dossiers(nom, prenom)')
         .eq('structure_id', profil.structure_id)
         .gte('created_at', today + 'T00:00:00')
         .order('created_at', { ascending: false })
@@ -203,7 +203,7 @@ dashboardRoutes.get('/accueil',
       const today = new Date().toISOString().split('T')[0]
       const { data: rdvJour } = await supabase
         .from('medical_rendez_vous')
-        .select('id, date_heure, motif, statut, patient_dossiers ( nom, prenom ), auth_profiles ( nom, prenom )')
+        .select('id, date_heure, motif, statut, patient_dossiers(nom, prenom), auth_profiles(nom, prenom)')
         .eq('structure_id', profil.structure_id)
         .gte('date_heure', today + 'T00:00:00')
         .lte('date_heure', today + 'T23:59:59')
@@ -217,8 +217,7 @@ dashboardRoutes.get('/accueil',
   }
 )
 
-// ── Patient ─────────────────────────────────────────────────
-// ✅ CORRIGÉ : plus d'écran noir, données complètes
+// ── Patient ────────────────────────────────────────────────
 dashboardRoutes.get('/patient',
   requireRole('patient'),
   async (c) => {
@@ -226,82 +225,45 @@ dashboardRoutes.get('/patient',
       const profil   = c.get('profil')
       const supabase = c.get('supabase')
 
-      // Dossier patient
       const { data: dossier } = await supabase
         .from('patient_dossiers')
         .select('id, numero_national, nom, prenom, date_naissance, groupe_sanguin, rhesus, allergies, maladies_chroniques')
         .eq('profile_id', profil.id)
         .single()
 
-      // ✅ Pas de dossier → page d'accueil limitée (plus d'écran noir)
       if (!dossier) {
         return c.html(dashboardPatientSansDossierPage(profil))
       }
 
-      // Toutes les données en parallèle
-      const [
-        rdvResult,
-        ordResult,
-        consResult,
-        consentResult,
-        examenResult,
-      ] = await Promise.all([
-        // Prochain RDV confirmé
-        supabase
-          .from('medical_rendez_vous')
+      const [rdvResult, ordResult, consResult, consentResult, examenResult] = await Promise.all([
+        supabase.from('medical_rendez_vous')
           .select('id, date_heure, motif, auth_profiles!medical_rendez_vous_medecin_id_fkey(nom, prenom)')
           .eq('patient_id', dossier.id)
           .gte('date_heure', new Date().toISOString())
           .in('statut', ['confirme', 'planifie'])
           .order('date_heure', { ascending: true })
           .limit(1),
-
-        // Ordonnances actives (count)
-        supabase
-          .from('medical_ordonnances')
+        supabase.from('medical_ordonnances')
           .select('*', { count: 'exact', head: true })
-          .eq('patient_id', dossier.id)
-          .eq('statut', 'active'),
-
-        // Consultations total (count)
-        supabase
-          .from('medical_consultations')
+          .eq('patient_id', dossier.id).eq('statut', 'active'),
+        supabase.from('medical_consultations')
           .select('*', { count: 'exact', head: true })
           .eq('patient_id', dossier.id),
-
-        // Médecins autorisés via consentements actifs
-        supabase
-          .from('patient_consentements')
-          .select(`
-            auth_profiles!patient_consentements_medecin_id_fkey(
-              id, nom, prenom, avatar_url,
-              auth_medecins(specialite_principale),
-              struct_structures!auth_profiles_structure_id_fkey(nom)
-            )
-          `)
-          .eq('patient_id', dossier.id)
-          .eq('est_actif', true)
-          .limit(10),
-
-        // Derniers examens labo
-        supabase
-          .from('medical_examens')
+        supabase.from('patient_consentements')
+          .select('auth_profiles!patient_consentements_medecin_id_fkey(id, nom, prenom, avatar_url, auth_medecins(specialite_principale), struct_structures!auth_profiles_structure_id_fkey(nom))')
+          .eq('patient_id', dossier.id).eq('est_actif', true).limit(10),
+        supabase.from('medical_examens')
           .select('id, type_examen, nom_examen, statut, created_at, valide_par')
           .eq('patient_id', dossier.id)
-          .order('created_at', { ascending: false })
-          .limit(3),
+          .order('created_at', { ascending: false }).limit(3),
       ])
 
-      // Prochain RDV
       const rdv0 = rdvResult.data?.[0]
-      const prochainRdv = rdv0
-        ? { ...rdv0, medecin: (rdv0 as any).auth_profiles }
-        : null
+      const prochainRdv = rdv0 ? { ...rdv0, medecin: (rdv0 as any).auth_profiles } : null
 
-      // Médecins formatés
       const medecins = (consentResult.data ?? [])
-        .map((c: any) => {
-          const p = c.auth_profiles
+        .map((ct: any) => {
+          const p = ct.auth_profiles
           if (!p) return null
           return {
             id:         p.id,
@@ -311,14 +273,9 @@ dashboardRoutes.get('/patient',
             specialite: p.auth_medecins?.[0]?.specialite_principale || 'Médecin généraliste',
             structure:  (p.struct_structures as any)?.nom || '',
           }
-        })
-        .filter(Boolean)
+        }).filter(Boolean)
 
-      // Examens formatés
-      const examens = (examenResult.data ?? []).map((e: any) => ({
-        ...e,
-        type_categorie: 'laboratoire',
-      }))
+      const examens = (examenResult.data ?? []).map((e: any) => ({ ...e, type_categorie: 'laboratoire' }))
 
       return c.html(dashboardPatientPage(profil, {
         dossier,
@@ -328,7 +285,6 @@ dashboardRoutes.get('/patient',
         medecins,
         examens,
       }))
-
     } catch (err) {
       console.error('❌ Erreur dashboard patient:', err)
       return c.text('Erreur serveur', 500)
@@ -336,10 +292,10 @@ dashboardRoutes.get('/patient',
   }
 )
 
-// ── Helpers partagés (inchangés) ───────────────────────────
+// ── Helpers partagés ───────────────────────────────────────
 export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string, contenu: string): string {
   const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-  const date  = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })
+  const date  = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -358,8 +314,7 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
     .header-title span{font-family:'DM Sans',sans-serif;font-size:12px;opacity:.7;display:block;margin-top:-2px;}
     .header-right{display:flex;align-items:center;gap:12px;}
     .user-badge{background:rgba(255,255,255,0.15);border-radius:8px;padding:6px 12px;font-size:13px;color:white;}
-    .user-badge strong{display:block;font-size:14px;}
-    .user-badge small{opacity:.75;font-size:11px;}
+    .user-badge strong{display:block;font-size:14px;}.user-badge small{opacity:.75;font-size:11px;}
     .btn-logout{background:rgba(255,255,255,0.2);color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;text-decoration:none;font-family:'DM Sans',sans-serif;transition:background .2s;}
     .btn-logout:hover{background:rgba(255,255,255,0.3);}
     .container{max-width:1100px;margin:0 auto;padding:24px 20px;}
@@ -403,7 +358,7 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
 <body>
   <header>
     <div class="header-left">
-      <div class="logo-small">🏥</div>
+      <div class="logo-small">&#127973;</div>
       <div class="header-title">SantéBF<span>${titre}</span></div>
     </div>
     <div class="header-right">
@@ -417,7 +372,7 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
   <div class="container">
     <div class="welcome">
       <div class="date-header">
-        <h2>Bonjour, ${profil.prenom} 👋</h2>
+        <h2>Bonjour, ${profil.prenom} &#128075;</h2>
         <div><strong>${heure}</strong><span> — ${date}</span></div>
       </div>
       <p>Bienvenue dans votre espace SantéBF</p>
@@ -429,13 +384,28 @@ export function pageSkeleton(profil: AuthProfile, titre: string, couleur: string
 }
 
 export function statsGrid(stats: { icon: string; value: string | number; label: string; color?: string }[]): string {
-  return `<div class="stats-grid">${stats.map(s=>`<div class="stat-card"${s.color?` style="border-top-color:${s.color}"`:''}><div class="stat-icon">${s.icon}</div><div class="stat-val"${s.color?` style="color:${s.color}"`:''}>${s.value}</div><div class="stat-lbl">${s.label}</div></div>`).join('')}</div>`
+  return '<div class="stats-grid">' + stats.map(s =>
+    '<div class="stat-card"' + (s.color ? ' style="border-top-color:' + s.color + '"' : '') + '>'
+    + '<div class="stat-icon">' + s.icon + '</div>'
+    + '<div class="stat-val"' + (s.color ? ' style="color:' + s.color + '"' : '') + '>' + s.value + '</div>'
+    + '<div class="stat-lbl">' + s.label + '</div>'
+    + '</div>'
+  ).join('') + '</div>'
 }
 
 export function actionCard(actions: { href: string; icon: string; label: string; colorClass?: string }[]): string {
-  return `<div class="actions-grid">${actions.map(a=>`<a href="${a.href}" class="action-card ${a.colorClass||''}"><span class="ac-icon">${a.icon}</span><span class="ac-lbl">${a.label}</span></a>`).join('')}</div>`
+  return '<div class="actions-grid">' + actions.map(a =>
+    '<a href="' + a.href + '" class="action-card ' + (a.colorClass || '') + '">'
+    + '<span class="ac-icon">' + a.icon + '</span>'
+    + '<span class="ac-lbl">' + a.label + '</span>'
+    + '</a>'
+  ).join('') + '</div>'
 }
 
 export function dataTable(headers: string[], rows: string[][]): string {
-  return `<div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.length===0?`<tr><td colspan="${headers.length}" class="empty">Aucune donnée disponible</td></tr>`:rows.map(row=>`<tr>${row.map(cell=>`<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+  const ths = headers.map(h => '<th>' + h + '</th>').join('')
+  const trs = rows.length === 0
+    ? '<tr><td colspan="' + headers.length + '" class="empty">Aucune donnée disponible</td></tr>'
+    : rows.map(row => '<tr>' + row.map(cell => '<td>' + cell + '</td>').join('') + '</tr>').join('')
+  return '<div class="table-wrap"><table><thead><tr>' + ths + '</tr></thead><tbody>' + trs + '</tbody></table></div>'
 }
