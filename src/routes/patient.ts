@@ -1,12 +1,17 @@
 /**
  * src/routes/patient.ts
  * Toutes les routes patient — syntaxe TypeScript stricte, zéro template literal imbriqué
+ *
+ * CORRECTIONS APPLIQUÉES :
+ *  1. Shadow variable `c` dans les callbacks .map() → renommé en `cons`, `rdvItem`, etc.
+ *  2. `new URL(c.req.url)` → `c.req.query()` (compatible Cloudflare Workers)
+ *  3. Toutes les redirections POST → code 303 explicite
+ *  4. Import de `Bindings` depuis supabase.ts pour cohérence
  */
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
-import type { AuthProfile } from '../lib/supabase'
+import type { AuthProfile, Bindings } from '../lib/supabase'
 
-type Bindings = { SUPABASE_URL: string; SUPABASE_ANON_KEY: string }
 export const patientRoutes = new Hono<{ Bindings: Bindings }>()
 patientRoutes.use('/*', requireAuth, requireRole('patient'))
 
@@ -110,23 +115,24 @@ patientRoutes.get('/dossier', async (c) => {
       .eq('patient_id', dossier.id).order('date_vaccination', { ascending: false }).limit(5),
   ])
 
-  const allergies: any[] = Array.isArray(dossier.allergies) ? dossier.allergies : []
-  const maladies: any[]  = Array.isArray(dossier.maladies_chroniques) ? dossier.maladies_chroniques : []
-  const consultations = consRes.data ?? []
-  const ordonnances   = ordRes.data ?? []
-  const vaccins       = vaccRes.data ?? []
+  const allergies: any[]    = Array.isArray(dossier.allergies) ? dossier.allergies : []
+  const maladies: any[]     = Array.isArray(dossier.maladies_chroniques) ? dossier.maladies_chroniques : []
+  const consultations: any[] = consRes.data ?? []
+  const ordonnances: any[]   = ordRes.data  ?? []
+  const vaccins: any[]       = vaccRes.data ?? []
 
   const allergiesHtml = allergies.length > 0
     ? allergies.map((a: any) => {
-        const substance = a.substance || a.nom || String(a)
-        const reaction  = a.reaction ? ` — ${a.reaction}` : ''
-        return `<div style="background:var(--rouge-c);border-left:4px solid var(--rouge);border-radius:8px;padding:12px;margin-bottom:8px;"><div style="font-size:14px;font-weight:700;color:var(--rouge);">${substance}</div>${reaction ? `<div style="font-size:12px;color:#7f1d1d;margin-top:2px;">${reaction}</div>` : ''}</div>`
+        const substance   = a.substance || a.nom || String(a)
+        const reactionTxt = a.reaction ? ` — ${a.reaction}` : ''
+        const reactionHtml = reactionTxt ? `<div style="font-size:12px;color:#7f1d1d;margin-top:2px;">${reactionTxt}</div>` : ''
+        return `<div style="background:var(--rouge-c);border-left:4px solid var(--rouge);border-radius:8px;padding:12px;margin-bottom:8px;"><div style="font-size:14px;font-weight:700;color:var(--rouge);">${substance}</div>${reactionHtml}</div>`
       }).join('')
     : '<div class="empty">Aucune allergie enregistrée</div>'
 
   const maladiesHtml = maladies.length > 0
     ? maladies.map((m: any) => {
-        const nom = m.maladie || m.nom || String(m)
+        const nom        = m.maladie || m.nom || String(m)
         const traitement = m.traitement ? `<div style="font-size:12px;color:#7a5500;margin-top:2px;">&#128138; ${m.traitement}</div>` : ''
         return `<div style="background:var(--or-c);border-left:4px solid var(--or);border-radius:8px;padding:12px;margin-bottom:8px;"><div style="font-size:14px;font-weight:700;color:#7a5500;">${nom}</div>${traitement}</div>`
       }).join('')
@@ -134,24 +140,26 @@ patientRoutes.get('/dossier', async (c) => {
 
   const ordHtml = ordonnances.length > 0
     ? ordonnances.map((o: any) => {
-        const med = o.auth_profiles ? `Dr. ${o.auth_profiles.prenom || ''} ${o.auth_profiles.nom || ''}` : ''
-        const dt  = new Date(o.created_at).toLocaleDateString('fr-FR')
-        return `<div class="sep"><div><div style="font-size:13px;font-weight:700;">${o.numero_ordonnance}</div><div class="meta">${med ? `<span>${med}</span>` : ''}<span>${dt}</span></div></div><a href="/patient-pdf/ordonnance/${o.id}" class="btn btn-v" style="font-size:12px;padding:6px 12px;">&#128229; PDF</a></div>`
+        const med    = o.auth_profiles ? `Dr. ${o.auth_profiles.prenom || ''} ${o.auth_profiles.nom || ''}` : ''
+        const dt     = new Date(o.created_at).toLocaleDateString('fr-FR')
+        const medHtml = med ? `<span>${med}</span>` : ''
+        return `<div class="sep"><div><div style="font-size:13px;font-weight:700;">${o.numero_ordonnance}</div><div class="meta">${medHtml}<span>${dt}</span></div></div><a href="/patient-pdf/ordonnance/${o.id}" class="btn btn-v" style="font-size:12px;padding:6px 12px;">&#128229; PDF</a></div>`
       }).join('')
     : ''
 
+  // ✅ FIX : paramètre renommé `cons` pour éviter le shadow de la variable `c` de Hono
   const consHtml = consultations.length > 0
-    ? consultations.map((c: any) => {
-        const med   = c.auth_profiles ? `Dr. ${c.auth_profiles.prenom || ''} ${c.auth_profiles.nom || ''}` : ''
-        const dt    = new Date(c.created_at).toLocaleDateString('fr-FR')
-        const diag  = c.diagnostic_principal ? `<div style="font-size:12px;color:var(--bleu);margin-top:3px;">&#8594; ${c.diagnostic_principal}</div>` : ''
-        return `<div style="border-left:3px solid var(--bleu);padding:12px 14px;margin-bottom:10px;background:#fafcff;border-radius:0 8px 8px 0;"><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="badge bb">${c.type_consultation || 'normale'}</span><span style="font-size:12px;color:var(--soft);">${dt}</span></div><div style="font-size:14px;font-weight:700;">${c.motif || 'N/A'}</div><div style="font-size:12px;color:var(--soft);">${med}</div>${diag}</div>`
+    ? consultations.map((cons: any) => {
+        const med  = cons.auth_profiles ? `Dr. ${cons.auth_profiles.prenom || ''} ${cons.auth_profiles.nom || ''}` : ''
+        const dt   = new Date(cons.created_at).toLocaleDateString('fr-FR')
+        const diag = cons.diagnostic_principal ? `<div style="font-size:12px;color:var(--bleu);margin-top:3px;">&#8594; ${cons.diagnostic_principal}</div>` : ''
+        return `<div style="border-left:3px solid var(--bleu);padding:12px 14px;margin-bottom:10px;background:#fafcff;border-radius:0 8px 8px 0;"><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="badge bb">${cons.type_consultation || 'normale'}</span><span style="font-size:12px;color:var(--soft);">${dt}</span></div><div style="font-size:14px;font-weight:700;">${cons.motif || 'N/A'}</div><div style="font-size:12px;color:var(--soft);">${med}</div>${diag}</div>`
       }).join('')
     : '<div class="empty">Aucune consultation</div>'
 
   const vaccHtml = vaccins.length > 0
     ? vaccins.map((v: any) => {
-        const dt = new Date(v.date_vaccination).toLocaleDateString('fr-FR')
+        const dt     = new Date(v.date_vaccination).toLocaleDateString('fr-FR')
         const rappel = v.prochaine_dose && new Date(v.prochaine_dose) > new Date()
           ? `<span class="badge bo">Rappel ${new Date(v.prochaine_dose).toLocaleDateString('fr-FR')}</span>`
           : `<span class="badge bv">&#10003; À jour</span>`
@@ -161,6 +169,13 @@ patientRoutes.get('/dossier', async (c) => {
 
   const sanguin = dossier.groupe_sanguin
     ? `<span class="badge br" style="font-size:14px;padding:5px 14px;">&#129784; ${dossier.groupe_sanguin}${dossier.rhesus || ''}</span>`
+    : ''
+
+  const ordSectionHtml = ordonnances.length > 0
+    ? `<div class="card"><div class="card-title" style="justify-content:space-between;">&#128138; Ordonnances actives <a href="/patient-pdf/ordonnances" style="font-size:12px;color:var(--bleu);font-weight:700;text-decoration:none;">Voir tout &#8594;</a></div>${ordHtml}</div>`
+    : ''
+  const vaccSectionHtml = vaccins.length > 0
+    ? `<div class="card"><div class="card-title" style="justify-content:space-between;">&#128137; Vaccinations <a href="/patient/vaccinations" style="font-size:12px;color:var(--bleu);font-weight:700;text-decoration:none;">Voir tout &#8594;</a></div>${vaccHtml}</div>`
     : ''
 
   const content = `<div class="wrap">
@@ -183,14 +198,14 @@ patientRoutes.get('/dossier', async (c) => {
   <div class="card"><div class="card-title">&#9888; Allergies</div>${allergiesHtml}</div>
   <div class="card"><div class="card-title">&#129658; Maladies chroniques</div>${maladiesHtml}</div>
 
-  ${ordonnances.length > 0 ? `<div class="card"><div class="card-title" style="justify-content:space-between;">&#128138; Ordonnances actives <a href="/patient-pdf/ordonnances" style="font-size:12px;color:var(--bleu);font-weight:700;text-decoration:none;">Voir tout &#8594;</a></div>${ordHtml}</div>` : ''}
+  ${ordSectionHtml}
 
   <div class="card">
     <div class="card-title" style="justify-content:space-between;">&#128203; Consultations récentes <span class="badge bb">${consultations.length}</span></div>
     ${consHtml}
   </div>
 
-  ${vaccins.length > 0 ? `<div class="card"><div class="card-title" style="justify-content:space-between;">&#128137; Vaccinations <a href="/patient/vaccinations" style="font-size:12px;color:var(--bleu);font-weight:700;text-decoration:none;">Voir tout &#8594;</a></div>${vaccHtml}</div>` : ''}
+  ${vaccSectionHtml}
 </div>`
 
   return c.html(layout('Mon dossier', content))
@@ -213,16 +228,20 @@ patientRoutes.get('/ordonnances', async (c) => {
     : { data: [] }
 
   const items = (list ?? []).map((o: any) => {
-    const bc = o.statut === 'active' ? 'bv' : o.statut === 'expiree' ? 'br' : 'bg'
-    const lb = o.statut === 'active' ? 'Active' : o.statut === 'delivree' ? 'Délivrée' : o.statut === 'expiree' ? 'Expirée' : o.statut
-    const med = o.auth_profiles ? `Dr. ${o.auth_profiles.prenom || ''} ${o.auth_profiles.nom || ''}` : ''
-    const str = o.struct_structures?.nom || ''
-    const dt  = new Date(o.created_at).toLocaleDateString('fr-FR')
-    const exp = o.date_expiration ? `Expire ${new Date(o.date_expiration).toLocaleDateString('fr-FR')}` : ''
-    const btn = o.statut !== 'expiree'
+    const bc     = o.statut === 'active' ? 'bv' : o.statut === 'expiree' ? 'br' : 'bg'
+    const lb     = o.statut === 'active' ? 'Active' : o.statut === 'delivree' ? 'Délivrée' : o.statut === 'expiree' ? 'Expirée' : o.statut
+    const med    = o.auth_profiles ? `Dr. ${o.auth_profiles.prenom || ''} ${o.auth_profiles.nom || ''}` : ''
+    const str    = o.struct_structures?.nom || ''
+    const dt     = new Date(o.created_at).toLocaleDateString('fr-FR')
+    const exp    = o.date_expiration ? `Expire ${new Date(o.date_expiration).toLocaleDateString('fr-FR')}` : ''
+    const btn    = o.statut !== 'expiree'
       ? `<a href="/patient-pdf/ordonnance/${o.id}" class="btn btn-v">&#128229; Télécharger PDF</a>`
       : `<span style="font-size:12px;color:var(--soft);">Expirée</span>`
-    return `<div class="card"><div class="row"><div><div style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">${o.numero_ordonnance}<span class="badge ${bc}">${lb}</span></div><div class="meta">${med ? `<span>${med}</span>` : ''}${str ? `<span>&#127973; ${str}</span>` : ''}<span>&#128197; ${dt}</span>${exp ? `<span>&#8987; ${exp}</span>` : ''}</div></div>${btn}</div></div>`
+    // ✅ FIX : pré-calcul pour éviter backticks imbriqués
+    const medHtml = med  ? `<span>${med}</span>`                  : ''
+    const strHtml = str  ? `<span>&#127973; ${str}</span>`        : ''
+    const expHtml = exp  ? `<span>&#8987; ${exp}</span>`          : ''
+    return `<div class="card"><div class="row"><div><div style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">${o.numero_ordonnance}<span class="badge ${bc}">${lb}</span></div><div class="meta">${medHtml}${strHtml}<span>&#128197; ${dt}</span>${expHtml}</div></div>${btn}</div></div>`
   }).join('')
 
   const content = `<div class="wrap">
@@ -257,17 +276,25 @@ patientRoutes.get('/rdv', async (c) => {
       : { data: [] },
   ])
 
-  function rdvCard(r: any): string {
-    const bc = r.statut === 'confirme' ? 'bv' : r.statut === 'planifie' ? 'bb' : r.statut === 'annule' ? 'br' : 'bg'
-    const dt = new Date(r.date_heure).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-    const hr = new Date(r.date_heure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    const med = r.auth_profiles ? `Dr. ${r.auth_profiles.prenom || ''} ${r.auth_profiles.nom || ''}` : ''
-    const str = r.struct_structures?.nom || ''
-    return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><div style="font-size:15px;font-weight:700;color:var(--bleu);">${dt}</div><span class="badge ${bc}">${r.statut}</span></div><div style="font-size:16px;font-weight:700;color:var(--bleu);margin-bottom:3px;">&#128336; ${hr}</div><div style="font-size:14px;font-weight:600;">${r.motif || 'Consultation'}</div>${med ? `<div style="font-size:12px;color:var(--soft);margin-top:3px;">${med}</div>` : ''}${str ? `<div style="font-size:12px;color:var(--bleu);">&#127973; ${str}</div>` : ''}</div>`
+  // ✅ FIX : paramètre renommé `rdvItem` pour éviter le shadow de `c`
+  function rdvCard(rdvItem: any): string {
+    const bc     = rdvItem.statut === 'confirme' ? 'bv' : rdvItem.statut === 'planifie' ? 'bb' : rdvItem.statut === 'annule' ? 'br' : 'bg'
+    const dt     = new Date(rdvItem.date_heure).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+    const hr     = new Date(rdvItem.date_heure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    const med    = rdvItem.auth_profiles ? `Dr. ${rdvItem.auth_profiles.prenom || ''} ${rdvItem.auth_profiles.nom || ''}` : ''
+    const str    = rdvItem.struct_structures?.nom || ''
+    // ✅ FIX : pré-calcul pour éviter backticks imbriqués
+    const medHtml = med ? `<div style="font-size:12px;color:var(--soft);margin-top:3px;">${med}</div>` : ''
+    const strHtml = str ? `<div style="font-size:12px;color:var(--bleu);">&#127973; ${str}</div>`      : ''
+    return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><div style="font-size:15px;font-weight:700;color:var(--bleu);">${dt}</div><span class="badge ${bc}">${rdvItem.statut}</span></div><div style="font-size:16px;font-weight:700;color:var(--bleu);margin-bottom:3px;">&#128336; ${hr}</div><div style="font-size:14px;font-weight:600;">${rdvItem.motif || 'Consultation'}</div>${medHtml}${strHtml}</div>`
   }
 
   const futurs = (futRes.data ?? []).map(rdvCard).join('')
   const passes = (pasRes.data ?? []).map((r: any) => `<div style="opacity:.65;">${rdvCard(r)}</div>`).join('')
+
+  const passesSection = passes
+    ? `<div style="font-size:12px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin:18px 0 10px;">Passés</div>${passes}`
+    : ''
 
   const content = `<div class="wrap">
   <a href="/dashboard/patient" class="back">&#8592; Retour</a>
@@ -275,7 +302,7 @@ patientRoutes.get('/rdv', async (c) => {
   ${!dossier ? noDossier() : `
   <div style="font-size:12px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">À venir (${(futRes.data ?? []).length})</div>
   ${futurs || '<div class="card"><div class="empty">Aucun rendez-vous à venir</div></div>'}
-  ${passes ? `<div style="font-size:12px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.8px;margin:18px 0 10px;">Passés</div>${passes}` : ''}
+  ${passesSection}
   `}
 </div>`
   return c.html(layout('Mes rendez-vous', content))
@@ -300,16 +327,20 @@ patientRoutes.get('/vaccinations', async (c) => {
   const rappels = (list ?? []).filter((v: any) => v.prochaine_dose && new Date(v.prochaine_dose) > new Date())
 
   const rappelBox = rappels.length > 0
-    ? `<div style="background:var(--or-c);border-left:4px solid var(--or);border-radius:var(--rs);padding:14px 16px;margin-bottom:16px;"><div style="font-size:13px;font-weight:700;color:#7a5500;margin-bottom:6px;">&#8987; ${rappels.length} rappel(s) à prévoir</div>${rappels.map((v: any) => `<div style="font-size:12px;color:#7a5500;">• ${v.vaccin} — ${new Date(v.prochaine_dose).toLocaleDateString('fr-FR')}</div>`).join('')}</div>`
+    ? `<div style="background:var(--or-c);border-left:4px solid var(--or);border-radius:var(--rs);padding:14px 16px;margin-bottom:16px;"><div style="font-size:13px;font-weight:700;color:#7a5500;margin-bottom:6px;">&#8987; ${rappels.length} rappel(s) à prévoir</div>${rappels.map((v: any) => '<div style="font-size:12px;color:#7a5500;">• ' + v.vaccin + ' \u2014 ' + new Date(v.prochaine_dose).toLocaleDateString('fr-FR') + '</div>').join('')}</div>`
     : ''
 
   const items = (list ?? []).map((v: any) => {
-    const dt = new Date(v.date_vaccination).toLocaleDateString('fr-FR')
-    const med = v.auth_profiles ? `Dr. ${v.auth_profiles.prenom || ''} ${v.auth_profiles.nom || ''}` : ''
+    const dt     = new Date(v.date_vaccination).toLocaleDateString('fr-FR')
+    const med    = v.auth_profiles ? `Dr. ${v.auth_profiles.prenom || ''} ${v.auth_profiles.nom || ''}` : ''
     const rappel = v.prochaine_dose && new Date(v.prochaine_dose) > new Date()
       ? `<span class="badge bo">Rappel ${new Date(v.prochaine_dose).toLocaleDateString('fr-FR')}</span>`
       : `<span class="badge bv">&#10003; À jour</span>`
-    return `<div class="card"><div class="row"><div><div style="font-size:15px;font-weight:700;">&#128137; ${v.vaccin}</div><div class="meta"><span>&#128197; ${dt}</span>${v.lot ? `<span>&#128278; ${v.lot}</span>` : ''}${med ? `<span>${med}</span>` : ''}</div>${v.notes ? `<div style="font-size:12px;color:var(--soft);margin-top:5px;font-style:italic;">${v.notes}</div>` : ''}</div>${rappel}</div></div>`
+    // ✅ FIX : pré-calcul pour éviter backticks imbriqués
+    const lotHtml   = v.lot   ? `<span>&#128278; ${v.lot}</span>`                              : ''
+    const medHtml   = med     ? `<span>${med}</span>`                                           : ''
+    const notesHtml = v.notes ? `<div style="font-size:12px;color:var(--soft);margin-top:5px;font-style:italic;">${v.notes}</div>` : ''
+    return `<div class="card"><div class="row"><div><div style="font-size:15px;font-weight:700;">&#128137; ${v.vaccin}</div><div class="meta"><span>&#128197; ${dt}</span>${lotHtml}${medHtml}</div>${notesHtml}</div>${rappel}</div></div>`
   }).join('')
 
   const content = `<div class="wrap">
@@ -351,7 +382,9 @@ patientRoutes.get('/consentements', async (c) => {
     const btn  = actif
       ? `<form method="POST" action="/patient/consentements/${ct.id}/revoquer"><button type="submit" class="btn btn-r" style="font-size:12px;padding:7px 12px;">&#128274; Révoquer</button></form>`
       : `<form method="POST" action="/patient/consentements/${ct.id}/reactiver"><button type="submit" class="btn btn-v" style="font-size:12px;padding:7px 12px;">&#128275; Réactiver</button></form>`
-    return `<div class="card" style="${actif ? '' : 'opacity:.65;'}"><div style="display:flex;align-items:center;gap:14px;"><div style="width:48px;height:48px;border-radius:50%;background:var(--vert-c);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--vert);flex-shrink:0;overflow:hidden;">${av}</div><div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:700;">Dr. ${p.prenom} ${p.nom}</div><div style="font-size:12px;color:var(--soft);">${spec}</div>${str ? `<div style="font-size:11px;color:var(--bleu);">&#127973; ${str}</div>` : ''}<div style="font-size:11px;color:var(--soft);margin-top:2px;">Accordé le ${dt}</div></div>${btn}</div></div>`
+    const strHtml2 = str ? `<div style="font-size:11px;color:var(--bleu);">&#127973; ${str}</div>` : ''
+    const opacityStyle = actif ? '' : 'opacity:.65;'
+    return `<div class="card" style="${opacityStyle}"><div style="display:flex;align-items:center;gap:14px;"><div style="width:48px;height:48px;border-radius:50%;background:var(--vert-c);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--vert);flex-shrink:0;overflow:hidden;">${av}</div><div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:700;">Dr. ${p.prenom} ${p.nom}</div><div style="font-size:12px;color:var(--soft);">${spec}</div>${strHtml2}<div style="font-size:11px;color:var(--soft);margin-top:2px;">Accordé le ${dt}</div></div>${btn}</div></div>`
   }
 
   const actHtml = actifs.length > 0
@@ -375,12 +408,13 @@ patientRoutes.get('/consentements', async (c) => {
   return c.html(layout('Consentements', content))
 })
 
+// ✅ FIX : redirect 303 sur tous les POST pour éviter la re-soumission
 patientRoutes.post('/consentements/:id/revoquer', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
   const { data: dossier } = await supabase.from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
   if (dossier) await supabase.from('patient_consentements').update({ est_actif: false }).eq('id', c.req.param('id')).eq('patient_id', dossier.id)
-  return c.redirect('/patient/consentements')
+  return c.redirect('/patient/consentements', 303)
 })
 
 patientRoutes.post('/consentements/:id/reactiver', async (c) => {
@@ -388,7 +422,7 @@ patientRoutes.post('/consentements/:id/reactiver', async (c) => {
   const supabase = c.get('supabase' as never) as any
   const { data: dossier } = await supabase.from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
   if (dossier) await supabase.from('patient_consentements').update({ est_actif: true }).eq('id', c.req.param('id')).eq('patient_id', dossier.id)
-  return c.redirect('/patient/consentements')
+  return c.redirect('/patient/consentements', 303)
 })
 
 // ═══════════════════════════════════════════════════════════════
@@ -408,7 +442,8 @@ patientRoutes.get('/profil', async (c) => {
     : { data: [] }
 
   const nbContacts = (contacts ?? []).length
-  const succes = new URL(c.req.url).searchParams.get('succes')
+  // ✅ FIX : c.req.query() à la place de new URL(c.req.url) — compatible Cloudflare Workers
+  const succes = c.req.query('succes')
 
   const succesBox = succes
     ? `<div class="ok-box">&#10003; ${succes === 'code_regenere' ? 'Nouveau code urgence généré !' : 'Profil mis à jour !'}</div>`
@@ -450,13 +485,13 @@ patientRoutes.get('/profil', async (c) => {
   </div>`}
   ` : noDossier()
 
-  const navItems = [
+  const navItems: [string, string, string, string][] = [
     ['/patient/contacts-urgence', '&#128680;', `Contacts d'urgence`, `${nbContacts} contact(s)`],
-    ['/patient/notifications', '&#128276;', 'Notifications &amp; rappels', 'Email, SMS'],
-    ['/patient/acces-dossier', '&#128269;', 'Historique des accès', 'Qui a consulté mon dossier'],
-    ['/patient/consentements', '&#128274;', 'Accès médecins', 'Autoriser / révoquer'],
-    ['/patient/factures', '&#129534;', 'Mes factures', 'Historique paiements'],
-    ['/patient/documents', '&#128193;', 'Mes documents', 'Certificats, radios...'],
+    ['/patient/notifications',    '&#128276;', 'Notifications &amp; rappels', 'Email, SMS'],
+    ['/patient/acces-dossier',    '&#128269;', 'Historique des accès', 'Qui a consulté mon dossier'],
+    ['/patient/consentements',    '&#128274;', 'Accès médecins', 'Autoriser / révoquer'],
+    ['/patient/factures',         '&#129534;', 'Mes factures', 'Historique paiements'],
+    ['/patient/documents',        '&#128193;', 'Mes documents', 'Certificats, radios...'],
   ]
 
   const navHtml = navItems.map(([href, ico, label, desc]) =>
@@ -502,14 +537,15 @@ patientRoutes.get('/documents', async (c) => {
   const typeIco:   Record<string, string> = { certificat: '&#128220;', radio: '&#128247;', echo: '&#128300;', compte_rendu: '&#128203;', analyse: '&#129514;', autre: '&#128196;' }
 
   const items = (list ?? []).map((d: any) => {
-    const ico  = typeIco[d.type] || '&#128196;'
-    const lbl  = typeLabel[d.type] || d.type || 'Document'
-    const med  = d.auth_profiles ? `Dr. ${d.auth_profiles.prenom || ''} ${d.auth_profiles.nom || ''}` : ''
-    const dt   = d.date_document ? new Date(d.date_document).toLocaleDateString('fr-FR') : new Date(d.created_at).toLocaleDateString('fr-FR')
-    const btn  = d.fichier_url
+    const ico    = typeIco[d.type]   || '&#128196;'
+    const lbl    = typeLabel[d.type] || d.type || 'Document'
+    const med    = d.auth_profiles ? `Dr. ${d.auth_profiles.prenom || ''} ${d.auth_profiles.nom || ''}` : ''
+    const dt     = d.date_document ? new Date(d.date_document).toLocaleDateString('fr-FR') : new Date(d.created_at).toLocaleDateString('fr-FR')
+    const btn    = d.fichier_url
       ? `<a href="${d.fichier_url}" target="_blank" download class="btn btn-v" style="font-size:12px;padding:7px 12px;">&#128229; Télécharger</a>`
       : `<span style="font-size:12px;color:var(--soft);font-style:italic;">Pas de fichier</span>`
-    return `<div class="card"><div style="display:flex;align-items:center;gap:14px;"><div style="font-size:32px;flex-shrink:0;">${ico}</div><div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:700;">${d.titre || lbl}</div><div class="meta"><span class="badge bb">${lbl}</span>${med ? `<span>${med}</span>` : ''}<span>&#128197; ${dt}</span></div></div>${btn}</div></div>`
+    const medHtml = med ? `<span>${med}</span>` : ''
+    return `<div class="card"><div style="display:flex;align-items:center;gap:14px;"><div style="font-size:32px;flex-shrink:0;">${ico}</div><div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:700;">${d.titre || lbl}</div><div class="meta"><span class="badge bb">${lbl}</span>${medHtml}<span>&#128197; ${dt}</span></div></div>${btn}</div></div>`
   }).join('')
 
   const content = `<div class="wrap">
@@ -544,11 +580,12 @@ patientRoutes.get('/factures', async (c) => {
     : ''
 
   const items = (list ?? []).map((f: any) => {
-    const bc  = f.statut === 'payee' ? 'bv' : f.statut === 'impayee' ? 'br' : 'bo'
-    const lb  = f.statut === 'payee' ? 'Payée' : f.statut === 'impayee' ? 'Impayée' : 'En attente'
-    const str = f.struct_structures?.nom || ''
-    const dt  = new Date(f.created_at).toLocaleDateString('fr-FR')
-    return `<div class="card"><div class="row"><div><div style="font-size:15px;font-weight:700;">${f.numero_facture}</div><div class="meta">${str ? `<span>&#127973; ${str}</span>` : ''}<span>&#128197; ${dt}</span></div></div><div style="text-align:right;"><div style="font-size:17px;font-weight:700;color:var(--vert);">${fmt(f.total_ttc || 0)}</div><span class="badge ${bc}">${lb}</span></div></div></div>`
+    const bc     = f.statut === 'payee' ? 'bv' : f.statut === 'impayee' ? 'br' : 'bo'
+    const lb     = f.statut === 'payee' ? 'Payée' : f.statut === 'impayee' ? 'Impayée' : 'En attente'
+    const str    = f.struct_structures?.nom || ''
+    const dt     = new Date(f.created_at).toLocaleDateString('fr-FR')
+    const strHtml = str ? `<span>&#127973; ${str}</span>` : ''
+    return `<div class="card"><div class="row"><div><div style="font-size:15px;font-weight:700;">${f.numero_facture}</div><div class="meta">${strHtml}<span>&#128197; ${dt}</span></div></div><div style="text-align:right;"><div style="font-size:17px;font-weight:700;color:var(--vert);">${fmt(f.total_ttc || 0)}</div><span class="badge ${bc}">${lb}</span></div></div></div>`
   }).join('')
 
   const content = `<div class="wrap">
@@ -571,7 +608,7 @@ patientRoutes.get('/acces-dossier', async (c) => {
 
   const { data: list } = dossier ? await supabase
     .from('stats_acces_logs')
-    .select('id, action, created_at, auth_profiles(nom, prenom, role), struct_structures(nom)')
+    .select('id, action, created_at, auth_profiles(nom, prenom, role)')
     .eq('patient_id', dossier.id)
     .order('created_at', { ascending: false }).limit(30)
     : { data: [] }
@@ -580,10 +617,9 @@ patientRoutes.get('/acces-dossier', async (c) => {
 
   const items = (list ?? []).map((l: any) => {
     const who = l.auth_profiles ? `${roleLabel[l.auth_profiles.role] || l.auth_profiles.role} ${l.auth_profiles.prenom || ''} ${l.auth_profiles.nom || ''}` : 'Système'
-    const str = l.struct_structures?.nom || ''
     const dt  = new Date(l.created_at).toLocaleDateString('fr-FR')
     const hr  = new Date(l.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    return `<div class="card" style="padding:14px 18px;"><div style="display:flex;align-items:center;gap:12px;"><div style="font-size:22px;">&#128065;</div><div style="flex:1;"><div style="font-size:13px;font-weight:700;">${who}</div><div style="font-size:12px;color:var(--soft);">${l.action || 'Consultation dossier'}${str ? ` &middot; &#127973; ${str}` : ''}</div></div><div style="text-align:right;font-size:12px;color:var(--soft);">${dt}<br>${hr}</div></div></div>`
+    return `<div class="card" style="padding:14px 18px;"><div style="display:flex;align-items:center;gap:12px;"><div style="font-size:22px;">&#128065;</div><div style="flex:1;"><div style="font-size:13px;font-weight:700;">${who}</div><div style="font-size:12px;color:var(--soft);">${l.action || 'Consultation dossier'}</div></div><div style="text-align:right;font-size:12px;color:var(--soft);">${dt}<br>${hr}</div></div></div>`
   }).join('')
 
   const content = `<div class="wrap">
@@ -609,8 +645,9 @@ patientRoutes.get('/contacts-urgence', async (c) => {
     ? await supabase.from('patient_contacts_urgence').select('id, nom_complet, lien, telephone').eq('patient_id', dossier.id)
     : { data: [] }
 
-  const succes = new URL(c.req.url).searchParams.get('succes')
-  const list = contacts ?? []
+  // ✅ FIX : c.req.query() à la place de new URL(c.req.url)
+  const succes = c.req.query('succes')
+  const list   = contacts ?? []
 
   const codeBox = dossier?.code_urgence ? `
   <div class="card">
@@ -649,8 +686,15 @@ patientRoutes.post('/contacts-urgence/ajouter', async (c) => {
   const supabase = c.get('supabase' as never) as any
   const body     = await c.req.parseBody()
   const { data: dossier } = await supabase.from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
-  if (dossier) await supabase.from('patient_contacts_urgence').insert({ patient_id: dossier.id, nom_complet: String(body.nom_complet || '').trim(), lien: String(body.lien || '').trim(), telephone: String(body.telephone || '').trim() })
-  return c.redirect('/patient/contacts-urgence?succes=1')
+  if (dossier) {
+    await supabase.from('patient_contacts_urgence').insert({
+      patient_id:  dossier.id,
+      nom_complet: String(body.nom_complet || '').trim(),
+      lien:        String(body.lien        || '').trim(),
+      telephone:   String(body.telephone   || '').trim(),
+    })
+  }
+  return c.redirect('/patient/contacts-urgence?succes=1', 303)
 })
 
 patientRoutes.post('/contacts-urgence/:id/supprimer', async (c) => {
@@ -658,7 +702,7 @@ patientRoutes.post('/contacts-urgence/:id/supprimer', async (c) => {
   const supabase = c.get('supabase' as never) as any
   const { data: dossier } = await supabase.from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
   if (dossier) await supabase.from('patient_contacts_urgence').delete().eq('id', c.req.param('id')).eq('patient_id', dossier.id)
-  return c.redirect('/patient/contacts-urgence')
+  return c.redirect('/patient/contacts-urgence', 303)
 })
 
 // ═══════════════════════════════════════════════════════════════
@@ -670,10 +714,11 @@ patientRoutes.get('/notifications', async (c) => {
 
   const { data: s } = await supabase.from('user_settings').select('*').eq('user_id', profil.id).single()
   const settings = s || {}
-  const succes = new URL(c.req.url).searchParams.get('succes')
+  // ✅ FIX : c.req.query() à la place de new URL(c.req.url)
+  const succes = c.req.query('succes')
 
   function toggle(name: string, label: string, desc: string, checked: boolean): string {
-    const bg = checked ? 'var(--vert)' : '#ccc'
+    const bg  = checked ? 'var(--vert)' : '#ccc'
     const pos = checked ? '23px' : '3px'
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--bordure);"><div style="flex:1;padding-right:16px;"><div style="font-size:14px;font-weight:700;">${label}</div><div style="font-size:12px;color:var(--soft);margin-top:2px;">${desc}</div></div><label style="position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;cursor:pointer;"><input type="checkbox" name="${name}" value="1"${checked ? ' checked' : ''} style="opacity:0;width:0;height:0;"><span style="position:absolute;cursor:pointer;inset:0;background:${bg};border-radius:24px;"></span><span style="position:absolute;height:18px;width:18px;left:${pos};bottom:3px;background:white;border-radius:50%;"></span></label></div>`
   }
@@ -686,15 +731,15 @@ patientRoutes.get('/notifications', async (c) => {
   <form method="POST" action="/patient/notifications/sauvegarder">
     <div class="card">
       <div class="card-title">&#128231; Par email</div>
-      ${toggle('email_rdv', 'Rappels rendez-vous', 'Email 24h avant chaque RDV', settings.email_rdv !== false)}
-      ${toggle('email_resultats', 'Résultats examens', 'Notifié quand un résultat est disponible', settings.email_resultats !== false)}
-      ${toggle('email_ordonnances', 'Nouvelles ordonnances', 'Copie PDF de chaque ordonnance', settings.email_ordonnances ?? false)}
+      ${toggle('email_rdv',        'Rappels rendez-vous',    'Email 24h avant chaque RDV',                 settings.email_rdv        !== false)}
+      ${toggle('email_resultats',  'Résultats examens',      'Notifié quand un résultat est disponible',   settings.email_resultats  !== false)}
+      ${toggle('email_ordonnances','Nouvelles ordonnances',  'Copie PDF de chaque ordonnance',             settings.email_ordonnances ?? false)}
     </div>
     <div class="card">
       <div class="card-title">&#128172; Par SMS</div>
       <div style="font-size:12px;color:var(--soft);margin-bottom:10px;">Nécessite Twilio configuré par l'administrateur.</div>
-      ${toggle('sms_rdv', 'Rappels RDV par SMS', 'SMS 24h avant chaque RDV', settings.sms_rdv ?? false)}
-      ${toggle('sms_resultats', 'Résultats par SMS', 'SMS quand un résultat est disponible', settings.sms_resultats ?? false)}
+      ${toggle('sms_rdv',       'Rappels RDV par SMS',     'SMS 24h avant chaque RDV',                  settings.sms_rdv       ?? false)}
+      ${toggle('sms_resultats', 'Résultats par SMS',       'SMS quand un résultat est disponible',       settings.sms_resultats ?? false)}
     </div>
     <button type="submit" class="btn btn-v" style="width:100%;justify-content:center;padding:14px;font-size:15px;">&#128190; Enregistrer mes préférences</button>
   </form>
@@ -706,8 +751,16 @@ patientRoutes.post('/notifications/sauvegarder', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
   const body     = await c.req.parseBody()
-  await supabase.from('user_settings').upsert({ user_id: profil.id, email_rdv: body.email_rdv === '1', email_resultats: body.email_resultats === '1', email_ordonnances: body.email_ordonnances === '1', sms_rdv: body.sms_rdv === '1', sms_resultats: body.sms_resultats === '1', updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
-  return c.redirect('/patient/notifications?succes=1')
+  await supabase.from('user_settings').upsert({
+    user_id:           profil.id,
+    email_rdv:         body.email_rdv         === '1',
+    email_resultats:   body.email_resultats   === '1',
+    email_ordonnances: body.email_ordonnances === '1',
+    sms_rdv:           body.sms_rdv           === '1',
+    sms_resultats:     body.sms_resultats     === '1',
+    updated_at:        new Date().toISOString(),
+  }, { onConflict: 'user_id' })
+  return c.redirect('/patient/notifications?succes=1', 303)
 })
 
 // ═══════════════════════════════════════════════════════════════
@@ -716,16 +769,23 @@ patientRoutes.post('/notifications/sauvegarder', async (c) => {
 patientRoutes.post('/code-urgence/regenerer', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
-  const code = Math.floor(100000 + Math.random() * 900000).toString()
+  const code     = Math.floor(100000 + Math.random() * 900000).toString()
   const { data: dossier } = await supabase.from('patient_dossiers').select('id').eq('profile_id', profil.id).single()
   if (dossier) await supabase.from('patient_dossiers').update({ code_urgence: code }).eq('id', dossier.id)
-  return c.redirect('/patient/profil?succes=code_regenere')
+  return c.redirect('/patient/profil?succes=code_regenere', 303)
 })
 
 patientRoutes.post('/code-urgence/envoyer', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
   const { data: dossier } = await supabase.from('patient_dossiers').select('id, code_urgence').eq('profile_id', profil.id).single()
-  if (dossier) await supabase.from('stats_acces_logs').insert({ user_id: profil.id, patient_id: dossier.id, action: 'code_urgence_envoye_proche', created_at: new Date().toISOString() })
-  return c.redirect('/patient/contacts-urgence')
+  if (dossier) {
+    await supabase.from('stats_acces_logs').insert({
+      user_id:    profil.id,
+      patient_id: dossier.id,
+      action:     'code_urgence_envoye_proche',
+      created_at: new Date().toISOString(),
+    })
+  }
+  return c.redirect('/patient/contacts-urgence', 303)
 })
