@@ -1,596 +1,436 @@
-// src/pages/dashboard-medecin.ts
-export function dashboardMedecinPage(profil: any, data: {
-  rdvJour: any[]               // liste des RDV du jour
-  consultationsJour: number     // nombre de consultations aujourd'hui
-  ordonnancesActives: number    // ordonnances actives émises par ce médecin
-  rdvAVenir: number             // nombre total de RDV à venir
-  consultationsRecentes: any[]  // 5 dernières consultations
-  nbPatientsConsentement: number // patients avec consentement actif
-}): string {
+/**
+ * src/pages/dashboard-medecin.ts
+ * SantéBF — Dashboard Médecin
+ *
+ * Fonctionnalités :
+ * - Sidebar complète avec tous les modules
+ * - Mode sombre (localStorage, CSS variables)
+ * - 3 stats du jour (consultations, RDV à venir, ordonnances actives)
+ * - RDV du jour avec statuts colorés
+ * - Consultations récentes
+ * - 6 actions rapides
+ * - Bloc accès urgence
+ * - Avatar profil
+ * - Responsive mobile complet
+ */
+
+export function dashboardMedecinPage(
+  profil: any,
+  data: {
+    rdvJour:          any[]
+    consultations:    any[]
+    stats: {
+      consultationsJour:  number
+      rdvAVenir:          number
+      ordonnancesActives: number
+    }
+  }
+): string {
+
+  function esc(v: unknown): string {
+    return String(v ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#x27;')
+  }
+
   const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-  const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const date  = new Date().toLocaleDateString('fr-FR',  { weekday: 'long', day: 'numeric', month: 'long' })
+  const inits = esc(profil.prenom.charAt(0)) + esc(profil.nom.charAt(0))
+  const av    = profil.avatar_url ? esc(profil.avatar_url) : null
+
+  // ── RDV ─────────────────────────────────────────────────
+  const rdvItems = data.rdvJour.length === 0
+    ? '<div class="sect-empty">Aucun rendez-vous aujourd&#x27;hui</div>'
+    : data.rdvJour.map((r: any) => {
+        const st  = esc(r.statut ?? '')
+        const h   = new Date(r.date_heure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        return `<div class="rdv-row">
+          <div class="rdv-h">${h}</div>
+          <div class="rdv-info">
+            <strong>${esc(r.patient_dossiers?.prenom ?? '')} ${esc(r.patient_dossiers?.nom ?? '')}</strong>
+            <span>${esc(r.motif ?? 'Consultation')} &bull; ${r.duree_minutes ?? 30}&nbsp;min</span>
+          </div>
+          <span class="badge ${st}">${st}</span>
+        </div>`
+      }).join('')
+
+  // ── Consultations ────────────────────────────────────────
+  const consultItems = data.consultations.length === 0
+    ? '<div class="sect-empty">Aucune consultation r&#xe9;cente</div>'
+    : data.consultations.map((c: any) =>
+        `<div class="ci-row">
+          <div class="ci-top">
+            <span class="ci-pt">${esc(c.patient_dossiers?.prenom ?? '')} ${esc(c.patient_dossiers?.nom ?? '')}</span>
+            <span class="ci-dt">${new Date(c.created_at).toLocaleDateString('fr-FR')}</span>
+          </div>
+          <div class="ci-motif">${esc(c.motif ?? '')}</div>
+          ${c.diagnostic_principal ? `<div class="ci-diag">&#x2192; ${esc(c.diagnostic_principal)}</div>` : ''}
+        </div>`
+      ).join('')
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SantéBF — Tableau de bord médical</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <title>Tableau de bord | Sant&#xe9;BF</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;family=Fraunces:ital,wght@0,300;0,600;1,300&amp;display=swap" rel="stylesheet">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    /* ── Variables ── */
+    :root {
+      --v:   #4A148C; --v2: #6A1B9A; --vcl: #f3e8ff; --vgw: rgba(74,20,140,.12);
+      --gr:  #1A6B3C; --bl: #1565C0; --rd: #B71C1C; --or: #E65100;
+      --tx:  #0f1923; --tx2: #5a6a78; --tx3: #9BA3B8;
+      --bg:  #f5f3f9; --sur: #ffffff; --brd: #e5e0ee;
+      --sdw: 0 2px 8px rgba(0,0,0,.07);
+      --r:   14px; --rs: 10px;
     }
-    body {
-      font-family: 'Inter', sans-serif;
-      background: #f5f7fb;
-      color: #1e293b;
+    [data-theme="dark"] {
+      --bg: #0e0f1a; --sur: #17192c; --brd: #2a2d45;
+      --tx: #e4e4f0; --tx2: #8a93b0; --tx3: #555e80;
+      --vcl: #231040; --vgw: rgba(106,27,154,.18);
     }
-    .layout {
-      display: flex;
-      min-height: 100vh;
+    /* ── Reset ── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg);
+           min-height: 100vh; color: var(--tx); transition: background .2s, color .2s; }
+
+    /* ── Layout ── */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* ══ SIDEBAR ══════════════════════════════════════════ */
+    .sb {
+      width: 252px; background: var(--v); position: fixed;
+      top: 0; left: 0; height: 100vh; z-index: 300;
+      display: flex; flex-direction: column; transition: transform .3s ease;
     }
-    /* SIDEBAR */
-    .sidebar {
-      width: 260px;
-      background: #0b2b4f;
-      color: white;
-      position: fixed;
-      height: 100vh;
-      overflow-y: auto;
-      transition: transform 0.3s;
-      z-index: 200;
-    }
-    .sidebar-header {
-      padding: 24px 20px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-    .sidebar-header h2 {
-      font-size: 1.5rem;
-      font-weight: 600;
-      letter-spacing: -0.5px;
-    }
-    .sidebar-header p {
-      font-size: 0.8rem;
-      opacity: 0.7;
-      margin-top: 4px;
-    }
-    .sidebar-nav {
-      padding: 20px 12px;
-    }
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      border-radius: 10px;
-      color: rgba(255,255,255,0.8);
-      text-decoration: none;
-      font-size: 0.95rem;
-      font-weight: 500;
-      margin-bottom: 4px;
-      transition: all 0.2s;
-    }
-    .nav-item:hover {
-      background: rgba(255,255,255,0.1);
-      color: white;
-    }
-    .nav-item.active {
-      background: rgba(255,255,255,0.2);
-      color: white;
-      font-weight: 600;
-    }
-    .nav-icon {
-      font-size: 1.2rem;
-      width: 24px;
-      text-align: center;
-    }
-    .sidebar-footer {
-      padding: 20px 16px;
-      border-top: 1px solid rgba(255,255,255,0.1);
-      position: absolute;
-      bottom: 0;
-      width: 100%;
-    }
-    .user-card {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: rgba(255,255,255,0.1);
-      padding: 12px;
-      border-radius: 10px;
-    }
-    .user-avatar {
-      width: 40px;
-      height: 40px;
-      background: #2a4a7a;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 1.1rem;
-    }
-    .user-info {
-      flex: 1;
-      min-width: 0;
-    }
-    .user-name {
-      font-weight: 600;
-      font-size: 0.9rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .user-role {
-      font-size: 0.75rem;
-      opacity: 0.7;
-    }
-    .logout-btn {
-      background: rgba(255,255,255,0.15);
-      border: none;
-      color: white;
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      text-decoration: none;
-      font-size: 1rem;
-    }
-    .logout-btn:hover {
-      background: rgba(255,80,80,0.3);
-    }
-    /* MAIN */
-    .main {
-      margin-left: 260px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }
-    .topbar {
-      height: 70px;
-      background: white;
-      border-bottom: 1px solid #e2e8f0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 28px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .menu-toggle {
-      display: none;
-      background: none;
-      border: none;
-      font-size: 1.5rem;
-      cursor: pointer;
-      color: #1e293b;
-    }
-    .page-title {
-      font-size: 1.2rem;
-      font-weight: 600;
-    }
-    .date-badge {
-      background: #e9f0fc;
-      padding: 6px 16px;
-      border-radius: 30px;
-      font-size: 0.9rem;
-      color: #0b2b4f;
-    }
-    .content {
-      padding: 28px;
-    }
-    /* STATISTIQUES RAPIDES */
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-    .stat-card {
-      background: white;
-      border-radius: 16px;
-      padding: 24px 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-      border: 1px solid #e2e8f0;
-    }
-    .stat-label {
-      font-size: 0.85rem;
-      font-weight: 500;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 8px;
-    }
-    .stat-value {
-      font-size: 2.5rem;
-      font-weight: 700;
-      color: #0b2b4f;
-      line-height: 1.2;
-    }
-    .stat-detail {
-      font-size: 0.85rem;
-      color: #64748b;
-      margin-top: 4px;
-    }
-    /* ACTIONS RAPIDES */
-    .quick-actions {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 30px;
-      flex-wrap: wrap;
-    }
-    .action-btn {
-      background: white;
-      border: 1px solid #e2e8f0;
-      border-radius: 30px;
-      padding: 10px 20px;
-      font-size: 0.95rem;
-      font-weight: 500;
-      color: #1e293b;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.2s;
-    }
-    .action-btn:hover {
-      background: #0b2b4f;
-      color: white;
-      border-color: #0b2b4f;
-    }
-    .action-btn:hover .action-icon {
-      color: white;
-    }
-    .action-icon {
-      font-size: 1.2rem;
-    }
-    /* GRILLE 2 COLONNES */
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-    .card {
-      background: white;
-      border-radius: 16px;
-      border: 1px solid #e2e8f0;
-      overflow: hidden;
-    }
-    .card-header {
-      padding: 16px 20px;
-      background: #f8fafc;
-      border-bottom: 1px solid #e2e8f0;
-      font-weight: 600;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .card-header a {
-      color: #0b2b4f;
-      text-decoration: none;
-      font-size: 0.9rem;
-    }
-    .rdv-list, .consult-list {
-      max-height: 400px;
-      overflow-y: auto;
-    }
-    .rdv-item, .consult-item {
-      padding: 14px 20px;
-      border-bottom: 1px solid #ecf0f5;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .rdv-item:last-child, .consult-item:last-child {
-      border-bottom: none;
-    }
-    .rdv-time {
-      font-weight: 600;
-      color: #0b2b4f;
-      min-width: 60px;
-      font-size: 0.95rem;
-    }
-    .rdv-info {
-      flex: 1;
-    }
-    .rdv-patient {
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-    .rdv-motif {
-      font-size: 0.8rem;
-      color: #64748b;
-    }
-    .rdv-badge {
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 0.7rem;
-      font-weight: 600;
-    }
-    .rdv-badge.planifie {
-      background: #e9f0fc;
-      color: #0b2b4f;
-    }
-    .rdv-badge.confirme {
-      background: #e6f7e6;
-      color: #2e7d32;
-    }
-    .rdv-badge.annule {
-      background: #fee9e9;
-      color: #c62828;
-    }
-    .rdv-badge.passe {
-      background: #e2e8f0;
-      color: #475569;
-    }
-    .consult-patient {
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-    .consult-date {
-      font-size: 0.8rem;
-      color: #64748b;
-    }
-    .consult-diagnostic {
-      font-size: 0.85rem;
-      color: #0b2b4f;
-      margin-top: 2px;
-    }
-    .empty {
-      padding: 40px;
-      text-align: center;
-      color: #94a3b8;
-      font-style: italic;
-    }
-    .view-all {
-      display: block;
-      text-align: center;
-      padding: 12px;
-      font-size: 0.9rem;
-      color: #0b2b4f;
-      text-decoration: none;
-      border-top: 1px solid #ecf0f5;
-      font-weight: 500;
-    }
-    .view-all:hover {
-      background: #f1f5f9;
-    }
-    /* RESPONSIVE */
-    @media (max-width: 1024px) {
-      .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
+    .sb-brand { padding: 20px 18px 15px; border-bottom: 1px solid rgba(255,255,255,.1); }
+    .sb-brand-row { display: flex; align-items: center; gap: 9px; }
+    .sb-icon { width: 34px; height: 34px; background: rgba(255,255,255,.2); border-radius: 8px;
+               display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .sb-name { font-family: 'Fraunces', serif; font-size: 17px; color: white; }
+    .sb-sub  { font-size: 9.5px; color: rgba(255,255,255,.38); letter-spacing: 1.2px;
+               text-transform: uppercase; margin-top: 3px; padding-left: 43px; }
+    .sb-nav  { flex: 1; padding: 10px 8px; overflow-y: auto; scrollbar-width: thin; }
+    .sb-nav::-webkit-scrollbar { width: 4px; }
+    .sb-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 2px; }
+    .sb-lbl  { font-size: 9.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+               color: rgba(255,255,255,.28); padding: 9px 10px 4px; }
+    .sb-a { display: flex; align-items: center; gap: 10px; padding: 9px 11px;
+            border-radius: var(--rs); text-decoration: none; color: rgba(255,255,255,.6);
+            font-size: 13px; font-weight: 500; margin-bottom: 1px; transition: all .15s; }
+    .sb-a:hover  { background: rgba(255,255,255,.1); color: white; }
+    .sb-a.active { background: rgba(255,255,255,.18); color: white; font-weight: 600; }
+    .sb-ico { font-size: 14px; width: 17px; text-align: center; flex-shrink: 0; }
+    .sb-foot { padding: 11px 8px; border-top: 1px solid rgba(255,255,255,.1); }
+    .sb-user { display: flex; align-items: center; gap: 9px; padding: 9px;
+               border-radius: var(--rs); background: rgba(255,255,255,.08); }
+    .sb-av { width: 32px; height: 32px; background: rgba(255,255,255,.2); border-radius: 8px;
+             display: flex; align-items: center; justify-content: center;
+             font-size: 12px; font-weight: 700; color: white; flex-shrink: 0; overflow: hidden; }
+    .sb-av img { width: 100%; height: 100%; object-fit: cover; }
+    .sb-nm { font-size: 12px; font-weight: 600; color: white; white-space: nowrap;
+             overflow: hidden; text-overflow: ellipsis; }
+    .sb-rl { font-size: 10px; color: rgba(255,255,255,.38); }
+    .sb-out { width: 26px; height: 26px; background: rgba(255,255,255,.08); border: none;
+              border-radius: 6px; color: rgba(255,255,255,.45); cursor: pointer;
+              display: flex; align-items: center; justify-content: center; font-size: 13px;
+              text-decoration: none; flex-shrink: 0; transition: all .15s; }
+    .sb-out:hover { background: rgba(255,50,50,.25); color: #ff8080; }
+
+    /* ══ MAIN ═════════════════════════════════════════════ */
+    .main { margin-left: 252px; flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+    /* ── Topbar ── */
+    .topbar { height: 62px; background: var(--sur); border-bottom: 1px solid var(--brd);
+              display: flex; align-items: center; justify-content: space-between;
+              padding: 0 26px; position: sticky; top: 0; z-index: 100; gap: 10px; }
+    .tb-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .tb-ttl  { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; color: var(--tx);
+               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tb-sub  { font-size: 11.5px; color: var(--tx2); margin-top: 1px; }
+    .tb-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .dt-pill { background: var(--vcl); padding: 6px 14px; border-radius: 20px;
+               font-size: 12px; font-weight: 600; color: var(--v); white-space: nowrap; }
+    .menu-btn { display: none; background: none; border: none; font-size: 20px;
+                cursor: pointer; color: var(--tx); padding: 4px; flex-shrink: 0; }
+    .dark-btn { background: var(--vcl); border: none; width: 34px; height: 34px;
+                border-radius: 8px; cursor: pointer; font-size: 15px;
+                display: flex; align-items: center; justify-content: center; }
+
+    /* ── Content ── */
+    .content { padding: 26px; }
+
+    /* ── Stats ── */
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+    .stat  { background: var(--sur); border-radius: var(--r); padding: 18px 20px;
+             border: 1px solid var(--brd); box-shadow: var(--sdw); }
+    .stat .ico { font-size: 20px; margin-bottom: 8px; }
+    .stat .num { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 600; line-height: 1; }
+    .stat .lbl { font-size: 12px; color: var(--tx2); margin-top: 5px; font-weight: 500; }
+    .stat.v .num { color: var(--v); }
+    .stat.g .num { color: var(--gr); }
+    .stat.b .num { color: var(--bl); }
+
+    /* ── Quick grid ── */
+    .quick { display: grid; grid-template-columns: repeat(6, 1fr); gap: 11px; margin-bottom: 24px; }
+    .qc { background: var(--sur); border-radius: var(--r); padding: 16px 10px;
+          text-align: center; text-decoration: none; color: var(--tx);
+          border: 1px solid var(--brd); box-shadow: var(--sdw); transition: all .18s; }
+    .qc:hover { border-color: var(--v); box-shadow: 0 0 0 3px var(--vgw); transform: translateY(-2px); }
+    .qc-i { font-size: 22px; margin-bottom: 7px; }
+    .qc-l { font-size: 11.5px; font-weight: 600; color: var(--tx); }
+
+    /* ── Grid 2 cols ── */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .sect  { background: var(--sur); border-radius: var(--r); border: 1px solid var(--brd);
+             overflow: hidden; box-shadow: var(--sdw); }
+    .sect-hd { padding: 14px 18px; background: var(--v);
+               display: flex; justify-content: space-between; align-items: center; }
+    .sect-hd h3 { font-size: 13.5px; font-weight: 600; color: white; }
+    .sect-hd a  { font-size: 12px; color: rgba(255,255,255,.7); text-decoration: none;
+                  padding: 3px 9px; border-radius: 5px; background: rgba(255,255,255,.12); }
+    .sect-hd a:hover { background: rgba(255,255,255,.22); color: white; }
+    .sect-empty { padding: 22px; text-align: center; color: var(--tx3); font-size: 13px; font-style: italic; }
+    .voir-plus  { display: block; text-align: center; padding: 11px; font-size: 12px;
+                  color: var(--v); text-decoration: none; border-top: 1px solid var(--brd);
+                  font-weight: 500; transition: background .15s; }
+    .voir-plus:hover { background: var(--vcl); }
+
+    /* ── RDV ── */
+    .rdv-row { padding: 12px 18px; border-bottom: 1px solid var(--brd);
+               display: flex; align-items: center; gap: 12px; }
+    .rdv-row:last-of-type { border-bottom: none; }
+    .rdv-h    { font-size: 14px; font-weight: 700; color: var(--v); min-width: 44px;
+                font-family: 'Fraunces', serif; flex-shrink: 0; }
+    .rdv-info { flex: 1; min-width: 0; }
+    .rdv-info strong { display: block; font-size: 13px; font-weight: 600;
+                       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rdv-info span   { font-size: 11px; color: var(--tx2); }
+
+    /* ── Consultations ── */
+    .ci-row   { padding: 12px 18px; border-bottom: 1px solid var(--brd); }
+    .ci-row:last-of-type { border-bottom: none; }
+    .ci-top   { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 3px; }
+    .ci-pt    { font-size: 13px; font-weight: 600; }
+    .ci-dt    { font-size: 11px; color: var(--tx2); flex-shrink: 0; margin-left: 6px; }
+    .ci-motif { font-size: 12px; color: var(--tx2); }
+    .ci-diag  { font-size: 12px; color: var(--v); margin-top: 2px; font-weight: 500; }
+
+    /* ── Badges ── */
+    .badge { padding: 3px 9px; border-radius: 20px; font-size: 10.5px; font-weight: 600;
+             white-space: nowrap; flex-shrink: 0; }
+    .badge.planifie  { background: #ede7f6; color: #4A148C; }
+    .badge.confirme  { background: #e8f5e9; color: #1A6B3C; }
+    .badge.passe     { background: #f5f5f5; color: #9e9e9e; }
+    .badge.absent    { background: #fff3e0; color: #e65100; }
+    .badge.annule    { background: #fce8e8; color: #b71c1c; }
+
+    /* ── Urgence bloc ── */
+    .urg-bloc { background: var(--sur); border-radius: var(--r); border: 1px solid var(--brd);
+                padding: 18px 22px; box-shadow: var(--sdw); margin-top: 18px;
+                display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .urg-bloc .ico { font-size: 26px; flex-shrink: 0; }
+    .urg-txt h4 { font-size: 13.5px; font-weight: 700; color: var(--or); margin-bottom: 3px; }
+    .urg-txt p  { font-size: 12px; color: var(--tx2); }
+    .urg-btn { background: var(--or); color: white; padding: 10px 18px; border-radius: 9px;
+               font-size: 13px; font-weight: 600; text-decoration: none; margin-left: auto;
+               white-space: nowrap; }
+
+    /* ── Overlay ── */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200; }
+    .overlay.on { display: block; }
+
+    /* ══ RESPONSIVE ══ */
+    @media (max-width: 1200px) { .quick { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 900px)  { .grid2 { grid-template-columns: 1fr; }
+                                 .stats { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 768px) {
-      .sidebar {
-        transform: translateX(-100%);
-      }
-      .sidebar.open {
-        transform: translateX(0);
-      }
-      .main {
-        margin-left: 0;
-      }
-      .menu-toggle {
-        display: block;
-      }
-      .grid-2 {
-        grid-template-columns: 1fr;
-      }
-      .content {
-        padding: 16px;
-      }
+      .sb { transform: translateX(-100%); }
+      .sb.open { transform: translateX(0); }
+      .main { margin-left: 0; }
+      .menu-btn { display: flex; }
+      .content { padding: 14px; }
+      .quick { grid-template-columns: repeat(3, 1fr); }
+      .dt-pill { display: none; }
     }
     @media (max-width: 480px) {
-      .stats-grid {
-        grid-template-columns: 1fr;
-      }
-      .quick-actions {
-        flex-direction: column;
-      }
-      .action-btn {
-        width: 100%;
-        justify-content: center;
-      }
-    }
-    /* OVERLAY pour mobile */
-    .overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.4);
-      z-index: 150;
-    }
-    .overlay.open {
-      display: block;
+      .quick { grid-template-columns: repeat(2, 1fr); }
+      .stats { grid-template-columns: 1fr; }
     }
   </style>
+  <script>
+    (function(){
+      var t=localStorage.getItem('theme')||'light';
+      document.documentElement.setAttribute('data-theme',t);
+    })();
+    function toggleDark(){
+      var cur=document.documentElement.getAttribute('data-theme')||'light';
+      var nx=cur==='dark'?'light':'dark';
+      document.documentElement.setAttribute('data-theme',nx);
+      localStorage.setItem('theme',nx);
+      var b=document.getElementById('db');
+      if(b)b.textContent=nx==='dark'?'\u2600\uFE0F':'\uD83C\uDF19';
+    }
+    function toggleSb(){
+      document.getElementById('sb').classList.toggle('open');
+      document.getElementById('ov').classList.toggle('on');
+    }
+    function closeSb(){
+      document.getElementById('sb').classList.remove('open');
+      document.getElementById('ov').classList.remove('on');
+    }
+  </script>
 </head>
 <body>
 <div class="layout">
 
-  <!-- Sidebar -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <h2>🏥 SantéBF</h2>
-      <p>Espace médical</p>
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="sb" id="sb">
+    <div class="sb-brand">
+      <div class="sb-brand-row">
+        <div class="sb-icon">&#x1F3E5;</div>
+        <div class="sb-name">Sant&#xe9;BF</div>
+      </div>
+      <div class="sb-sub">Espace m&#xe9;dical</div>
     </div>
-    <nav class="sidebar-nav">
-      <div class="nav-item active">
-        <span class="nav-icon">📊</span> Tableau de bord
-      </div>
-      <div class="nav-item">
-        <span class="nav-icon">👥</span> <a href="/medecin/patients" style="color:inherit; text-decoration:none; flex:1;">Patients</a>
-      </div>
-      <div class="nav-item">
-        <span class="nav-icon">📅</span> <a href="/medecin/rdv" style="color:inherit; text-decoration:none; flex:1;">Rendez-vous</a>
-      </div>
-      <div class="nav-item">
-        <span class="nav-icon">💊</span> <a href="/medecin/ordonnances" style="color:inherit; text-decoration:none; flex:1;">Ordonnances</a>
-      </div>
-      <div class="nav-item">
-        <span class="nav-icon">🔬</span> <a href="/medecin/examens" style="color:inherit; text-decoration:none; flex:1;">Examens</a>
-      </div>
-      <div class="nav-item">
-        <span class="nav-icon">🛏️</span> <a href="/medecin/hospitalisations" style="color:inherit; text-decoration:none; flex:1;">Hospitalisations</a>
-      </div>
-      <div class="nav-item">
-        <span class="nav-icon">📄</span> <a href="/medecin/documents" style="color:inherit; text-decoration:none; flex:1;">Documents</a>
-      </div>
-      <div class="nav-item">
-        <span class="nav-icon">⚙️</span> <a href="/medecin/profil" style="color:inherit; text-decoration:none; flex:1;">Mon profil</a>
-      </div>
+
+    <nav class="sb-nav">
+      <div class="sb-lbl">Tableau de bord</div>
+      <a href="/dashboard/medecin" class="sb-a active">
+        <span class="sb-ico">&#x229E;</span> Accueil
+      </a>
+
+      <div class="sb-lbl">Patients</div>
+      <a href="/medecin/patients"                   class="sb-a"><span class="sb-ico">&#x1F50D;</span> Mes patients</a>
+      <a href="/medecin/consultations/nouvelle"      class="sb-a"><span class="sb-ico">&#x1F4CB;</span> Consultation</a>
+      <a href="/medecin/ordonnances/nouvelle"        class="sb-a"><span class="sb-ico">&#x1F48A;</span> Ordonnance</a>
+      <a href="/medecin/examens/nouveau"             class="sb-a"><span class="sb-ico">&#x1F9EA;</span> Examen</a>
+      <a href="/medecin/certificat/nouveau"          class="sb-a"><span class="sb-ico">&#x1F4DC;</span> Certificat</a>
+
+      <div class="sb-lbl">Agenda</div>
+      <a href="/medecin/rdv"                         class="sb-a"><span class="sb-ico">&#x1F4C5;</span> Planning RDV</a>
+      <a href="/medecin/rdv/nouveau"                 class="sb-a"><span class="sb-ico">&#x2795;</span> Nouveau RDV</a>
+
+      <div class="sb-lbl">Clinique</div>
+      <a href="/medecin/hospitalisations/nouvelle"   class="sb-a"><span class="sb-ico">&#x1F6CF;&#xFE0F;</span> Hospitaliser</a>
+      <a href="/medecin/grossesse/nouvelle"          class="sb-a"><span class="sb-ico">&#x1FAC3;</span> Grossesse / CPN</a>
+      <a href="/medecin/suivi-chronique/nouveau"     class="sb-a"><span class="sb-ico">&#x1F4C8;</span> Suivi chronique</a>
+
+      <div class="sb-lbl">Documents</div>
+      <a href="/medecin/documents/upload"            class="sb-a"><span class="sb-ico">&#x1F4C4;</span> Ajouter doc.</a>
+      <a href="/laboratoire"                         class="sb-a"><span class="sb-ico">&#x1F52C;</span> Laboratoire</a>
+
+      <div class="sb-lbl">Mon compte</div>
+      <a href="/medecin/profil"                      class="sb-a"><span class="sb-ico">&#x1F464;</span> Mon profil</a>
+      <a href="/profil/changer-mdp"                  class="sb-a"><span class="sb-ico">&#x1F512;</span> Mot de passe</a>
     </nav>
-    <div class="sidebar-footer">
-      <div class="user-card">
-        <div class="user-avatar">${(profil.prenom?.[0] || '')}${(profil.nom?.[0] || '')}</div>
-        <div class="user-info">
-          <div class="user-name">Dr. ${profil.prenom || ''} ${profil.nom || ''}</div>
-          <div class="user-role">${(profil.role || '').replace(/_/g, ' ')}</div>
+
+    <div class="sb-foot">
+      <div class="sb-user">
+        <div class="sb-av">
+          ${av ? `<img src="${av}" alt="av">` : inits}
         </div>
-        <a href="/auth/logout" class="logout-btn" title="Déconnexion">⏻</a>
+        <div style="flex:1;min-width:0">
+          <div class="sb-nm">Dr. ${esc(profil.prenom)} ${esc(profil.nom)}</div>
+          <div class="sb-rl">${esc(profil.role.replace(/_/g, ' '))}</div>
+        </div>
+        <a href="/auth/logout" class="sb-out" title="D&#xe9;connexion">&#x23FB;</a>
       </div>
     </div>
   </aside>
 
-  <!-- Overlay mobile -->
-  <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+  <div class="overlay" id="ov" onclick="closeSb()"></div>
 
-  <!-- Contenu principal -->
+  <!-- ══ MAIN ══ -->
   <div class="main">
+
     <header class="topbar">
-      <div style="display:flex; align-items:center; gap:16px;">
-        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
-        <span class="page-title">Bonjour, Dr. ${profil.prenom || ''}</span>
+      <div class="tb-left">
+        <button class="menu-btn" onclick="toggleSb()">&#x2630;</button>
+        <div>
+          <div class="tb-ttl">Bonjour, Dr.&nbsp;${esc(profil.prenom)}&nbsp;&#x1F44B;</div>
+          <div class="tb-sub">${data.rdvJour.length} rendez-vous aujourd&#x27;hui</div>
+        </div>
       </div>
-      <div class="date-badge">
-        <span>🕐 ${heure}</span> — <span>${date}</span>
+      <div class="tb-right">
+        <button id="db" class="dark-btn" onclick="toggleDark()" title="Mode sombre">&#x1F319;</button>
+        <div class="dt-pill">&#x1F550;&nbsp;${heure}&nbsp;&#x2014;&nbsp;${date}</div>
       </div>
     </header>
 
     <div class="content">
-      <!-- Statistiques -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-label">Consultations aujourd'hui</div>
-          <div class="stat-value">${data.consultationsJour}</div>
-          <div class="stat-detail">dont ${data.consultationsRecentes.filter(c => c.type_consultation === 'urgence').length} urgences</div>
+
+      <!-- STATS DU JOUR -->
+      <div class="stats">
+        <div class="stat v">
+          <div class="ico">&#x1F4CB;</div>
+          <div class="num">${data.stats.consultationsJour}</div>
+          <div class="lbl">Consultations aujourd&#x27;hui</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Ordonnances actives</div>
-          <div class="stat-value">${data.ordonnancesActives}</div>
-          <div class="stat-detail">émises par vous</div>
+        <div class="stat g">
+          <div class="ico">&#x1F4C5;</div>
+          <div class="num">${data.stats.rdvAVenir}</div>
+          <div class="lbl">RDV &#xe0; venir</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">RDV à venir</div>
-          <div class="stat-value">${data.rdvAVenir}</div>
-          <div class="stat-detail">prochains jours</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Patients actifs</div>
-          <div class="stat-value">${data.nbPatientsConsentement}</div>
-          <div class="stat-detail">avec consentement</div>
+        <div class="stat b">
+          <div class="ico">&#x1F48A;</div>
+          <div class="num">${data.stats.ordonnancesActives}</div>
+          <div class="lbl">Ordonnances actives</div>
         </div>
       </div>
 
-      <!-- Actions rapides -->
-      <div class="quick-actions">
-        <a href="/medecin/consultations/nouvelle" class="action-btn">
-          <span class="action-icon">📋</span> Nouvelle consultation
-        </a>
-        <a href="/medecin/ordonnances/nouvelle" class="action-btn">
-          <span class="action-icon">💊</span> Nouvelle ordonnance
-        </a>
-        <a href="/medecin/examens/nouveau" class="action-btn">
-          <span class="action-icon">🔬</span> Prescrire examen
-        </a>
-        <a href="/medecin/rdv/nouveau" class="action-btn">
-          <span class="action-icon">📅</span> Nouveau RDV
-        </a>
-        <a href="/medecin/patients" class="action-btn">
-          <span class="action-icon">👥</span> Rechercher patient
-        </a>
+      <!-- ACTIONS RAPIDES -->
+      <div class="quick">
+        <a href="/medecin/patients"                class="qc"><div class="qc-i">&#x1F50D;</div><div class="qc-l">Patients</div></a>
+        <a href="/medecin/consultations/nouvelle"  class="qc"><div class="qc-i">&#x1F4CB;</div><div class="qc-l">Consultation</div></a>
+        <a href="/medecin/ordonnances/nouvelle"    class="qc"><div class="qc-i">&#x1F48A;</div><div class="qc-l">Ordonnance</div></a>
+        <a href="/medecin/rdv"                     class="qc"><div class="qc-i">&#x1F4C5;</div><div class="qc-l">Planning</div></a>
+        <a href="/medecin/examens/nouveau"         class="qc"><div class="qc-i">&#x1F9EA;</div><div class="qc-l">Examen</div></a>
+        <a href="/medecin/certificat/nouveau"      class="qc"><div class="qc-i">&#x1F4DC;</div><div class="qc-l">Certificat</div></a>
       </div>
 
-      <!-- Rendez-vous du jour + Consultations récentes -->
-      <div class="grid-2">
-        <!-- RDV du jour -->
-        <div class="card">
-          <div class="card-header">
-            <span>📅 Rendez-vous aujourd'hui (${data.rdvJour.length})</span>
-            <a href="/medecin/rdv">Voir tout →</a>
+      <!-- RDV + CONSULTATIONS -->
+      <div class="grid2">
+        <div class="sect">
+          <div class="sect-hd">
+            <h3>&#x1F4C5;&nbsp;RDV aujourd&#x27;hui (${data.rdvJour.length})</h3>
+            <a href="/medecin/rdv">Voir tout &#x2192;</a>
           </div>
-          <div class="rdv-list">
-            ${data.rdvJour.length === 0
-              ? '<div class="empty">Aucun rendez-vous aujourd’hui</div>'
-              : data.rdvJour.map(rdv => `
-                <div class="rdv-item">
-                  <div class="rdv-time">${new Date(rdv.date_heure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
-                  <div class="rdv-info">
-                    <div class="rdv-patient">${rdv.patient_dossiers?.prenom || ''} ${rdv.patient_dossiers?.nom || ''}</div>
-                    <div class="rdv-motif">${rdv.motif || 'Consultation'}</div>
-                  </div>
-                  <span class="rdv-badge ${rdv.statut}">${rdv.statut}</span>
-                </div>`).join('')
-            }
-          </div>
-          <a href="/medecin/rdv" class="view-all">Gérer les rendez-vous →</a>
+          ${rdvItems}
+          <a href="/medecin/rdv/nouveau" class="voir-plus">+ Nouveau rendez-vous</a>
         </div>
-
-        <!-- Consultations récentes -->
-        <div class="card">
-          <div class="card-header">
-            <span>📋 Consultations récentes</span>
-            <a href="/medecin/consultations">Voir tout →</a>
+        <div class="sect">
+          <div class="sect-hd">
+            <h3>&#x1F4CB;&nbsp;Consultations r&#xe9;centes</h3>
+            <a href="/medecin/consultations">Voir tout &#x2192;</a>
           </div>
-          <div class="consult-list">
-            ${data.consultationsRecentes.length === 0
-              ? '<div class="empty">Aucune consultation récente</div>'
-              : data.consultationsRecentes.map(c => `
-                <div class="consult-item">
-                  <div style="flex:1;">
-                    <div class="consult-patient">${c.patient_dossiers?.prenom || ''} ${c.patient_dossiers?.nom || ''}</div>
-                    <div class="consult-date">${new Date(c.created_at).toLocaleDateString('fr-FR')} · ${c.type_consultation}</div>
-                    ${c.diagnostic_principal ? `<div class="consult-diagnostic">→ ${c.diagnostic_principal}</div>` : ''}
-                  </div>
-                  <a href="/medecin/consultations/nouvelle?patient_id=${c.patient_dossiers?.id}" class="btn-sm" style="background:#0b2b4f; color:white; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:0.8rem;">➕</a>
-                </div>`).join('')
-            }
-          </div>
-          <a href="/medecin/consultations" class="view-all">Voir toutes les consultations →</a>
+          ${consultItems}
+          <a href="/medecin/consultations/nouvelle" class="voir-plus">+ Nouvelle consultation</a>
         </div>
       </div>
 
-      <!-- Rappels / Alertes (exemple si besoin) -->
-      <!-- On peut ajouter une section pour les examens en attente, etc. -->
-    </div>
-  </div>
-</div>
+      <!-- ACCÈS URGENCE -->
+      <div class="urg-bloc">
+        <div class="ico">&#x1F6A8;</div>
+        <div class="urg-txt">
+          <h4>Acc&#xe8;s urgence &#x2014; sans consentement</h4>
+          <p>Utilisez le code urgence 6 chiffres du patient pour acc&#xe9;der aux donn&#xe9;es vitales</p>
+        </div>
+        <a href="/medecin/patients" class="urg-btn">&#x1F50D; Acc&#xe9;der</a>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /layout -->
 
 <script>
-  function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('overlay').classList.toggle('open');
-  }
-  // Fermer la sidebar si on clique sur un lien (mobile)
-  document.querySelectorAll('.sidebar-nav a').forEach(link => {
-    link.addEventListener('click', function() {
-      if (window.innerWidth <= 768) {
-        toggleSidebar();
-      }
-    });
-  });
+  // Sync dark icon on load
+  (function(){
+    var t=localStorage.getItem('theme')||'light';
+    var b=document.getElementById('db');
+    if(b)b.textContent=t==='dark'?'\u2600\uFE0F':'\uD83C\uDF19';
+  })();
 </script>
 </body>
 </html>`
