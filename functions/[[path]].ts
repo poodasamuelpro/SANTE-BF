@@ -5,7 +5,7 @@
  * Corrections :
  *   1. onRequest() retourne une page HTML propre au lieu de texte brut (écran noir)
  *   2. RESEND_API_KEY ajouté dans le type Env
- *   3. notFound retourne 404 HTML propre (pas redirect aveugle vers login)
+ *   3. notFound retourne 404 HTML propre (pas redirect aveugle vers login) 
  *   4. Gestion erreur détaillée en dev, générique en prod
  */
 
