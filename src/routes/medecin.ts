@@ -1383,3 +1383,351 @@ function certifPage(profil: AuthProfile, patient: any): string {
   </div>
 </div>` + closePage()
 }
+
+// ═══════════════════════════════════════════════════════════
+// MODULE 7 — SUIVI MALADIES CHRONIQUES
+// ═══════════════════════════════════════════════════════════
+
+medecinRoutes.get('/suivi-chronique/nouveau', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const pid=c.req.query('pid')??''; let patient:any=null
+  if(pid){const{data}=await sb.from('patient_dossiers').select('id,nom,prenom,numero_national').eq('id',pid).single();patient=data}
+  return c.html(pageHead('Suivi chronique')+header(profil)+`
+<div class="wrap">
+  <div class="bread"><a href="/dashboard/medecin">Accueil</a> &#x2192; Suivi chronique</div>
+  <div class="pg-t">Ouvrir un dossier de suivi chronique</div>
+  <div class="card cb">
+    <form method="POST" action="/medecin/suivi-chronique/nouveau">
+      ${searchPatientWidget(patient)}
+      <div class="fg2">
+        <div class="fg"><label>Maladie <span style="color:#B71C1C">*</span></label>
+          <select name="maladie" required>
+            <option value="">-- S&#xe9;lectionner --</option>
+            <option value="diabete_type1">Diab&#xe8;te type 1</option>
+            <option value="diabete_type2">Diab&#xe8;te type 2</option>
+            <option value="hypertension">Hypertension art&#xe9;rielle</option>
+            <option value="asthme">Asthme</option>
+            <option value="drepanocytose">Dr&#xe9;panocytose</option>
+            <option value="vih_sida">VIH / SIDA</option>
+            <option value="tuberculose">Tuberculose</option>
+            <option value="insuffisance_renale">Insuffisance r&#xe9;nale</option>
+            <option value="insuffisance_cardiaque">Insuffisance cardiaque</option>
+            <option value="epilepsie">&#xc9;pilepsie</option>
+            <option value="cancer">Cancer</option>
+            <option value="autre">Autre</option>
+          </select></div>
+        <div class="fg"><label>Prochain contr&#xf4;le</label>
+          <input type="date" name="prochain_controle"></div>
+        <div class="fg" style="grid-column:1/-1"><label>Traitement de fond</label>
+          <input type="text" name="traitement_fond" placeholder="Ex : Metformine 500mg 2x/j, Amlodipine 5mg"></div>
+        <div class="fg" style="grid-column:1/-1"><label>Objectifs th&#xe9;rapeutiques</label>
+          <input type="text" name="objectifs" placeholder="Ex : HbA1c &lt; 7%, Tension &lt; 130/80"></div>
+      </div>
+      <div class="fa">
+        <a href="/medecin/patients${pid?'/'+pid:''}" class="btn-g">Annuler</a>
+        <button type="submit" class="btn">Ouvrir le dossier &#x2192;</button>
+      </div>
+    </form>
+  </div>
+</div>`+closePage())
+})
+
+medecinRoutes.post('/suivi-chronique/nouveau', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const body=await c.req.parseBody();const pid=String(body.patient_id??'').trim()
+  if(!pid)return c.redirect('/medecin/patients')
+  await sb.from('spec_suivi_chronique').insert({
+    patient_id:pid, medecin_referent_id:profil.id, structure_id:profil.structure_id,
+    maladie:String(body.maladie??''),
+    traitement_fond:String(body.traitement_fond??'')||null,
+    objectifs_therapeutiques:String(body.objectifs??'')||null,
+    prochain_controle:String(body.prochain_controle??'')||null,
+    statut:'actif'
+  })
+  return c.redirect(`/medecin/patients/${pid}?chronique=ok`)
+})
+
+medecinRoutes.get('/suivi-chronique/:id', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const id=c.req.param('id')
+  const[suiviRes,bilansRes]=await Promise.all([
+    sb.from('spec_suivi_chronique').select('*,patient_dossiers(nom,prenom)').eq('id',id).single(),
+    sb.from('spec_suivi_chronique_bilans').select('*').eq('suivi_id',id).order('created_at',{ascending:false}).limit(20)
+  ])
+  const suivi=suiviRes.data;const bilans=bilansRes.data??[]
+  if(!suivi)return c.redirect('/medecin/patients')
+  const pt=(suivi as any).patient_dossiers
+  const bilanRows=bilans.length===0?'<tr><td colspan="3" class="empty">Aucun bilan</td></tr>'
+    :bilans.map((b:any)=>`<tr>
+      <td>${fmtD(b.created_at)}</td>
+      <td style="font-family:monospace;font-size:12px">${esc(JSON.stringify(b.valeurs??{}))}</td>
+      <td>${esc(b.observations??'')}</td>
+    </tr>`).join('')
+  return c.html(pageHead('Suivi '+suivi.maladie)+header(profil)+`
+<div class="wrap">
+  <div class="bread"><a href="/dashboard/medecin">Accueil</a> &#x2192; <a href="/medecin/patients/${(suivi as any).patient_id}">Patient</a> &#x2192; Suivi ${esc(suivi.maladie)}</div>
+  <div class="pg-t">Suivi : ${esc(suivi.maladie)}</div>
+  <div class="pt-mini">
+    <div style="font-size:26px">&#x1F464;</div>
+    <div>
+      <div class="pt-n">${esc(pt?.prenom??'')} ${esc(pt?.nom??'')}</div>
+      ${suivi.objectifs_therapeutiques?`<div class="pt-i">${esc(suivi.objectifs_therapeutiques)}</div>`:''}
+    </div>
+    ${suivi.prochain_controle?`<span style="margin-left:auto;background:var(--sur);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;color:var(--v)">Prochain : ${fmtD(suivi.prochain_controle)}</span>`:''}
+  </div>
+  ${suivi.traitement_fond?`<div class="a-ok">&#x1F48A; Traitement de fond : ${esc(suivi.traitement_fond)}</div>`:''}
+  <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+    <a href="/medecin/suivi-chronique/${id}/bilan" class="btn">+ Ajouter un bilan</a>
+  </div>
+  <div class="card"><table>
+    <thead><tr><th>Date</th><th>Valeurs</th><th>Observations</th></tr></thead>
+    <tbody>${bilanRows}</tbody>
+  </table></div>
+</div>`+closePage())
+})
+
+medecinRoutes.get('/suivi-chronique/:id/bilan', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const id=c.req.param('id')
+  const{data:suivi}=await sb.from('spec_suivi_chronique').select('*,patient_dossiers(nom,prenom)').eq('id',id).single()
+  if(!suivi)return c.redirect('/medecin/patients')
+  const pt=(suivi as any).patient_dossiers
+  const champMap: Record<string,string[]>={
+    diabete_type1:['hba1c','glycemie_a_jeun','poids'],
+    diabete_type2:['hba1c','glycemie_a_jeun','poids'],
+    hypertension:['tension_sys','tension_dia','poids'],
+    vih_sida:['cd4','charge_virale'],
+    insuffisance_renale:['creatinine','clairance','uree'],
+    asthme:['debit_expiratoire','spo2'],
+    drepanocytose:['hemoglobine','ferritine'],
+  }
+  const champs=champMap[suivi.maladie]??['valeur_principale']
+  const champsHtml=champs.map((ch:string)=>`<div class="fg">
+    <label>${esc(ch.replace(/_/g,' '))}</label>
+    <input type="number" step="0.01" name="val_${esc(ch)}" placeholder="${esc(ch)}">
+  </div>`).join('')
+  return c.html(pageHead('Nouveau bilan')+header(profil)+`
+<div class="wrap">
+  <div class="bread"><a href="/medecin/suivi-chronique/${id}">Suivi ${esc(suivi.maladie)}</a> &#x2192; Nouveau bilan</div>
+  <div class="pg-t">Bilan — ${esc(suivi.maladie)}</div>
+  <div class="pt-mini"><div style="font-size:26px">&#x1F464;</div>
+    <div><div class="pt-n">${esc(pt?.prenom??'')} ${esc(pt?.nom??'')}</div></div></div>
+  <div class="card cb">
+    <form method="POST" action="/medecin/suivi-chronique/${id}/bilan">
+      <div class="fg2">${champsHtml}</div>
+      <div class="fg"><label>Observations</label>
+        <textarea name="observations" placeholder="&#xc9;volution, ajustement traitement..."></textarea></div>
+      <div class="fg"><label>Prochain contr&#xf4;le</label>
+        <input type="date" name="prochain_controle"></div>
+      <div class="fa">
+        <a href="/medecin/suivi-chronique/${id}" class="btn-g">Annuler</a>
+        <button type="submit" class="btn">Enregistrer &#x2192;</button>
+      </div>
+    </form>
+  </div>
+</div>`+closePage())
+})
+
+medecinRoutes.post('/suivi-chronique/:id/bilan', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const id=c.req.param('id');const body=await c.req.parseBody()
+  const valeurs: Record<string,number>={}
+  for(const[k,v] of Object.entries(body)){
+    if(k.startsWith('val_')&&v){const n=parseFloat(String(v));if(!isNaN(n))valeurs[k.replace('val_','')]=n}
+  }
+  await sb.from('spec_suivi_chronique_bilans').insert({
+    suivi_id:id, pris_par:profil.id, valeurs,
+    observations:String(body.observations??'')||null
+  })
+  if(body.prochain_controle){
+    await sb.from('spec_suivi_chronique').update({prochain_controle:String(body.prochain_controle)}).eq('id',id)
+  }
+  return c.redirect(`/medecin/suivi-chronique/${id}?bilan=ok`)
+})
+
+// ═══════════════════════════════════════════════════════════
+// MODULE 8 — GROSSESSE / CPN
+// ═══════════════════════════════════════════════════════════
+
+medecinRoutes.get('/grossesse/nouvelle', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const pid=c.req.query('pid')??''; let patient:any=null
+  if(pid){const{data}=await sb.from('patient_dossiers').select('id,nom,prenom,date_naissance,sexe,rhesus,numero_national').eq('id',pid).single();patient=data}
+  return c.html(pageHead('Suivi grossesse')+header(profil)+`
+<div class="wrap">
+  <div class="bread"><a href="/dashboard/medecin">Accueil</a> &#x2192; Grossesse / CPN</div>
+  <div class="pg-t">Ouvrir un suivi grossesse</div>
+  <div class="card cb">
+    <form method="POST" action="/medecin/grossesse/nouvelle">
+      ${searchPatientWidget(patient)}
+      ${patient?.rhesus==='-'?'<div class="a-warn">&#x26A0; Rh&#xe9;sus n&#xe9;gatif — surveiller incompatibilit&#xe9; foeto-maternelle</div>':''}
+      <div class="fg2">
+        <div class="fg"><label>Date derni&#xe8;res r&#xe8;gles (DDR) <span style="color:#B71C1C">*</span></label>
+          <input type="date" name="ddr" required></div>
+        <div class="fg"><label>Date pr&#xe9;vue accouchement (DPA)</label>
+          <input type="date" name="dpa" placeholder="Auto-calcul&#xe9; si vide"></div>
+        <div class="fg"><label>Gessit&#xe9; (total grossesses)</label>
+          <input type="number" name="gestite" min="1" max="20" value="1"></div>
+        <div class="fg"><label>Parit&#xe9; (accouchements)</label>
+          <input type="number" name="parite" min="0" max="20" value="0"></div>
+        <div class="fg"><label>Grossesse &#xe0; risque</label>
+          <select name="a_risque"><option value="false">Non</option><option value="true">Oui — haut risque</option></select></div>
+        <div class="fg"><label>Incompatibilit&#xe9; Rh&#xe9;sus</label>
+          <select name="incompat_rh"><option value="false">Non</option><option value="true">Oui (m&#xe8;re Rh&#x2212; / p&#xe8;re Rh+)</option></select></div>
+      </div>
+      <div class="fa">
+        <a href="/medecin/patients${pid?'/'+pid:''}" class="btn-g">Annuler</a>
+        <button type="submit" class="btn">Ouvrir &#x2192;</button>
+      </div>
+    </form>
+  </div>
+</div>`+closePage())
+})
+
+medecinRoutes.post('/grossesse/nouvelle', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const body=await c.req.parseBody();const pid=String(body.patient_id??'').trim()
+  if(!pid)return c.redirect('/medecin/patients')
+  let dpa=String(body.dpa??'')
+  if(!dpa&&body.ddr){const d=new Date(String(body.ddr));d.setDate(d.getDate()+280);dpa=d.toISOString().split('T')[0]}
+  await sb.from('spec_grossesses').insert({
+    patient_id:pid, medecin_referent_id:profil.id, structure_id:profil.structure_id,
+    date_ddr:String(body.ddr??''),
+    date_prevue_accouchement:dpa||null,
+    gestite:parseInt(String(body.gestite??'1'))||1,
+    parite:parseInt(String(body.parite??'0'))||0,
+    grossesse_a_risque:body.a_risque==='true',
+    incompatibilite_rhesus:body.incompat_rh==='true',
+    statut:'en_cours'
+  })
+  return c.redirect(`/medecin/patients/${pid}?grossesse=ok`)
+})
+
+// ═══════════════════════════════════════════════════════════
+// MODULE 9 — HOSPITALISATIONS
+// ═══════════════════════════════════════════════════════════
+
+medecinRoutes.get('/hospitalisations/nouvelle', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const pid=c.req.query('pid')??''; let patient:any=null; let lits:any[]=[]
+  if(pid){
+    const[p,l]=await Promise.all([
+      sb.from('patient_dossiers').select('id,nom,prenom,numero_national').eq('id',pid).single(),
+      sb.from('struct_lits').select('id,numero_lit,struct_services(nom)').eq('structure_id',profil.structure_id).eq('statut','libre').limit(40)
+    ])
+    patient=p.data; lits=l.data??[]
+  }
+  const litsOpts=lits.map((l:any)=>`<option value="${esc(l.id)}">Lit ${esc(l.numero_lit)} — ${esc((l as any).struct_services?.nom??'')}</option>`).join('')
+  return c.html(pageHead('Hospitalisation')+header(profil)+`
+<div class="wrap">
+  <div class="bread"><a href="/dashboard/medecin">Accueil</a> &#x2192; Hospitalisation</div>
+  <div class="pg-t">Admettre un patient</div>
+  <div class="card cb">
+    <form method="POST" action="/medecin/hospitalisations/nouvelle">
+      ${searchPatientWidget(patient)}
+      <div class="fg2">
+        <div class="fg"><label>Diagnostic d&#x27;entr&#xe9;e <span style="color:#B71C1C">*</span></label>
+          <input type="text" name="diagnostic_entree" placeholder="Ex : Pneumonie s&#xe9;v&#xe8;re" required></div>
+        <div class="fg"><label>&#xc9;tat &#xe0; l&#x27;entr&#xe9;e <span style="color:#B71C1C">*</span></label>
+          <select name="etat" required>
+            <option value="stable">Stable</option>
+            <option value="grave">Grave</option>
+            <option value="critique">Critique</option>
+            <option value="inconscient">Inconscient</option>
+          </select></div>
+        <div class="fg" style="grid-column:1/-1"><label>Lit (lits libres de la structure)</label>
+          <select name="lit_id">
+            <option value="">-- Sans lit assign&#xe9; --</option>
+            ${litsOpts}
+          </select></div>
+      </div>
+      <div class="fa">
+        <a href="/medecin/patients${pid?'/'+pid:''}" class="btn-g">Annuler</a>
+        <button type="submit" class="btn">Admettre &#x2192;</button>
+      </div>
+    </form>
+  </div>
+</div>`+closePage())
+})
+
+medecinRoutes.post('/hospitalisations/nouvelle', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const body=await c.req.parseBody();const pid=String(body.patient_id??'').trim()
+  if(!pid)return c.redirect('/medecin/patients')
+  const litId=String(body.lit_id??'').trim()||null
+  await sb.from('medical_hospitalisations').insert({
+    patient_id:pid, medecin_responsable_id:profil.id, structure_id:profil.structure_id,
+    lit_id:litId, diagnostic_entree:String(body.diagnostic_entree??''),
+    etat_a_l_entree:String(body.etat??'stable'), statut:'en_cours', notes_evolution:[]
+  })
+  return c.redirect(`/medecin/patients/${pid}?hospit=ok`)
+})
+
+// ═══════════════════════════════════════════════════════════
+// MODULE 10 — DOCUMENTS MÉDICAUX
+// ═══════════════════════════════════════════════════════════
+
+medecinRoutes.get('/documents/upload', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const pid=c.req.query('pid')??''; let patient:any=null
+  if(pid){const{data}=await sb.from('patient_dossiers').select('id,nom,prenom,numero_national').eq('id',pid).single();patient=data}
+  return c.html(pageHead('Ajouter document')+header(profil)+`
+<div class="wrap">
+  <div class="bread"><a href="/dashboard/medecin">Accueil</a> &#x2192; Documents</div>
+  <div class="pg-t">Ajouter un document m&#xe9;dical</div>
+  <div class="card cb">
+    <form method="POST" action="/medecin/documents/upload" enctype="multipart/form-data">
+      ${searchPatientWidget(patient)}
+      <div class="fg2">
+        <div class="fg"><label>Type de document <span style="color:#B71C1C">*</span></label>
+          <select name="type_doc" required>
+            <option value="certificat_medical">Certificat m&#xe9;dical</option>
+            <option value="radio">Radiographie</option>
+            <option value="scanner">Scanner</option>
+            <option value="irm">IRM</option>
+            <option value="echo_image">&#xc9;chographie image</option>
+            <option value="compte_rendu_op">Compte-rendu op&#xe9;ratoire</option>
+            <option value="compte_rendu_hospit">Compte-rendu hospitalisation</option>
+            <option value="resultats_labo">R&#xe9;sultats laboratoire</option>
+            <option value="bon_examen">Bon d&#x27;examen</option>
+            <option value="courrier_medical">Courrier m&#xe9;dical</option>
+            <option value="autre">Autre</option>
+          </select></div>
+        <div class="fg"><label>Titre <span style="color:#B71C1C">*</span></label>
+          <input type="text" name="titre" placeholder="Ex : Radio thorax 17/03/2026" required></div>
+        <div class="fg" style="grid-column:1/-1"><label>Fichier (PDF ou image) <span style="color:#B71C1C">*</span></label>
+          <input type="file" name="fichier" accept=".pdf,.jpg,.jpeg,.png,.webp" required style="padding:8px;background:var(--bg)"></div>
+        <div class="fg"><label>Visibilit&#xe9;</label>
+          <select name="confidentiel">
+            <option value="false">Visible par le patient</option>
+            <option value="true">Confidentiel (m&#xe9;decin uniquement)</option>
+          </select></div>
+      </div>
+      <div class="fa">
+        <a href="/medecin/patients${pid?'/'+pid:''}" class="btn-g">Annuler</a>
+        <button type="submit" class="btn">Uploader &#x2192;</button>
+      </div>
+    </form>
+  </div>
+</div>`+closePage())
+})
+
+medecinRoutes.post('/documents/upload', async (c) => {
+  const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
+  const body=await c.req.parseBody();const pid=String(body.patient_id??'').trim()
+  const file=body.fichier as File|undefined
+  if(!file||!pid)return c.redirect(`/medecin/patients/${pid??''}?err=upload`)
+  const ext=file.name.split('.').pop()??'pdf'
+  const path=`med/${profil.id}/pt_${pid}/${Date.now()}.${ext}`
+  const buf=await file.arrayBuffer()
+  const{error:upErr}=await sb.storage.from('documents').upload(path,buf,{contentType:file.type,upsert:false})
+  if(upErr)return c.redirect(`/medecin/patients/${pid}?err=upload_fail`)
+  const{data:urlData}=sb.storage.from('documents').getPublicUrl(path)
+  await sb.from('medical_documents').insert({
+    patient_id:pid, uploaded_par:profil.id, structure_id:profil.structure_id,
+    type_document:String(body.type_doc??'autre'), titre:String(body.titre??''),
+    fichier_url:urlData?.publicUrl??null, taille_fichier:file.size,
+    est_confidentiel:body.confidentiel==='true'
+  })
+  return c.redirect(`/medecin/patients/${pid}?doc=ok`)
+})
