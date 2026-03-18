@@ -44,7 +44,7 @@ export async function getProfil(
   try {
     const { data, error } = await supabase
       .from('auth_profiles')
-      .select('id, nom, prenom, role, structure_id, est_actif, doit_changer_mdp, avatar_url')
+      .select('id, email, nom, prenom, role, structure_id, est_actif, doit_changer_mdp, avatar_url') // ← AJOUTER email
       .eq('id', userId)
       .single()
     if (error || !data) return null
