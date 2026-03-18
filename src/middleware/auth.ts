@@ -2,7 +2,7 @@
  * src/middleware/auth.ts
  * SantéBF — Middlewares d'authentification et d'autorisation
  *
- * Corrections :
+ * Corrections : 
  *   1. BUG CRITIQUE : doit_changer_mdp=true → redirect /auth/changer-mdp
  *      Sans ce fix, un médecin avec MDP temporaire était redirigé vers /dashboard/medecin
  *      → dashboard plantait → écran noir "Erreur serveur"
