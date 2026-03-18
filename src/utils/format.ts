@@ -4,7 +4,7 @@
  * (aucune modification — fichier déjà correct)
  */
 
-// Formater une date en français
+// Formater une date en français 
 export function formatDate(date: string): string {
   return new Date(date).toLocaleDateString('fr-FR', {
     day: '2-digit', month: 'long', year: 'numeric',
