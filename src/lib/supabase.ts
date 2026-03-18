@@ -1,5 +1,5 @@
 /**
- * src/lib/supabase.ts
+ * src/lib/supabase.ts 
  * SantéBF — Client Supabase + types partagés
  *
  * Corrections :
