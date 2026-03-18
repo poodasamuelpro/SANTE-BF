@@ -144,6 +144,25 @@ authRoutes.post('/inscription', async (c) => {
       nom, prenom, role: 'patient', est_actif: true, doit_changer_mdp: false,
     }).eq('id', data.user.id)
 
+    // ── LIAISON DOSSIER EXISTANT ──────────────────────────────
+    // Si un médecin a déjà créé un dossier pour ce patient (profile_id = NULL),
+    // on le lie au compte qui vient d'être créé en cherchant par nom + prénom.
+    // Priorité : correspondance exacte nom + prénom + date_naissance si fournie.
+    const ddn = String(body.date_naissance ?? '').trim() || null
+    let query = sb.from('patient_dossiers')
+      .select('id')
+      .is('profile_id', null)
+      .eq('nom',    nom)
+      .eq('prenom', prenom)
+    if (ddn) query = query.eq('date_naissance', ddn)
+    const { data: dossiers } = await query.limit(1)
+    if (dossiers && dossiers.length > 0) {
+      await sb.from('patient_dossiers')
+        .update({ profile_id: data.user.id })
+        .eq('id', dossiers[0].id)
+    }
+    // ─────────────────────────────────────────────────────────
+
     return c.redirect('/auth/login?inscription=ok')
   } catch (err) {
     console.error('POST /inscription:', err)
