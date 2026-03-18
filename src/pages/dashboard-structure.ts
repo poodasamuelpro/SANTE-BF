@@ -152,6 +152,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:
 function sbLinks(active = 'dashboard'): string {
   const links = [
     { href: '/dashboard/structure', ico: '⊞',  label: 'Tableau de bord', key: 'dashboard' },
+    { href: '/structure/patients',   ico: '🧑‍⚕️', label: 'Patients',          key: 'patients'  },
     { href: '/structure/personnel',  ico: '👥', label: 'Personnel',        key: 'personnel' },
     { href: '/structure/services',   ico: '🏥', label: 'Services',         key: 'services'  },
     { href: '/structure/lits',       ico: '🛏️', label: 'Lits',             key: 'lits'      },
