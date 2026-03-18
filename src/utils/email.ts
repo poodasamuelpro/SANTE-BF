@@ -6,7 +6,7 @@
  *   1. Fonction principale renommée sendEmail() (cohérent avec notifications.ts)
  *      La version originale s'appelait envoyerEmail() — incohérence corrigée
  *   2. Export de envoyerEmail() maintenu comme alias pour rétrocompatibilité
- *   3. Interface EmailParams simplifiée et cohérente
+ *   3. Interface EmailParams simplifiée et cohérente 
  *   4. from: utilise domaine santebf.izicardouaga.com (cohérent avec notifications.ts)
  */
 
