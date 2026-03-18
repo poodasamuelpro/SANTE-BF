@@ -4,6 +4,8 @@
  * Monté sur /structure dans functions/[[path]].ts
  *
  * Routes couvertes :
+ *   GET  /patients                      Liste des patients de la structure
+ *   GET  /patients/:id                 Dossier partiel d'un patient (actes dans cette structure)
  *   GET  /personnel                    Liste du personnel
  *   GET  /personnel/nouveau            Formulaire nouveau compte
  *   POST /personnel/nouveau            Créer un compte
@@ -1485,4 +1487,527 @@ structureRoutes.get('/logs', async (c) => {
 </div>`
 
   return c.html(structureLayout(profil, 'Logs d\'accès', 'logs', content))
+})
+
+// ═══════════════════════════════════════════════════════════════
+// PATIENTS DE LA STRUCTURE — LISTE
+// ═══════════════════════════════════════════════════════════════
+//
+// Affiche TOUS les patients qui ont été pris en charge dans cette
+// structure (enregistrés ici OU venus en consultation/hospit ici).
+// Deux sources :
+//   1. patient_dossiers.structure_enregistrement_id = X  (enregistrés ici)
+//   2. medical_consultations.structure_id = X (sont passés ici)
+//
+// Vue admin = identité + stats actes dans la structure
+// PAS le dossier médical complet d'autres structures
+// ═══════════════════════════════════════════════════════════════
+
+structureRoutes.get('/patients', async (c) => {
+  const profil   = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase' as never) as any
+  const q        = c.req.query('q')        || ''
+  const filtre   = c.req.query('filtre')   || 'tous'  // tous | enregistres | passes
+
+  // ── Patients enregistrés dans la structure ──────────────────
+  let patientsEnreg: any[] = []
+  {
+    let query = supabase
+      .from('patient_dossiers')
+      .select('id, numero_national, nom, prenom, date_naissance, sexe, groupe_sanguin, rhesus, created_at')
+      .eq('structure_enregistrement_id', profil.structure_id)
+      .order('nom')
+      .limit(200)
+    if (q.length >= 2) query = query.or(`nom.ilike.%${q}%,prenom.ilike.%${q}%,numero_national.ilike.%${q}%`)
+    const { data } = await query
+    patientsEnreg = data ?? []
+  }
+
+  // ── Patients passés en consultation (sans être enregistrés) ─
+  let patientsVus: any[] = []
+  if (filtre !== 'enregistres') {
+    const { data: consults } = await supabase
+      .from('medical_consultations')
+      .select('patient_id')
+      .eq('structure_id', profil.structure_id)
+      .not('patient_id', 'in', `(${patientsEnreg.map((p: any) => `'${p.id}'`).join(',') || "'00000000-0000-0000-0000-000000000000'"})`)
+      .limit(500)
+
+    const idsVus = [...new Set((consults ?? []).map((c: any) => c.patient_id))]
+
+    if (idsVus.length > 0) {
+      let qv = supabase
+        .from('patient_dossiers')
+        .select('id, numero_national, nom, prenom, date_naissance, sexe, groupe_sanguin, rhesus, created_at')
+        .in('id', idsVus)
+        .order('nom')
+      if (q.length >= 2) qv = qv.or(`nom.ilike.%${q}%,prenom.ilike.%${q}%,numero_national.ilike.%${q}%`)
+      const { data } = await qv
+      patientsVus = data ?? []
+    }
+  }
+
+  // Fusionner en évitant doublons
+  const allPatients = filtre === 'enregistres' ? patientsEnreg
+    : filtre === 'passes' ? patientsVus
+    : [...patientsEnreg, ...patientsVus]
+
+  const calcAge = (ddn: string) =>
+    Math.floor((Date.now() - new Date(ddn).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+
+  const rows = allPatients.slice(0, 100).map((p: any) => {
+    const age  = p.date_naissance ? calcAge(p.date_naissance) : '?'
+    const type = patientsEnreg.find((e: any) => e.id === p.id) ? 'enregistre' : 'passe'
+    return `<tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;border-radius:8px;background:var(--or-c);
+            display:flex;align-items:center;justify-content:center;font-size:12px;
+            font-weight:700;color:var(--or-f);flex-shrink:0;">
+            ${(p.prenom || '?').charAt(0)}${(p.nom || '?').charAt(0)}
+          </div>
+          <div>
+            <div style="font-weight:700;">${p.prenom} ${p.nom}</div>
+            <div style="font-size:11px;font-family:monospace;color:var(--soft);">${p.numero_national || '—'}</div>
+          </div>
+        </div>
+      </td>
+      <td>${p.sexe === 'M' ? '♂ Homme' : '♀ Femme'}</td>
+      <td>${age} ans</td>
+      <td>${p.groupe_sanguin ? `<span class="badge b-rouge">${p.groupe_sanguin}${p.rhesus || ''}</span>` : '—'}</td>
+      <td>
+        <span class="badge ${type === 'enregistre' ? 'b-vert' : 'b-bleu'}">
+          ${type === 'enregistre' ? '📍 Enregistré ici' : '🔄 Consulté ici'}
+        </span>
+      </td>
+      <td>
+        <a href="/structure/patients/${p.id}" class="btn btn-or" style="font-size:12px;padding:6px 12px;">
+          📋 Dossier partiel
+        </a>
+      </td>
+    </tr>`
+  }).join('')
+
+  const content = `
+<div class="page-header">
+  <div>
+    <div class="page-title">🏥 Patients de la structure (${allPatients.length})</div>
+    <div style="font-size:12px;color:var(--soft);margin-top:3px;">
+      ${patientsEnreg.length} enregistrés ici · ${patientsVus.length} venus en consultation
+    </div>
+  </div>
+</div>
+<div class="info-box">
+  ℹ️ <strong>Dossier partiel :</strong> vous voyez uniquement les actes réalisés <strong>dans cette structure</strong>.
+  Pour le dossier complet national, le patient doit accorder son autorisation explicite.
+</div>
+<div class="card" style="margin-bottom:14px;padding:12px 16px;">
+  <form method="GET" action="/structure/patients" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+    <div style="flex:2;min-width:200px;">
+      <label class="form-label">Recherche</label>
+      <input type="text" name="q" placeholder="Nom, prénom ou numéro national…" value="${q}" style="padding:8px 12px;font-size:13px;">
+    </div>
+    <div style="flex:1;min-width:140px;">
+      <label class="form-label">Afficher</label>
+      <select name="filtre" style="padding:8px 12px;font-size:13px;border:1.5px solid var(--bordure);border-radius:var(--rs);">
+        <option value="tous"${filtre === 'tous' ? ' selected' : ''}>Tous</option>
+        <option value="enregistres"${filtre === 'enregistres' ? ' selected' : ''}>Enregistrés ici</option>
+        <option value="passes"${filtre === 'passes' ? ' selected' : ''}>Consultés ici</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-or">🔍 Chercher</button>
+    <a href="/structure/patients" class="btn btn-soft">✕</a>
+  </form>
+</div>
+<div class="card">
+  ${rows ? `<table>
+    <thead><tr>
+      <th>Patient</th><th>Sexe</th><th>Âge</th><th>Groupe sanguin</th><th>Type</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  ${allPatients.length > 100 ? `<div style="text-align:center;padding:14px;font-size:13px;color:var(--soft);">
+    Affichage limité à 100 résultats. Affinez la recherche.
+  </div>` : ''}` : '<div class="empty">Aucun patient trouvé</div>'}
+</div>`
+
+  return c.html(structureLayout(profil, 'Patients', 'patients', content))
+})
+
+// ═══════════════════════════════════════════════════════════════
+// DOSSIER PARTIEL PATIENT — tout ce qui s'est passé dans SA structure
+// ═══════════════════════════════════════════════════════════════
+structureRoutes.get('/patients/:id', async (c) => {
+  const profil   = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase' as never) as any
+  const id       = c.req.param('id')
+
+  // Charger identité patient (RLS autorise si enregistré ici OU si consultation ici)
+  const { data: patient } = await supabase
+    .from('patient_dossiers')
+    .select('id, numero_national, nom, prenom, date_naissance, sexe, groupe_sanguin, rhesus, allergies, maladies_chroniques, telephone')
+    .eq('id', id)
+    .single()
+
+  if (!patient) {
+    return c.redirect('/structure/patients')
+  }
+
+  // Charger en parallèle TOUT ce qui concerne ce patient DANS cette structure
+  const sid = profil.structure_id
+  const [
+    consultRes, ordRes, examenRes,
+    hospitRes, docRes, vaccRes,
+    factureRes, rdvRes
+  ] = await Promise.all([
+    // Consultations faites dans la structure
+    supabase.from('medical_consultations')
+      .select('id, date_heure, type_consultation, motif, diagnostic_principal, conduite_a_tenir, auth_medecins(auth_profiles(nom, prenom)), struct_services(nom)')
+      .eq('patient_id', id).eq('structure_id', sid)
+      .order('date_heure', { ascending: false }),
+
+    // Ordonnances prescrites dans la structure
+    supabase.from('medical_ordonnances')
+      .select('id, numero_ordonnance, date_emission, date_expiration, statut, auth_medecins(auth_profiles(nom, prenom)), medical_ordonnance_lignes(medicament_nom, dosage, frequence, duree)')
+      .eq('patient_id', id).eq('structure_id', sid)
+      .order('date_emission', { ascending: false }),
+
+    // Examens prescrits dans la structure (labo, radio, écho, ECG…)
+    supabase.from('medical_examens')
+      .select('id, type_examen, nom_examen, statut, est_urgent, est_anormal, resultat_texte, created_at, date_resultat, auth_medecins!medical_examens_prescripteur_id_fkey(auth_profiles(nom, prenom))')
+      .eq('patient_id', id).eq('structure_id', sid)
+      .order('created_at', { ascending: false }),
+
+    // Hospitalisations dans la structure
+    supabase.from('medical_hospitalisations')
+      .select('id, date_entree, date_sortie_reelle, date_sortie_prevue, motif_admission, etat_a_l_entree, type_sortie, struct_lits(numero_lit, struct_services(nom)), auth_medecins!medical_hospitalisations_medecin_responsable_id_fkey(auth_profiles(nom, prenom))')
+      .eq('patient_id', id).eq('structure_id', sid)
+      .order('date_entree', { ascending: false }),
+
+    // Documents médicaux uploadés dans la structure
+    supabase.from('medical_documents')
+      .select('id, type_document, titre, fichier_url, date_document, est_confidentiel, auth_profiles(nom, prenom)')
+      .eq('patient_id', id).eq('structure_id', sid)
+      .order('date_document', { ascending: false }),
+
+    // Vaccinations administrées dans la structure
+    supabase.from('spec_vaccinations')
+      .select('id, vaccin_nom, date_administration, numero_dose, prochaine_dose_date, reactions_observees, auth_profiles(nom, prenom)')
+      .eq('patient_id', id).eq('structure_id', sid)
+      .order('date_administration', { ascending: false }),
+
+    // Factures de la structure
+    supabase.from('finance_factures')
+      .select('id, numero_facture, date_emission, total_ttc, montant_patient, montant_assurance, statut')
+      .eq('patient_id', id).eq('structure_id', sid)
+      .order('date_emission', { ascending: false }),
+
+    // RDV de la structure
+    supabase.from('medical_rendez_vous')
+      .select('id, date_heure, motif, statut, auth_medecins!medical_rendez_vous_medecin_id_fkey(auth_profiles(nom, prenom))')
+      .eq('patient_id', id).eq('structure_id', sid)
+      .order('date_heure', { ascending: false })
+      .limit(10),
+  ])
+
+  const consultations  = consultRes.data  ?? []
+  const ordonnances    = ordRes.data       ?? []
+  const examens        = examenRes.data    ?? []
+  const hospitalisations = hospitRes.data  ?? []
+  const documents      = docRes.data       ?? []
+  const vaccinations   = vaccRes.data      ?? []
+  const factures       = factureRes.data   ?? []
+  const rdvs           = rdvRes.data       ?? []
+
+  const calcAge = (ddn: string) =>
+    Math.floor((Date.now() - new Date(ddn).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+  const age = patient.date_naissance ? calcAge(patient.date_naissance) : '?'
+  const allergies: any[]  = Array.isArray(patient.allergies) ? patient.allergies : []
+  const maladies: any[]   = Array.isArray(patient.maladies_chroniques) ? patient.maladies_chroniques : []
+
+  // ── Section allergies ─────────────────────────────────────
+  const allergiesHtml = allergies.length > 0
+    ? allergies.map((a: any) => {
+        const sub = a.substance || a.nom || String(a)
+        const rx  = a.reaction ? ` — ${a.reaction}` : ''
+        return `<div style="background:var(--rouge-c);border-left:4px solid var(--rouge);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+          <div style="font-weight:700;color:var(--rouge);">${sub}</div>
+          ${rx ? `<div style="font-size:12px;color:#7f1d1d;">${rx}</div>` : ''}
+        </div>`
+      }).join('')
+    : '<div class="empty">Aucune allergie enregistrée</div>'
+
+  // ── Section consultations ─────────────────────────────────
+  const consultHtml = consultations.map((c: any) => {
+    const med = c.auth_medecins?.auth_profiles
+    const dt  = new Date(c.date_heure).toLocaleDateString('fr-FR')
+    const svc = (c.struct_services as any)?.nom || ''
+    return `<div style="border-left:3px solid var(--or);padding:12px 14px;margin-bottom:10px;background:var(--or-c);border-radius:0 8px 8px 0;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+        <span class="badge b-or">${c.type_consultation || 'normale'}</span>
+        <span style="font-size:12px;color:var(--soft);">${dt}${svc ? ` · ${svc}` : ''}</span>
+      </div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px;">${c.motif || 'N/A'}</div>
+      ${c.diagnostic_principal ? `<div style="font-size:13px;color:var(--or-f);">→ ${c.diagnostic_principal}</div>` : ''}
+      ${c.conduite_a_tenir ? `<div style="font-size:12px;color:var(--soft);margin-top:3px;">📌 ${c.conduite_a_tenir}</div>` : ''}
+      ${med ? `<div style="font-size:12px;color:var(--soft);margin-top:3px;">Dr. ${med.prenom || ''} ${med.nom || ''}</div>` : ''}
+    </div>`
+  }).join('') || '<div class="empty">Aucune consultation dans cette structure</div>'
+
+  // ── Section ordonnances ───────────────────────────────────
+  const STATUT_ORD: Record<string, string> = {
+    active: 'b-vert', expiree: 'b-gris', delivree: 'b-bleu',
+    partiellement_delivree: 'b-or', annulee: 'b-rouge',
+  }
+  const ordHtml = ordonnances.map((o: any) => {
+    const med    = o.auth_medecins?.auth_profiles
+    const dt     = new Date(o.date_emission).toLocaleDateString('fr-FR')
+    const lignes = (o.medical_ordonnance_lignes as any[]) || []
+    return `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--vert);padding:14px 16px;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+        <div style="font-family:monospace;font-size:13px;font-weight:700;">${o.numero_ordonnance}</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span class="badge ${STATUT_ORD[o.statut] || 'b-gris'}">${o.statut}</span>
+          <span style="font-size:12px;color:var(--soft);">${dt}</span>
+        </div>
+      </div>
+      ${med ? `<div style="font-size:12px;color:var(--soft);margin-bottom:8px;">Dr. ${med.prenom || ''} ${med.nom || ''}</div>` : ''}
+      ${lignes.length > 0 ? `<div style="display:flex;flex-direction:column;gap:4px;">
+        ${lignes.map((l: any) => `<div style="font-size:13px;background:#f0f9f0;padding:7px 10px;border-radius:6px;">
+          💊 <strong>${l.medicament_nom}</strong> — ${l.dosage} · ${l.frequence} · ${l.duree}
+        </div>`).join('')}
+      </div>` : ''}
+    </div>`
+  }).join('') || '<div class="empty">Aucune ordonnance dans cette structure</div>'
+
+  // ── Section examens ───────────────────────────────────────
+  const TYPE_ICO: Record<string, string> = {
+    biologie: '🧪', radiologie: '🩻', echographie: '📡', ecg: '📈',
+    endoscopie: '🔬', anatomopathologie: '🧫', autre: '🔍',
+  }
+  const examHtml = examens.map((e: any) => {
+    const med  = e.auth_medecins?.auth_profiles
+    const dt   = new Date(e.created_at).toLocaleDateString('fr-FR')
+    const ico  = TYPE_ICO[e.type_examen] || '🔍'
+    const dispo = e.statut === 'resultat_disponible'
+    return `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--bordure);">
+      <div style="font-size:24px;flex-shrink:0;">${ico}</div>
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+          <span style="font-weight:700;">${e.nom_examen || e.type_examen}</span>
+          ${e.est_urgent ? '<span class="badge b-rouge">⚡ Urgent</span>' : ''}
+          ${e.est_anormal ? '<span class="badge b-rouge">⚠️ Anormal</span>' : ''}
+          <span class="badge ${dispo ? 'b-vert' : 'b-or'}">${dispo ? '✓ Résultat dispo' : '⏳ En attente'}</span>
+        </div>
+        ${med ? `<div style="font-size:12px;color:var(--soft);">Prescrit par Dr. ${med.prenom || ''} ${med.nom || ''} · ${dt}</div>` : `<div style="font-size:12px;color:var(--soft);">${dt}</div>`}
+        ${dispo && e.resultat_texte ? `<div style="font-size:13px;margin-top:6px;background:var(--vert-c);padding:8px 10px;border-radius:6px;">${e.resultat_texte}</div>` : ''}
+      </div>
+    </div>`
+  }).join('') || '<div class="empty">Aucun examen dans cette structure</div>'
+
+  // ── Section hospitalisations ──────────────────────────────
+  const hospitHtml = hospitalisations.map((h: any) => {
+    const med  = h.auth_medecins?.auth_profiles
+    const lit  = h.struct_lits as any
+    const svc  = lit?.struct_services?.nom || ''
+    const dtE  = new Date(h.date_entree).toLocaleDateString('fr-FR')
+    const dtS  = h.date_sortie_reelle ? new Date(h.date_sortie_reelle).toLocaleDateString('fr-FR') : 'En cours'
+    const duree = h.date_sortie_reelle
+      ? Math.floor((new Date(h.date_sortie_reelle).getTime() - new Date(h.date_entree).getTime()) / (1000 * 60 * 60 * 24)) + ' jours'
+      : Math.floor((Date.now() - new Date(h.date_entree).getTime()) / (1000 * 60 * 60 * 24)) + ' jours (en cours)'
+    return `<div style="border-left:4px solid var(--bleu);padding:12px 14px;margin-bottom:10px;background:var(--bleu-c);border-radius:0 8px 8px 0;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+        <span class="badge b-bleu">🏨 ${svc || 'Hospitalisation'}</span>
+        <span style="font-size:12px;color:var(--soft);">${dtE} → ${dtS} (${duree})</span>
+      </div>
+      <div style="font-weight:700;margin-bottom:4px;">${h.motif_admission || '—'}</div>
+      <div style="font-size:12px;color:var(--soft);">
+        Lit : ${lit?.numero_lit || '—'}
+        ${h.etat_a_l_entree ? ` · État entrée : ${h.etat_a_l_entree}` : ''}
+        ${h.type_sortie ? ` · Sortie : ${h.type_sortie}` : ''}
+      </div>
+      ${med ? `<div style="font-size:12px;color:var(--soft);">Dr. ${med.prenom || ''} ${med.nom || ''}</div>` : ''}
+    </div>`
+  }).join('') || '<div class="empty">Aucune hospitalisation dans cette structure</div>'
+
+  // ── Section vaccinations ──────────────────────────────────
+  const vaccHtml = vaccinations.map((v: any) => {
+    const dt     = new Date(v.date_administration).toLocaleDateString('fr-FR')
+    const rappel = v.prochaine_dose_date && new Date(v.prochaine_dose_date) > new Date()
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--bordure);">
+      <div style="font-size:22px;">💉</div>
+      <div style="flex:1;">
+        <div style="font-weight:700;">${v.vaccin_nom}</div>
+        <div style="font-size:12px;color:var(--soft);">Dose ${v.numero_dose} · ${dt}</div>
+        ${v.reactions_observees ? `<div style="font-size:12px;color:var(--rouge);">⚠️ ${v.reactions_observees}</div>` : ''}
+      </div>
+      ${rappel ? `<span class="badge b-or">Rappel ${new Date(v.prochaine_dose_date).toLocaleDateString('fr-FR')}</span>` : '<span class="badge b-vert">✓ À jour</span>'}
+    </div>`
+  }).join('') || '<div class="empty">Aucune vaccination dans cette structure</div>'
+
+  // ── Section documents ─────────────────────────────────────
+  const DOC_ICO: Record<string, string> = {
+    radio: '🩻', scanner: '🔍', irm: '🧲', echo_image: '📡',
+    compte_rendu_op: '📄', compte_rendu_hospit: '📋',
+    certificat_medical: '📜', resultats_labo: '🧪', autre: '📎',
+  }
+  const docHtml = documents
+    .filter((d: any) => !d.est_confidentiel)  // documents confidentiels = médecin uniquement
+    .map((d: any) => {
+      const ico = DOC_ICO[d.type_document] || '📎'
+      const dt  = d.date_document ? new Date(d.date_document).toLocaleDateString('fr-FR') : '—'
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--bordure);">
+        <div style="font-size:24px;flex-shrink:0;">${ico}</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;">${d.titre || d.type_document}</div>
+          <div style="font-size:12px;color:var(--soft);">${dt}${d.auth_profiles ? ` · ${(d.auth_profiles as any).prenom || ''} ${(d.auth_profiles as any).nom || ''}` : ''}</div>
+        </div>
+        ${d.fichier_url ? `<a href="${d.fichier_url}" target="_blank" class="btn btn-vert" style="font-size:12px;padding:6px 10px;">📥 Voir</a>` : ''}
+      </div>`
+    }).join('') || '<div class="empty">Aucun document dans cette structure</div>'
+
+  // ── Section factures ──────────────────────────────────────
+  const STATUT_F: Record<string, string> = {
+    payee: 'b-vert', impayee: 'b-rouge', partiellement_payee: 'b-or', annulee: 'b-gris',
+  }
+  const factureHtml = factures.map((f: any) => {
+    const dt = new Date(f.date_emission).toLocaleDateString('fr-FR')
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bordure);flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-family:monospace;font-size:12px;font-weight:700;">${f.numero_facture}</div>
+        <div style="font-size:12px;color:var(--soft);">${dt}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-weight:700;color:var(--vert);">${fcfa(f.total_ttc || 0)}</div>
+        <span class="badge ${STATUT_F[f.statut] || 'b-gris'}">${f.statut}</span>
+      </div>
+    </div>`
+  }).join('') || '<div class="empty">Aucune facture dans cette structure</div>'
+
+  // ── RDV ───────────────────────────────────────────────────
+  const rdvHtml = rdvs.map((r: any) => {
+    const med = r.auth_medecins?.auth_profiles
+    const dt  = new Date(r.date_heure).toLocaleDateString('fr-FR')
+    const hr  = new Date(r.date_heure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    const pass = new Date(r.date_heure) < new Date()
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bordure);${pass ? 'opacity:.65;' : ''}flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-weight:700;">${dt} à ${hr}</div>
+        <div style="font-size:12px;color:var(--soft);">${r.motif || '—'}${med ? ` · Dr. ${med.prenom || ''} ${med.nom || ''}` : ''}</div>
+      </div>
+      <span class="badge ${r.statut === 'confirme' ? 'b-vert' : r.statut === 'annule' ? 'b-rouge' : 'b-or'}">${r.statut}</span>
+    </div>`
+  }).join('') || '<div class="empty">Aucun RDV dans cette structure</div>'
+
+  // ── Total recettes patient dans cette structure ───────────
+  const totalPaye = factures.filter((f: any) => f.statut === 'payee').reduce((s: number, f: any) => s + (f.total_ttc || 0), 0)
+
+  const content = `
+<div class="page-header">
+  <div>
+    <div class="page-title">${patient.prenom} ${patient.nom}</div>
+    <div style="font-size:12px;color:var(--soft);margin-top:3px;font-family:monospace;">${patient.numero_national || '—'}</div>
+  </div>
+  <a href="/structure/patients" class="back-btn">← Patients</a>
+</div>
+
+<div class="alert-box" style="background:var(--or-c);border-color:var(--or);color:#7a5500;">
+  ⚠️ <strong>Dossier partiel :</strong> Vous ne voyez que les actes réalisés dans <strong>votre structure</strong>.
+  Les données d'autres établissements ne sont pas accessibles sans autorisation du patient.
+</div>
+
+<!-- Identité + stats rapides -->
+<div class="card" style="margin-bottom:14px;">
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+    <div style="width:56px;height:56px;border-radius:12px;background:var(--or-c);
+      display:flex;align-items:center;justify-content:center;font-size:20px;
+      font-weight:700;color:var(--or-f);">${patient.prenom.charAt(0)}${patient.nom.charAt(0)}</div>
+    <div style="flex:1;">
+      <div style="font-family:'Fraunces',serif;font-size:22px;">${patient.prenom} ${patient.nom}</div>
+      <div style="font-size:13px;color:var(--soft);margin-top:3px;">
+        ${patient.sexe === 'M' ? '♂ Homme' : '♀ Femme'} · ${age} ans
+        ${patient.groupe_sanguin ? ` · <strong style="color:var(--rouge);">🩸 ${patient.groupe_sanguin}${patient.rhesus || ''}</strong>` : ''}
+        ${patient.telephone ? ` · 📞 ${patient.telephone}` : ''}
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <div style="text-align:center;padding:10px 16px;background:var(--or-c);border-radius:var(--rs);">
+        <div style="font-family:'Fraunces',serif;font-size:22px;color:var(--or-f);">${consultations.length}</div>
+        <div style="font-size:11px;color:var(--soft);">Consultations</div>
+      </div>
+      <div style="text-align:center;padding:10px 16px;background:var(--vert-c);border-radius:var(--rs);">
+        <div style="font-family:'Fraunces',serif;font-size:22px;color:var(--vert);">${ordonnances.length}</div>
+        <div style="font-size:11px;color:var(--soft);">Ordonnances</div>
+      </div>
+      <div style="text-align:center;padding:10px 16px;background:var(--bleu-c);border-radius:var(--rs);">
+        <div style="font-family:'Fraunces',serif;font-size:22px;color:var(--bleu);">${examens.length}</div>
+        <div style="font-size:11px;color:var(--soft);">Examens</div>
+      </div>
+      <div style="text-align:center;padding:10px 16px;background:var(--rouge-c);border-radius:var(--rs);">
+        <div style="font-family:'Fraunces',serif;font-size:22px;color:var(--rouge);">${fcfa(totalPaye)}</div>
+        <div style="font-size:11px;color:var(--soft);">Total payé</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+${allergies.length > 0 ? `<div class="card" style="margin-bottom:14px;border-left:4px solid var(--rouge);">
+  <div class="card-hd"><div class="card-title" style="color:var(--rouge);">⚠️ Allergies connues</div></div>
+  ${allergiesHtml}
+</div>` : ''}
+
+${maladies.length > 0 ? `<div class="card" style="margin-bottom:14px;border-left:4px solid var(--or);">
+  <div class="card-hd"><div class="card-title">🫀 Maladies chroniques</div></div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    ${maladies.map((m: any) => `<span class="badge b-or">💊 ${m.maladie || m.nom || String(m)}</span>`).join('')}
+  </div>
+</div>` : ''}
+
+<!-- Onglets de navigation -->
+<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;" id="tabs">
+  ${[
+    ['consult',  '📋 Consultations (' + consultations.length + ')'],
+    ['ordo',     '💊 Ordonnances (' + ordonnances.length + ')'],
+    ['examens',  '🧪 Examens (' + examens.length + ')'],
+    ['hospit',   '🏨 Hospitalisations (' + hospitalisations.length + ')'],
+    ['vaccins',  '💉 Vaccinations (' + vaccinations.length + ')'],
+    ['docs',     '📁 Documents (' + documents.filter((d: any) => !d.est_confidentiel).length + ')'],
+    ['factures', '💰 Factures (' + factures.length + ')'],
+    ['rdv',      '📅 RDV (' + rdvs.length + ')'],
+  ].map(([key, label]) =>
+    `<button onclick="showTab('${key}')" id="tab-${key}"
+      style="padding:8px 14px;border-radius:20px;font-size:12.5px;font-weight:600;
+        border:1.5px solid var(--bordure);background:var(--blanc);cursor:pointer;
+        color:var(--texte);transition:all .2s;font-family:inherit;"
+      onmouseover="this.style.background='var(--or-c)'"
+      onmouseout="if(!this.classList.contains('tab-active'))this.style.background='var(--blanc)'"
+      class="">${label}</button>`
+  ).join('')}
+</div>
+
+<div id="panel-consult" class="tab-panel card">${consultHtml}</div>
+<div id="panel-ordo"    class="tab-panel card" style="display:none;">${ordHtml}</div>
+<div id="panel-examens" class="tab-panel card" style="display:none;">${examHtml}</div>
+<div id="panel-hospit"  class="tab-panel card" style="display:none;">${hospitHtml}</div>
+<div id="panel-vaccins" class="tab-panel card" style="display:none;">${vaccHtml}</div>
+<div id="panel-docs"    class="tab-panel card" style="display:none;">${docHtml}</div>
+<div id="panel-factures"class="tab-panel card" style="display:none;">${factureHtml}</div>
+<div id="panel-rdv"     class="tab-panel card" style="display:none;">${rdvHtml}</div>
+
+<script>
+function showTab(key){
+  document.querySelectorAll('.tab-panel').forEach(function(p){p.style.display='none';});
+  document.getElementById('panel-'+key).style.display='block';
+  document.querySelectorAll('#tabs button').forEach(function(b){
+    b.classList.remove('tab-active');
+    b.style.background='var(--blanc)';b.style.color='var(--texte)';b.style.borderColor='var(--bordure)';
+  });
+  var btn=document.getElementById('tab-'+key);
+  btn.classList.add('tab-active');
+  btn.style.background='var(--or)';btn.style.color='#1a1400';btn.style.borderColor='var(--or)';
+}
+showTab('consult');
+</script>`
+
+  return c.html(structureLayout(profil, patient.prenom + ' ' + patient.nom, 'patients', content))
 })
