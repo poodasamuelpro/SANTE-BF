@@ -1,11 +1,11 @@
 // src/pages/dashboard-medecin.ts
 export function dashboardMedecinPage(profil: any, data: {
-  rdvJour: any[]
-  consultationsJour: number
-  ordonnancesActives: number
-  rdvAVenir: number
-  consultationsRecentes: any[]
-  nbPatientsConsentement: number
+  rdvJour: any[]               // liste des RDV du jour
+  consultationsJour: number     // nombre de consultations aujourd'hui
+  ordonnancesActives: number    // ordonnances actives émises par ce médecin
+  rdvAVenir: number             // nombre total de RDV à venir
+  consultationsRecentes: any[]  // 5 dernières consultations
+  nbPatientsConsentement: number // patients avec consentement actif
 }): string {
   const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
   const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -15,203 +15,446 @@ export function dashboardMedecinPage(profil: any, data: {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SantéBF — Espace Médical</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
+  <title>SantéBF — Tableau de bord médical</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --violet:       #4A148C;
-      --violet-mid:   #6A1B9A;
-      --violet-clair: #f3e8ff;
-      --violet-glow:  rgba(74,20,140,0.12);
-      --vert:         #1A6B3C;
-      --texte:        #0f1923;
-      --texte-soft:   #5a6a78;
-      --bg:           #f6f4f9;
-      --blanc:        #ffffff;
-      --bordure:      #e5e0ee;
-      --shadow-sm:    0 1px 4px rgba(0,0,0,0.06);
-      --shadow-md:    0 4px 20px rgba(0,0,0,0.08);
-      --radius:       16px;
-      --radius-sm:    10px;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); min-height:100vh; color:var(--texte); }
-
-    .layout { display:flex; min-height:100vh; }
-
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f5f7fb;
+      color: #1e293b;
+    }
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
     /* SIDEBAR */
     .sidebar {
-      width:250px; background:var(--violet); position:fixed;
-      top:0; left:0; height:100vh; z-index:200;
-      display:flex; flex-direction:column; transition:transform 0.3s;
+      width: 260px;
+      background: #0b2b4f;
+      color: white;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      transition: transform 0.3s;
+      z-index: 200;
     }
-    .sidebar-brand { padding:24px 20px 18px; border-bottom:1px solid rgba(255,255,255,0.1); }
-    .brand-row { display:flex; align-items:center; gap:10px; }
-    .brand-icon { width:36px; height:36px; background:rgba(255,255,255,0.2); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:17px; }
-    .brand-name { font-family:'Fraunces',serif; font-size:18px; color:white; }
-    .brand-sub { font-size:10px; color:rgba(255,255,255,0.4); letter-spacing:1.2px; text-transform:uppercase; margin-top:4px; padding-left:46px; }
-    .sidebar-nav { flex:1; padding:12px 10px; overflow-y:auto; }
-    .nav-label { font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:rgba(255,255,255,0.3); padding:10px 10px 5px; }
-    .nav-item { display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:var(--radius-sm); text-decoration:none; color:rgba(255,255,255,0.65); font-size:13.5px; font-weight:500; margin-bottom:2px; transition:all 0.2s; }
-    .nav-item:hover { background:rgba(255,255,255,0.1); color:white; }
-    .nav-item.active { background:rgba(255,255,255,0.18); color:white; font-weight:600; }
-    .nav-icon { font-size:15px; width:18px; text-align:center; }
-    .sidebar-footer { padding:14px 10px; border-top:1px solid rgba(255,255,255,0.1); }
-    .user-card { display:flex; align-items:center; gap:10px; padding:10px; border-radius:var(--radius-sm); background:rgba(255,255,255,0.08); }
-    .user-avatar { width:34px; height:34px; background:rgba(255,255,255,0.2); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:white; flex-shrink:0; }
-    .user-info { flex:1; min-width:0; }
-    .user-name { font-size:12.5px; font-weight:600; color:white; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .user-role { font-size:10.5px; color:rgba(255,255,255,0.4); }
-    .logout-btn { width:26px; height:26px; background:rgba(255,255,255,0.08); border:none; border-radius:6px; color:rgba(255,255,255,0.5); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; text-decoration:none; transition:all 0.2s; flex-shrink:0; }
-    .logout-btn:hover { background:rgba(255,80,80,0.2); color:#ff8080; }
-
+    .sidebar-header {
+      padding: 24px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .sidebar-header h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+    }
+    .sidebar-header p {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+    .sidebar-nav {
+      padding: 20px 12px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      margin-bottom: 4px;
+      transition: all 0.2s;
+    }
+    .nav-item:hover {
+      background: rgba(255,255,255,0.1);
+      color: white;
+    }
+    .nav-item.active {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      font-weight: 600;
+    }
+    .nav-icon {
+      font-size: 1.2rem;
+      width: 24px;
+      text-align: center;
+    }
+    .sidebar-footer {
+      padding: 20px 16px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+    }
+    .user-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255,255,255,0.1);
+      padding: 12px;
+      border-radius: 10px;
+    }
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      background: #2a4a7a;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+    .user-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .user-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .user-role {
+      font-size: 0.75rem;
+      opacity: 0.7;
+    }
+    .logout-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 1rem;
+    }
+    .logout-btn:hover {
+      background: rgba(255,80,80,0.3);
+    }
     /* MAIN */
-    .main { margin-left:250px; flex:1; display:flex; flex-direction:column; }
-
-    .topbar { height:62px; background:var(--blanc); border-bottom:1px solid var(--bordure); display:flex; align-items:center; justify-content:space-between; padding:0 28px; position:sticky; top:0; z-index:100; }
-    .topbar-title { font-family:'Fraunces',serif; font-size:19px; font-weight:600; color:var(--texte); }
-    .topbar-sub { font-size:12px; color:var(--texte-soft); margin-top:1px; }
-    .datetime-pill { background:var(--violet-clair); padding:6px 14px; border-radius:20px; font-size:12.5px; font-weight:600; color:var(--violet); }
-    .menu-toggle { display:none; background:none; border:none; font-size:20px; cursor:pointer; color:var(--texte); }
-
-    .content { padding:28px; }
-
-    /* STATS CARDS */
+    .main {
+      margin-left: 260px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .topbar {
+      height: 70px;
+      background: white;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .menu-toggle {
+      display: none;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #1e293b;
+    }
+    .page-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    .date-badge {
+      background: #e9f0fc;
+      padding: 6px 16px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      color: #0b2b4f;
+    }
+    .content {
+      padding: 28px;
+    }
+    /* STATISTIQUES RAPIDES */
     .stats-grid {
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:16px;
-      margin-bottom:28px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
     }
     .stat-card {
-      background:var(--blanc);
-      border-radius:var(--radius);
-      padding:20px 18px;
-      box-shadow:var(--shadow-sm);
-      border:1px solid var(--bordure);
+      background: white;
+      border-radius: 16px;
+      padding: 24px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border: 1px solid #e2e8f0;
     }
-    .stat-label { font-size:12px; font-weight:500; color:var(--texte-soft); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; }
-    .stat-value { font-size:32px; font-weight:700; color:var(--violet); font-family:'Fraunces',serif; line-height:1; margin-bottom:4px; }
-    .stat-detail { font-size:12px; color:var(--texte-soft); }
-
-    /* QUICK ACTIONS */
-    .quick-grid {
-      display:grid;
-      grid-template-columns:repeat(6,1fr);
-      gap:12px;
-      margin-bottom:28px;
+    .stat-label {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
     }
-    .quick-card {
-      background:var(--blanc);
-      border-radius:var(--radius);
-      padding:18px 12px;
-      text-align:center;
-      text-decoration:none;
-      color:var(--texte);
-      border:1px solid var(--bordure);
-      transition:all 0.2s;
-      box-shadow:var(--shadow-sm);
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #0b2b4f;
+      line-height: 1.2;
     }
-    .quick-card:hover {
-      border-color:var(--violet);
-      box-shadow:0 0 0 3px var(--violet-glow), var(--shadow-md);
-      transform:translateY(-2px);
+    .stat-detail {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-top: 4px;
     }
-    .quick-icon { font-size:24px; margin-bottom:8px; }
-    .quick-label { font-size:12px; font-weight:600; color:var(--texte); }
-
-    /* GRID 2 COL */
-    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
-
-    .section-box { background:var(--blanc); border-radius:var(--radius); border:1px solid var(--bordure); overflow:hidden; box-shadow:var(--shadow-sm); }
-    .section-head { padding:16px 20px; background:var(--violet); display:flex; justify-content:space-between; align-items:center; }
-    .section-head h3 { font-size:14px; font-weight:600; color:white; }
-    .section-head a { font-size:12px; color:rgba(255,255,255,0.7); text-decoration:none; padding:4px 10px; border-radius:6px; background:rgba(255,255,255,0.12); }
-    .section-head a:hover { background:rgba(255,255,255,0.2); color:white; }
-
-    /* RDV */
-    .rdv-item { padding:14px 20px; border-bottom:1px solid #f5f0f9; display:flex; align-items:center; gap:14px; }
-    .rdv-item:last-child { border-bottom:none; }
-    .rdv-heure { font-size:14px; font-weight:700; color:var(--violet); min-width:44px; font-family:'Fraunces',serif; }
-    .rdv-info strong { display:block; font-size:13px; font-weight:600; }
-    .rdv-info span { font-size:11px; color:var(--texte-soft); }
-    .rdv-badge { margin-left:auto; padding:3px 10px; border-radius:20px; font-size:10.5px; font-weight:600; white-space:nowrap; }
-    .rdv-badge.planifie { background:#ede7f6; color:var(--violet); }
-    .rdv-badge.confirme { background:#e8f5e9; color:var(--vert); }
-    .rdv-badge.passe { background:#f5f5f5; color:#9e9e9e; }
-    .rdv-badge.annule { background:#fce8e8; color:#b71c1c; }
-
-    /* CONSULTATIONS */
-    .consult-item { padding:14px 20px; border-bottom:1px solid #f5f0f9; }
-    .consult-item:last-child { border-bottom:none; }
-    .ci-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; }
-    .ci-patient { font-size:13px; font-weight:600; }
-    .ci-date { font-size:11px; color:var(--texte-soft); }
-    .ci-motif { font-size:12px; color:var(--texte-soft); }
-    .ci-diag { font-size:12px; color:var(--violet); margin-top:3px; font-weight:500; }
-
-    .empty { padding:24px; text-align:center; color:var(--texte-soft); font-size:13px; font-style:italic; }
-    .voir-plus { display:block; text-align:center; padding:12px; font-size:12px; color:var(--violet); text-decoration:none; border-top:1px solid var(--bordure); font-weight:500; }
-    .voir-plus:hover { background:var(--violet-clair); }
-
-    .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:150; }
-    .overlay.open { display:block; }
-
-    @media (max-width:1200px) {
-      .stats-grid { grid-template-columns:repeat(2,1fr); }
-      .quick-grid { grid-template-columns:repeat(3,1fr); }
+    /* ACTIONS RAPIDES */
+    .quick-actions {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
     }
-    @media (max-width:900px) {
-      .grid2 { grid-template-columns:1fr; }
+    .action-btn {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 30px;
+      padding: 10px 20px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #1e293b;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
     }
-    @media (max-width:768px) {
-      .sidebar { transform:translateX(-100%); }
-      .sidebar.open { transform:translateX(0); }
-      .main { margin-left:0; }
-      .menu-toggle { display:flex; }
-      .content { padding:16px; }
-      .stats-grid { grid-template-columns:1fr; }
-      .quick-grid { grid-template-columns:repeat(3,1fr); }
+    .action-btn:hover {
+      background: #0b2b4f;
+      color: white;
+      border-color: #0b2b4f;
     }
-    @media (max-width:480px) {
-      .quick-grid { grid-template-columns:repeat(2,1fr); }
+    .action-btn:hover .action-icon {
+      color: white;
+    }
+    .action-icon {
+      font-size: 1.2rem;
+    }
+    /* GRILLE 2 COLONNES */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 16px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-header a {
+      color: #0b2b4f;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .rdv-list, .consult-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .rdv-item, .consult-item {
+      padding: 14px 20px;
+      border-bottom: 1px solid #ecf0f5;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .rdv-item:last-child, .consult-item:last-child {
+      border-bottom: none;
+    }
+    .rdv-time {
+      font-weight: 600;
+      color: #0b2b4f;
+      min-width: 60px;
+      font-size: 0.95rem;
+    }
+    .rdv-info {
+      flex: 1;
+    }
+    .rdv-patient {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .rdv-motif {
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+    .rdv-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .rdv-badge.planifie {
+      background: #e9f0fc;
+      color: #0b2b4f;
+    }
+    .rdv-badge.confirme {
+      background: #e6f7e6;
+      color: #2e7d32;
+    }
+    .rdv-badge.annule {
+      background: #fee9e9;
+      color: #c62828;
+    }
+    .rdv-badge.passe {
+      background: #e2e8f0;
+      color: #475569;
+    }
+    .consult-patient {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .consult-date {
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+    .consult-diagnostic {
+      font-size: 0.85rem;
+      color: #0b2b4f;
+      margin-top: 2px;
+    }
+    .empty {
+      padding: 40px;
+      text-align: center;
+      color: #94a3b8;
+      font-style: italic;
+    }
+    .view-all {
+      display: block;
+      text-align: center;
+      padding: 12px;
+      font-size: 0.9rem;
+      color: #0b2b4f;
+      text-decoration: none;
+      border-top: 1px solid #ecf0f5;
+      font-weight: 500;
+    }
+    .view-all:hover {
+      background: #f1f5f9;
+    }
+    /* RESPONSIVE */
+    @media (max-width: 1024px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+      .sidebar.open {
+        transform: translateX(0);
+      }
+      .main {
+        margin-left: 0;
+      }
+      .menu-toggle {
+        display: block;
+      }
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+      .content {
+        padding: 16px;
+      }
+    }
+    @media (max-width: 480px) {
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+      .quick-actions {
+        flex-direction: column;
+      }
+      .action-btn {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+    /* OVERLAY pour mobile */
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 150;
+    }
+    .overlay.open {
+      display: block;
     }
   </style>
 </head>
 <body>
 <div class="layout">
 
+  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-      <div class="brand-row">
-        <div class="brand-icon">🏥</div>
-        <div class="brand-name">SantéBF</div>
-      </div>
-      <div class="brand-sub">Espace médical</div>
+    <div class="sidebar-header">
+      <h2>🏥 SantéBF</h2>
+      <p>Espace médical</p>
     </div>
     <nav class="sidebar-nav">
-      <div class="nav-label">Tableau de bord</div>
-      <a href="/medecin/dashboard" class="nav-item active"><span class="nav-icon">⊞</span> Accueil</a>
-      <div class="nav-label">Patients</div>
-      <a href="/medecin/patients" class="nav-item"><span class="nav-icon">🔍</span> Mes patients</a>
-      <a href="/medecin/consultations/nouvelle" class="nav-item"><span class="nav-icon">📋</span> Nouvelle consultation</a>
-      <a href="/medecin/ordonnances/nouvelle" class="nav-item"><span class="nav-icon">💊</span> Ordonnance</a>
-      <div class="nav-label">Agenda</div>
-      <a href="/medecin/rdv" class="nav-item"><span class="nav-icon">📅</span> Planning RDV</a>
-      <a href="/medecin/hospitalisations" class="nav-item"><span class="nav-icon">🛏️</span> Hospitalisés</a>
-      <div class="nav-label">Examens</div>
-      <a href="/medecin/examens" class="nav-item"><span class="nav-icon">🧪</span> Examens prescrits</a>
-      <div class="nav-label">Suivis</div>
-      <a href="/medecin/chroniques" class="nav-item"><span class="nav-icon">📊</span> Maladies chroniques</a>
-      <a href="/medecin/grossesse" class="nav-item"><span class="nav-icon">🤰</span> Grossesse</a>
-      <div class="nav-label">Documents</div>
-      <a href="/medecin/documents" class="nav-item"><span class="nav-icon">📄</span> Documents patients</a>
-      <a href="/medecin/profil" class="nav-item"><span class="nav-icon">👤</span> Mon profil</a>
-      <a href="/medecin/notifications" class="nav-item"><span class="nav-icon">🔔</span> Notifications</a>
+      <div class="nav-item active">
+        <span class="nav-icon">📊</span> Tableau de bord
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">👥</span> <a href="/medecin/patients" style="color:inherit; text-decoration:none; flex:1;">Patients</a>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">📅</span> <a href="/medecin/rdv" style="color:inherit; text-decoration:none; flex:1;">Rendez-vous</a>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">💊</span> <a href="/medecin/ordonnances" style="color:inherit; text-decoration:none; flex:1;">Ordonnances</a>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">🔬</span> <a href="/medecin/examens" style="color:inherit; text-decoration:none; flex:1;">Examens</a>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">🛏️</span> <a href="/medecin/hospitalisations" style="color:inherit; text-decoration:none; flex:1;">Hospitalisations</a>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">📄</span> <a href="/medecin/documents" style="color:inherit; text-decoration:none; flex:1;">Documents</a>
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">⚙️</span> <a href="/medecin/profil" style="color:inherit; text-decoration:none; flex:1;">Mon profil</a>
+      </div>
     </nav>
     <div class="sidebar-footer">
       <div class="user-card">
-        <div class="user-avatar">${profil.prenom?.charAt(0) || ''}${profil.nom?.charAt(0) || ''}</div>
+        <div class="user-avatar">${(profil.prenom?.[0] || '')}${(profil.nom?.[0] || '')}</div>
         <div class="user-info">
           <div class="user-name">Dr. ${profil.prenom || ''} ${profil.nom || ''}</div>
           <div class="user-role">${(profil.role || '').replace(/_/g, ' ')}</div>
@@ -221,23 +464,23 @@ export function dashboardMedecinPage(profil: any, data: {
     </div>
   </aside>
 
-  <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+  <!-- Overlay mobile -->
+  <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
 
+  <!-- Contenu principal -->
   <div class="main">
     <header class="topbar">
-      <div style="display:flex;align-items:center;gap:14px;">
+      <div style="display:flex; align-items:center; gap:16px;">
         <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
-        <div>
-          <div class="topbar-title">Bonjour, Dr. ${profil.prenom || ''} 👋</div>
-          <div class="topbar-sub">${data.rdvJour.length} rendez-vous aujourd'hui</div>
-        </div>
+        <span class="page-title">Bonjour, Dr. ${profil.prenom || ''}</span>
       </div>
-      <div class="datetime-pill">🕐 ${heure} — ${date}</div>
+      <div class="date-badge">
+        <span>🕐 ${heure}</span> — <span>${date}</span>
+      </div>
     </header>
 
     <div class="content">
-
-      <!-- STATISTIQUES RAPIDES -->
+      <!-- Statistiques -->
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">Consultations aujourd'hui</div>
@@ -261,90 +504,93 @@ export function dashboardMedecinPage(profil: any, data: {
         </div>
       </div>
 
-      <!-- ACTIONS RAPIDES -->
-      <div class="quick-grid">
-        <a href="/medecin/patients" class="quick-card">
-          <div class="quick-icon">🔍</div>
-          <div class="quick-label">Mes patients</div>
+      <!-- Actions rapides -->
+      <div class="quick-actions">
+        <a href="/medecin/consultations/nouvelle" class="action-btn">
+          <span class="action-icon">📋</span> Nouvelle consultation
         </a>
-        <a href="/medecin/consultations/nouvelle" class="quick-card">
-          <div class="quick-icon">📋</div>
-          <div class="quick-label">Consultation</div>
+        <a href="/medecin/ordonnances/nouvelle" class="action-btn">
+          <span class="action-icon">💊</span> Nouvelle ordonnance
         </a>
-        <a href="/medecin/ordonnances/nouvelle" class="quick-card">
-          <div class="quick-icon">💊</div>
-          <div class="quick-label">Ordonnance</div>
+        <a href="/medecin/examens/nouveau" class="action-btn">
+          <span class="action-icon">🔬</span> Prescrire examen
         </a>
-        <a href="/medecin/rdv" class="quick-card">
-          <div class="quick-icon">📅</div>
-          <div class="quick-label">Planning</div>
+        <a href="/medecin/rdv/nouveau" class="action-btn">
+          <span class="action-icon">📅</span> Nouveau RDV
         </a>
-        <a href="/medecin/examens" class="quick-card">
-          <div class="quick-icon">🧪</div>
-          <div class="quick-label">Examens</div>
-        </a>
-        <a href="/medecin/hospitalisations" class="quick-card">
-          <div class="quick-icon">🛏️</div>
-          <div class="quick-label">Hospitalisés</div>
+        <a href="/medecin/patients" class="action-btn">
+          <span class="action-icon">👥</span> Rechercher patient
         </a>
       </div>
 
-      <!-- RDV + CONSULTATIONS RÉCENTES -->
-      <div class="grid2">
-        <div class="section-box">
-          <div class="section-head">
-            <h3>📅 RDV aujourd'hui (${data.rdvJour.length})</h3>
+      <!-- Rendez-vous du jour + Consultations récentes -->
+      <div class="grid-2">
+        <!-- RDV du jour -->
+        <div class="card">
+          <div class="card-header">
+            <span>📅 Rendez-vous aujourd'hui (${data.rdvJour.length})</span>
             <a href="/medecin/rdv">Voir tout →</a>
           </div>
-          ${data.rdvJour.length === 0
-            ? '<div class="empty">Aucun rendez-vous aujourd\'hui</div>'
-            : data.rdvJour.map((rdv: any) => `
-              <div class="rdv-item">
-                <div class="rdv-heure">${new Date(rdv.date_heure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
-                <div class="rdv-info">
-                  <strong>${rdv.patient_dossiers?.prenom || ''} ${rdv.patient_dossiers?.nom || ''}</strong>
-                  <span>${rdv.motif || 'Consultation'}</span>
-                </div>
-                <span class="rdv-badge ${rdv.statut}">${rdv.statut}</span>
-              </div>`).join('')
-          }
-          <a href="/medecin/rdv" class="voir-plus">Gérer les rendez-vous →</a>
+          <div class="rdv-list">
+            ${data.rdvJour.length === 0
+              ? '<div class="empty">Aucun rendez-vous aujourd’hui</div>'
+              : data.rdvJour.map(rdv => `
+                <div class="rdv-item">
+                  <div class="rdv-time">${new Date(rdv.date_heure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div class="rdv-info">
+                    <div class="rdv-patient">${rdv.patient_dossiers?.prenom || ''} ${rdv.patient_dossiers?.nom || ''}</div>
+                    <div class="rdv-motif">${rdv.motif || 'Consultation'}</div>
+                  </div>
+                  <span class="rdv-badge ${rdv.statut}">${rdv.statut}</span>
+                </div>`).join('')
+            }
+          </div>
+          <a href="/medecin/rdv" class="view-all">Gérer les rendez-vous →</a>
         </div>
 
-        <div class="section-box">
-          <div class="section-head">
-            <h3>📋 Consultations récentes</h3>
+        <!-- Consultations récentes -->
+        <div class="card">
+          <div class="card-header">
+            <span>📋 Consultations récentes</span>
             <a href="/medecin/consultations">Voir tout →</a>
           </div>
-          ${data.consultationsRecentes.length === 0
-            ? '<div class="empty">Aucune consultation récente</div>'
-            : data.consultationsRecentes.map((c: any) => `
-              <div class="consult-item">
-                <div class="ci-top">
-                  <span class="ci-patient">${c.patient_dossiers?.prenom || ''} ${c.patient_dossiers?.nom || ''}</span>
-                  <span class="ci-date">${new Date(c.created_at).toLocaleDateString('fr-FR')}</span>
-                </div>
-                <div class="ci-motif">${c.motif || ''}</div>
-                ${c.diagnostic_principal ? `<div class="ci-diag">→ ${c.diagnostic_principal}</div>` : ''}
-              </div>`).join('')
-          }
-          <a href="/medecin/consultations" class="voir-plus">Voir toutes les consultations →</a>
+          <div class="consult-list">
+            ${data.consultationsRecentes.length === 0
+              ? '<div class="empty">Aucune consultation récente</div>'
+              : data.consultationsRecentes.map(c => `
+                <div class="consult-item">
+                  <div style="flex:1;">
+                    <div class="consult-patient">${c.patient_dossiers?.prenom || ''} ${c.patient_dossiers?.nom || ''}</div>
+                    <div class="consult-date">${new Date(c.created_at).toLocaleDateString('fr-FR')} · ${c.type_consultation}</div>
+                    ${c.diagnostic_principal ? `<div class="consult-diagnostic">→ ${c.diagnostic_principal}</div>` : ''}
+                  </div>
+                  <a href="/medecin/consultations/nouvelle?patient_id=${c.patient_dossiers?.id}" class="btn-sm" style="background:#0b2b4f; color:white; padding:4px 8px; border-radius:6px; text-decoration:none; font-size:0.8rem;">➕</a>
+                </div>`).join('')
+            }
+          </div>
+          <a href="/medecin/consultations" class="view-all">Voir toutes les consultations →</a>
         </div>
       </div>
 
+      <!-- Rappels / Alertes (exemple si besoin) -->
+      <!-- On peut ajouter une section pour les examens en attente, etc. -->
     </div>
   </div>
 </div>
 
 <script>
   function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open')
-    document.getElementById('overlay').classList.toggle('open')
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('overlay').classList.toggle('open');
   }
-  function closeSidebar() {
-    document.getElementById('sidebar').classList.remove('open')
-    document.getElementById('overlay').classList.remove('open')
-  }
+  // Fermer la sidebar si on clique sur un lien (mobile)
+  document.querySelectorAll('.sidebar-nav a').forEach(link => {
+    link.addEventListener('click', function() {
+      if (window.innerWidth <= 768) {
+        toggleSidebar();
+      }
+    });
+  });
 </script>
 </body>
 </html>`
