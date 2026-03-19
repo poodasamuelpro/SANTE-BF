@@ -6,6 +6,15 @@
  *  - AuthProfile importé correctement
  *  - Imports PDF sécurisés avec try/catch au niveau module
  *  - Typage cohérent avec le reste du projet
+ *
+ * CORRECTIONS COLONNES DB :
+ *  - medical_ordonnance_lignes : nom_medicament → medicament_nom
+ *  - medical_ordonnance_lignes : posologie → supprimé (n'existe pas)
+ *  - medical_ordonnance_lignes : duree_jours → duree
+ *  - ord.medecin?.specialite → via JOIN auth_medecins(specialite_principale)
+ *  - ord.medecin?.ordre_numero → auth_medecins(numero_ordre_national)
+ *  - ex.conclusion/compte_rendu → ex.resultat_texte
+ *  - ex.technicien_nom → via JOIN realise_par:auth_profiles(nom, prenom)
  */
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
@@ -91,10 +100,9 @@ patientPdfRoutes.get('/ordonnances', async (c) => {
     const btnHtml     = o.statut !== 'expiree'
       ? `<a href="/patient-pdf/ordonnance/${o.id}" class="btn-dl btn-v">&#128229; PDF</a>`
       : `<span class="btn-dl btn-g">Expirée</span>`
-    // ✅ FIX : pré-calcul des HTML conditionnels pour éviter les backticks imbriqués
-    const medecinHtml  = medecin   ? `<span>&#128104;&#8205;&#9877; ${medecin}</span>`      : ''
-    const structureHtml = structure ? `<span>&#127973; ${structure}</span>`                  : ''
-    const dateExpHtml  = dateExp   ? `<span>&#8987; ${dateExp}</span>`                      : ''
+    const medecinHtml   = medecin   ? `<span>&#128104;&#8205;&#9877; ${medecin}</span>` : ''
+    const structureHtml = structure ? `<span>&#127973; ${structure}</span>`             : ''
+    const dateExpHtml   = dateExp   ? `<span>&#8987; ${dateExp}</span>`                 : ''
     return `<div class="card">
   <div class="row">
     <div>
@@ -134,7 +142,7 @@ patientPdfRoutes.get('/examens', async (c) => {
 
   const { data: list } = dossier ? await supabase
     .from('medical_examens')
-    .select('id, type_examen, statut, created_at, date_resultat, valide_par, auth_profiles!medical_examens_demandeur_id_fkey(nom, prenom)')
+    .select('id, type_examen, nom_examen, statut, created_at, valide_at, valide_par, auth_profiles!medical_examens_prescripteur_id_fkey(nom, prenom)')
     .eq('patient_id', dossier.id)
     .order('created_at', { ascending: false })
     .limit(20)
@@ -144,20 +152,19 @@ patientPdfRoutes.get('/examens', async (c) => {
     const dispo        = e.statut === 'resultat_disponible' || !!e.valide_par
     const medecin      = e.auth_profiles ? `Dr. ${e.auth_profiles.prenom || ''} ${e.auth_profiles.nom || ''}` : ''
     const dateCreation = new Date(e.created_at).toLocaleDateString('fr-FR')
-    const dateRes      = e.date_resultat ? `Résultat ${new Date(e.date_resultat).toLocaleDateString('fr-FR')}` : ''
+    const dateRes      = e.valide_at ? `Résultat ${new Date(e.valide_at).toLocaleDateString('fr-FR')}` : ''
     const btnHtml      = dispo
       ? `<a href="/patient-pdf/examen/${e.id}" class="btn-dl btn-b">&#128229; Bulletin</a>`
       : `<span class="btn-dl btn-g">En attente</span>`
     const badgeExamen  = dispo ? 'bv' : 'bo'
     const labelExamen  = dispo ? '&#10003; Disponible' : '&#8987; En attente'
-    // ✅ FIX : pré-calcul des HTML conditionnels pour éviter les backticks imbriqués
     const medecinHtml  = medecin ? `<span>&#128104;&#8205;&#9877; ${medecin}</span>` : ''
     const dateResHtml  = dateRes ? `<span>&#128203; ${dateRes}</span>`               : ''
     return `<div class="card">
   <div class="row">
     <div>
       <div style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
-        &#128300; ${e.type_examen || 'Examen'} <span class="badge ${badgeExamen}">${labelExamen}</span>
+        &#128300; ${e.nom_examen || e.type_examen || 'Examen'} <span class="badge ${badgeExamen}">${labelExamen}</span>
       </div>
       <div class="meta">
         ${medecinHtml}
@@ -194,44 +201,77 @@ patientPdfRoutes.get('/ordonnance/:id', async (c) => {
 
     const { data: ord, error } = await supabase
       .from('medical_ordonnances')
-      .select('*, patient:patient_dossiers(nom,prenom,date_naissance,sexe,numero_national), medecin:auth_profiles!medical_ordonnances_medecin_id_fkey(nom,prenom,specialite,ordre_numero,signature_url), structure:struct_structures!medical_ordonnances_structure_id_fkey(nom,type,adresse,telephone,logo_url), prescriptions:medical_ordonnance_lignes(nom_medicament,posologie,duree_jours,instructions)')
+      .select(`
+        id, numero_ordonnance, created_at, date_expiration, qr_code_verification,
+        patient:patient_dossiers(nom, prenom, date_naissance, sexe, numero_national, groupe_sanguin, rhesus),
+        medecin:auth_profiles!medical_ordonnances_medecin_id_fkey(
+          nom, prenom,
+          auth_medecins(specialite_principale, numero_ordre_national, signature_url)
+        ),
+        structure:struct_structures!medical_ordonnances_structure_id_fkey(nom, type, adresse, telephone, logo_url),
+        lignes:medical_ordonnance_lignes(
+          ordre, medicament_nom, medicament_forme, dosage, frequence, duree,
+          quantite_totale, instructions_speciales
+        )
+      `)
       .eq('id', id)
       .eq('patient_id', dossier.id)
       .single()
 
     if (error || !ord) return c.json({ error: 'Ordonnance non trouvée' }, 404)
 
+    // Calcul âge
+    const age = ord.patient?.date_naissance
+      ? Math.floor((Date.now() - new Date(ord.patient.date_naissance).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+      : undefined
+
+    // Médecin : spécialité et ordre dans auth_medecins (pas dans auth_profiles)
+    const medecinInfo = ord.medecin?.auth_medecins?.[0] ?? {}
+
     const pdfBytes = await genererOrdonnancePDF({
-      numero:  ord.numero_ordonnance,
-      date:    new Date(ord.created_at),
-      patient: {
-        nom:           ord.patient?.nom            || '',
-        prenom:        ord.patient?.prenom         || '',
-        dateNaissance: ord.patient?.date_naissance || '',
-        sexe:          ord.patient?.sexe           || '',
-        numeroNational: ord.patient?.numero_national || '',
+      structure: {
+        nom:       ord.structure?.nom       || '',
+        type:      ord.structure?.type      || '',
+        adresse:   ord.structure?.adresse   || '',
+        telephone: ord.structure?.telephone || '',
+        logo_url:  ord.structure?.logo_url  || '',
       },
       medecin: {
-        nom:         ord.medecin?.nom          || '',
-        prenom:      ord.medecin?.prenom       || '',
-        specialite:  ord.medecin?.specialite   || '',
-        ordreNumero: ord.medecin?.ordre_numero || '',
-        signatureUrl: ord.medecin?.signature_url || '',
+        nom:           ord.medecin?.nom                             || '',
+        prenom:        ord.medecin?.prenom                          || '',
+        specialite:    medecinInfo.specialite_principale            || '',
+        numero_ordre:  medecinInfo.numero_ordre_national            || '',
+        signature_url: medecinInfo.signature_url                    || '',
       },
-      structure: {
-        nom:      ord.structure?.nom       || '',
-        type:     ord.structure?.type      || '',
-        adresse:  ord.structure?.adresse   || '',
-        telephone: ord.structure?.telephone || '',
-        logoUrl:  ord.structure?.logo_url  || '',
+      patient: {
+        nom:             ord.patient?.nom             || '',
+        prenom:          ord.patient?.prenom          || '',
+        date_naissance:  ord.patient?.date_naissance
+          ? new Date(ord.patient.date_naissance).toLocaleDateString('fr-FR')
+          : '',
+        numero_national: ord.patient?.numero_national || '',
+        age,
+        groupe_sanguin:  ord.patient?.groupe_sanguin  || '',
+        rhesus:          ord.patient?.rhesus          || '',
       },
-      prescriptions: (ord.prescriptions || []).map((p: any) => ({
-        medicament: p.nom_medicament || '',
-        posologie:  p.posologie      || '',
-        duree:      String(p.duree_jours || ''),
-        quantite:   p.quantite        || '',
+      ordonnance: {
+        numero:          ord.numero_ordonnance,
+        date:            new Date(ord.created_at).toLocaleDateString('fr-FR'),
+        date_expiration: ord.date_expiration
+          ? new Date(ord.date_expiration).toLocaleDateString('fr-FR')
+          : '',
+        qr_code:         ord.qr_code_verification || '',
+      },
+      // Mapping colonnes DB → interface genererOrdonnancePDF
+      medicaments: (ord.lignes || []).map((l: any) => ({
+        nom:          l.medicament_nom        || '',   // ← colonne correcte DB
+        forme:        l.medicament_forme      || '',
+        dosage:       l.dosage                || '',
+        frequence:    l.frequence             || '',
+        duree:        l.duree                 || '',   // ← colonne correcte DB
+        quantite:     parseInt(l.quantite_totale || '1') || 1,
+        instructions: l.instructions_speciales || '',
       })),
-      qrCode: ord.qr_code_verification || '',
     })
 
     return new Response(pdfBytes, {
@@ -261,42 +301,77 @@ patientPdfRoutes.get('/examen/:id', async (c) => {
 
     const { data: ex, error } = await supabase
       .from('medical_examens')
-      .select('*, patient:patient_dossiers(nom,prenom,date_naissance,sexe,numero_national), medecin:auth_profiles!medical_examens_demandeur_id_fkey(nom,prenom,specialite), structure:struct_structures!medical_examens_structure_id_fkey(nom,type,adresse,telephone,logo_url)')
+      .select(`
+        id, type_examen, nom_examen, statut, created_at, valide_at,
+        resultat_texte, valeurs_numeriques, interpretation,
+        est_anormal, description_demande,
+        patient:patient_dossiers(nom, prenom, date_naissance, sexe, numero_national),
+        medecin:auth_profiles!medical_examens_prescripteur_id_fkey(nom, prenom,
+          auth_medecins(specialite_principale)
+        ),
+        structure:struct_structures!medical_examens_structure_id_fkey(nom, type, adresse, telephone, logo_url),
+        technicien:auth_profiles!medical_examens_realise_par_fkey(nom, prenom)
+      `)
       .eq('id', id)
       .eq('patient_id', dossier.id)
       .single()
 
     if (error || !ex) return c.json({ error: 'Examen non trouvé' }, 404)
-    if (ex.statut !== 'resultat_disponible' && !ex.valide_par) {
+    if (ex.statut !== 'resultat_disponible' && !ex.valide_at) {
       return c.json({ error: 'Résultats pas encore disponibles' }, 400)
     }
 
+    // Construire les résultats depuis valeurs_numeriques (JSONB) ou resultat_texte
+    const resultats = ex.valeurs_numeriques
+      ? Object.entries(ex.valeurs_numeriques as Record<string, any>).map(([k, v]) => ({
+          parametre:        k,
+          valeur:           String(v.valeur ?? v),
+          unite:            v.unite ?? '',
+          valeurs_normales: v.normes ?? '',
+          interpretation:   v.anormal ? 'anormal' as const : 'normal' as const,
+        }))
+      : ex.resultat_texte
+        ? [{ parametre: 'Résultat', valeur: ex.resultat_texte, interpretation: ex.est_anormal ? 'anormal' as const : 'normal' as const }]
+        : []
+
+    const technicienNom = ex.technicien
+      ? `${ex.technicien.prenom || ''} ${ex.technicien.nom || ''}`.trim()
+      : ''
+
     const pdfBytes = await genererBulletinExamenPDF({
-      typeExamen:   ex.type_examen || 'laboratoire',
-      date:         new Date(ex.created_at),
-      dateResultat: ex.date_resultat ? new Date(ex.date_resultat) : new Date(),
-      patient: {
-        nom:           ex.patient?.nom            || '',
-        prenom:        ex.patient?.prenom         || '',
-        dateNaissance: ex.patient?.date_naissance || '',
-        sexe:          ex.patient?.sexe           || '',
-        numeroNational: ex.patient?.numero_national || '',
+      structure: {
+        nom:       ex.structure?.nom       || '',
+        type:      ex.structure?.type      || '',
+        adresse:   ex.structure?.adresse   || '',
+        telephone: ex.structure?.telephone || '',
+        logo_url:  ex.structure?.logo_url  || '',
       },
-      medecin: {
+      medecin_prescripteur: {
         nom:        ex.medecin?.nom       || '',
         prenom:     ex.medecin?.prenom    || '',
-        specialite: ex.medecin?.specialite || '',
+        specialite: ex.medecin?.auth_medecins?.[0]?.specialite_principale || '',
       },
-      structure: {
-        nom:      ex.structure?.nom        || '',
-        type:     ex.structure?.type       || '',
-        adresse:  ex.structure?.adresse    || '',
-        telephone: ex.structure?.telephone || '',
-        logoUrl:  ex.structure?.logo_url   || '',
+      patient: {
+        nom:             ex.patient?.nom             || '',
+        prenom:          ex.patient?.prenom          || '',
+        date_naissance:  ex.patient?.date_naissance
+          ? new Date(ex.patient.date_naissance).toLocaleDateString('fr-FR')
+          : '',
+        numero_national: ex.patient?.numero_national || '',
       },
-      resultats:  ex.resultats  || {},
-      conclusion: ex.conclusion || ex.compte_rendu || '',
-      technicien: ex.technicien_nom || '',
+      examen: {
+        numero:              ex.id,
+        type:                ex.type_examen === 'radiologie' ? 'radiologie' : 'laboratoire',
+        date_prelevement:    new Date(ex.created_at).toLocaleDateString('fr-FR'),
+        date_resultat:       ex.valide_at
+          ? new Date(ex.valide_at).toLocaleDateString('fr-FR')
+          : new Date().toLocaleDateString('fr-FR'),
+        nom_examen:          ex.nom_examen || ex.type_examen || '',  // ← colonne correcte DB
+        indication_clinique: ex.description_demande || '',
+      },
+      resultats,
+      conclusion:     ex.resultat_texte || ex.interpretation || '',  // ← colonnes correctes DB
+      technicien_nom: technicienNom,
     })
 
     return new Response(pdfBytes, {
