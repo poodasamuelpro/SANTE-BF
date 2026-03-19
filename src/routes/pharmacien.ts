@@ -653,3 +653,14 @@ pharmacienRoutes.post('/ordonnances/:qr/tout-delivrer', async (c) => {
 
   return c.redirect(`/pharmacien/ordonnances/${qr}?succes=tout`, 303)
 })
+
+// ── Alias /delivrance → /scanner (liens dashboard) ───────────
+pharmacienRoutes.get('/delivrance', async (c) => {
+  return c.redirect('/pharmacien/scanner', 303)
+})
+
+// ── Alias /recherche → /ordonnances (liens dashboard) ─────────
+pharmacienRoutes.get('/recherche', async (c) => {
+  const q = c.req.query('q') || ''
+  return c.redirect('/pharmacien/ordonnances' + (q ? '?qr=' + encodeURIComponent(q) : ''), 303)
+})
