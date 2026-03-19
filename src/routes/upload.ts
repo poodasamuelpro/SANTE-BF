@@ -10,7 +10,7 @@
  * Tables mises à jour :
  *   - struct_structures.logo_url
  *   - auth_medecins.signature_url   ← signature est dans auth_medecins, PAS auth_profiles
- *   - auth_profiles.avatar_url
+ *   - auth_profiles.photo_url (colonne réelle dans la DB)
  *
  * Corrections apportées vs version originale :
  *   1. requireRole() : spread args (pas array) — cohérent avec middleware/auth.ts
@@ -226,7 +226,7 @@ uploadRoutes.delete(
 // POST /upload/avatar
 // Rôles : tous les utilisateurs authentifiés
 // Bucket : avatars (public)
-// Table  : auth_profiles.avatar_url
+// Table  : auth_profiles.photo_url (colonne réelle DB)
 // ═══════════════════════════════════════════════════════════
 
 uploadRoutes.post('/avatar', async (c) => {
@@ -253,19 +253,19 @@ uploadRoutes.post('/avatar', async (c) => {
   }
 
   const { data: urlData } = sb.storage.from('avatars').getPublicUrl(filename)
-  const avatar_url = urlData.publicUrl
+  const photo_url = urlData.publicUrl
 
   const { error: dbErr } = await sb
     .from('auth_profiles')
-    .update({ avatar_url })
+    .update({ photo_url })
     .eq('id', profil.id)
 
   if (dbErr) {
-    console.error('Update avatar_url:', dbErr.message)
+    console.error('Update photo_url:', dbErr.message)
     return c.json({ error: 'Avatar upload\u00e9 mais erreur mise \u00e0 jour profil' }, 500)
   }
 
-  return c.json({ success: true, avatar_url, message: 'Photo de profil mise \u00e0 jour' })
+  return c.json({ success: true, photo_url, message: 'Photo de profil mise \u00e0 jour' })
 })
 
 // ═══════════════════════════════════════════════════════════
@@ -278,15 +278,15 @@ uploadRoutes.delete('/avatar', async (c) => {
 
   const { data: profile } = await sb
     .from('auth_profiles')
-    .select('avatar_url')
+    .select('photo_url')
     .eq('id', profil.id)
     .single()
 
-  if (!profile?.avatar_url) {
+  if (!profile?.photo_url) {
     return c.json({ error: 'Aucun avatar \u00e0 supprimer' }, 404)
   }
 
-  const parts    = profile.avatar_url.split('/')
+  const parts    = profile.photo_url.split('/')
   const filename = parts[parts.length - 1]
 
   if (filename) {
@@ -295,7 +295,7 @@ uploadRoutes.delete('/avatar', async (c) => {
 
   await sb
     .from('auth_profiles')
-    .update({ avatar_url: null })
+    .update({ photo_url: null })
     .eq('id', profil.id)
 
   return c.json({ success: true, message: 'Avatar supprim\u00e9 avec succ\u00e8s' })
@@ -339,7 +339,6 @@ uploadRoutes.delete('/avatar', async (c) => {
  * CREATE POLICY IF NOT EXISTS "structures_delete" ON storage.objects
  *   FOR DELETE TO authenticated USING (bucket_id = 'structures');
  *
- * -- Colonne avatar_url dans auth_profiles (si pas encore ajoutée)
- * ALTER TABLE auth_profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT DEFAULT NULL;
+ * -- La colonne photo_url est déjà dans auth_profiles (vérifiée dans le schéma DB)
  * ═══════════════════════════════════════════════════════════
  */
