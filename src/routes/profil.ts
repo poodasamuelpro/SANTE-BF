@@ -4,7 +4,7 @@
  *
  * Reçoit l'image en base64 via JSON (compatible Cloudflare Workers).
  * Upload dans Supabase Storage bucket "avatars" (public).
- * Met à jour auth_profiles.avatar_url.
+ * Met à jour auth_profiles.photo_url.
  *
  * Aucune modification fonctionnelle vs version originale — fichier déjà correct.
  * Correction mineure : typage Hono propre sans cast redondant.
@@ -55,9 +55,9 @@ profilRoutes.post('/avatar', async (c) => {
     const chemin = `user-${profil.id}-${Date.now()}.${ext}`
 
     // Supprimer l'ancien avatar
-    if (profil.avatar_url) {
+    if (profil.photo_url) {
       try {
-        const parts    = profil.avatar_url.split('/avatars/')
+        const parts    = profil.photo_url.split('/avatars/')
         const ancienChemin = parts.length > 1 ? parts[1].split('?')[0] : null
         if (ancienChemin) {
           await supabase.storage.from('avatars').remove([ancienChemin])
@@ -84,11 +84,11 @@ profilRoutes.post('/avatar', async (c) => {
     // Mettre à jour le profil
     const { error: dbErr } = await supabase
       .from('auth_profiles')
-      .update({ avatar_url: publicUrl })
+      .update({ photo_url: publicUrl })
       .eq('id', profil.id)
 
     if (dbErr) {
-      console.error('Update avatar_url:', dbErr.message)
+      console.error('Update photo_url:', dbErr.message)
       return c.json({ error: 'Upload OK mais erreur mise à jour : ' + dbErr.message }, 500)
     }
 
@@ -107,8 +107,8 @@ profilRoutes.delete('/avatar', async (c) => {
   const supabase = c.get('supabase')
 
   try {
-    if (profil.avatar_url) {
-      const parts = profil.avatar_url.split('/avatars/')
+    if (profil.photo_url) {
+      const parts = profil.photo_url.split('/avatars/')
       const chemin = parts.length > 1 ? parts[1].split('?')[0] : null
       if (chemin) {
         await supabase.storage.from('avatars').remove([chemin])
@@ -117,7 +117,7 @@ profilRoutes.delete('/avatar', async (c) => {
 
     await supabase
       .from('auth_profiles')
-      .update({ avatar_url: null })
+      .update({ photo_url: null })
       .eq('id', profil.id)
 
     return c.json({ succes: true, message: 'Photo supprimée' })
