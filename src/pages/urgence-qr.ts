@@ -2,7 +2,10 @@
 // Affiche : groupe sanguin, allergies, contacts urgence — SANS connexion
 // Design optimisé mobile pour urgence
 
-import { calculerAge } from '../utils/format'
+// calculerAge inline — évite dépendance externe
+function calculerAge(dateNaissance: string): number {
+  return Math.floor((Date.now() - new Date(dateNaissance).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+}
 
 export function urgencePage(patient: any): string {
   const age = patient?.date_naissance ? calculerAge(patient.date_naissance) : 0
@@ -254,8 +257,8 @@ export function urgencePage(patient: any): string {
               <div class="item">
                 <span class="item-icon">⚠️</span>
                 <div class="item-content">
-                  <div class="item-title">${a.nom || a}</div>
-                  <div class="item-desc">${a.severite || 'Non spécifié'} ${a.reaction ? `— ${a.reaction}` : ''}</div>
+                  <div class="item-title">${a.substance || String(a)}</div>
+                  <div class="item-desc">${a.reaction ? a.reaction : 'Non spécifié'}</div>
                 </div>
               </div>
             `).join('')
@@ -273,8 +276,8 @@ export function urgencePage(patient: any): string {
               <div class="item">
                 <span class="item-icon">💊</span>
                 <div class="item-content">
-                  <div class="item-title">${m.nom || m}</div>
-                  <div class="item-desc">${m.date_diagnostic ? `Diagnostic: ${m.date_diagnostic}` : ''}</div>
+                  <div class="item-title">${m.maladie || String(m)}</div>
+                  <div class="item-desc">${m.depuis ? 'Depuis : ' + m.depuis : ''}</div>
                 </div>
               </div>
             `).join('')
@@ -286,12 +289,12 @@ export function urgencePage(patient: any): string {
       <!-- Contacts urgence -->
       <div class="section">
         <div class="section-title">📞 Contacts d\'urgence</div>
-        ${(patient?.contacts_urgence && patient.contacts_urgence.length > 0)
-          ? patient.contacts_urgence.map((c: any) => `
+        ${(patient?.patient_contacts_urgence && patient.patient_contacts_urgence.length > 0)
+          ? patient.patient_contacts_urgence.map((ct: any) => `
             <div class="contact-urgence">
-              <div class="contact-nom">${c.nom || 'Contact'}</div>
-              <div class="contact-tel">☎️ ${c.telephone || 'N/A'}</div>
-              <div class="contact-lien">${c.lien || ''}</div>
+              <div class="contact-nom">${ct.nom_complet || 'Contact'}</div>
+              <div class="contact-tel">☎️ ${ct.telephone || 'N/A'}</div>
+              <div class="contact-lien">${ct.lien_parente || ''}</div>
             </div>
           `).join('')
           : '<div class="box"><div class="empty">Aucun contact d\'urgence enregistré</div></div>'
