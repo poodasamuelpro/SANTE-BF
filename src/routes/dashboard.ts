@@ -120,14 +120,29 @@ dashboardRoutes.get('/structure',
         .eq('id', profil.structure_id)
         .single()
 
-      const [lits, personnel] = await Promise.all([
-        supabase.from('struct_lits').select('statut').eq('structure_id', profil.structure_id),
+      const today  = new Date().toISOString().split('T')[0]
+      const sid    = profil.structure_id
+
+      const [lits, personnel, consultJour, patientsJour, rdvJour, hospitEnCours, recettesJour] = await Promise.all([
+        supabase.from('struct_lits').select('statut').eq('structure_id', sid),
         supabase.from('auth_profiles').select('*', { count: 'exact', head: true })
-          .eq('structure_id', profil.structure_id),
+          .eq('structure_id', sid).eq('est_actif', true),
+        supabase.from('medical_consultations').select('*', { count: 'exact', head: true })
+          .eq('structure_id', sid).gte('created_at', today + 'T00:00:00'),
+        supabase.from('medical_consultations').select('patient_id').eq('structure_id', sid)
+          .gte('created_at', today + 'T00:00:00'),
+        supabase.from('medical_rendez_vous').select('*', { count: 'exact', head: true })
+          .eq('structure_id', sid).gte('date_heure', today + 'T00:00:00'),
+        supabase.from('medical_hospitalisations').select('*', { count: 'exact', head: true })
+          .eq('structure_id', sid).is('date_sortie_reelle', null),
+        supabase.from('finance_factures').select('total_ttc')
+          .eq('structure_id', sid).eq('statut', 'payee').gte('created_at', today + 'T00:00:00'),
       ])
 
-      const litsData    = lits.data ?? []
-      const litsOccupes = litsData.filter((l: any) => l.statut === 'occupe').length
+      const litsData      = lits.data ?? []
+      const litsOccupes   = litsData.filter((l: any) => l.statut === 'occupe').length
+      const patientsUniq  = new Set((patientsJour.data ?? []).map((r: any) => r.patient_id)).size
+      const recettesTotal = (recettesJour.data ?? []).reduce((s: number, f: any) => s + (f.total_ttc || 0), 0)
 
       return c.html(dashboardStructurePage(profil, {
         structure: {
@@ -136,11 +151,14 @@ dashboardRoutes.get('/structure',
           niveau: structure?.niveau ?? 1,
         },
         stats: {
-          personnel:         personnel.count  ?? 0,
-          patientsJour:      0,
+          personnel:         personnel.count     ?? 0,
+          patientsJour:      patientsUniq,
           litsOccupes,
           litsTotal:         litsData.length,
-          consultationsJour: 0,
+          consultationsJour: consultJour.count   ?? 0,
+          recettesJour:      recettesTotal,
+          rdvJour:           rdvJour.count       ?? 0,
+          hospitalisations:  hospitEnCours.count ?? 0,
         },
       }))
     } catch (err) {
@@ -222,16 +240,48 @@ dashboardRoutes.get('/pharmacien',
     try {
       const profil   = c.get('profil')
       const supabase = c.get('supabase')
+      const today    = new Date().toISOString().split('T')[0]
 
-      const { data: ordonnances } = await supabase
-        .from('medical_ordonnances')
-        .select('id, numero_ordonnance, created_at, statut, patient_dossiers(nom, prenom)')
-        .eq('structure_id', profil.structure_id)
-        .eq('statut', 'active')
-        .order('created_at', { ascending: false })
-        .limit(10)
+      const [ordsRes, delivreesRes, partiellesRes] = await Promise.all([
+        supabase
+          .from('medical_ordonnances')
+          .select(`id, numero_ordonnance, created_at, statut,
+            patient_dossiers(nom, prenom),
+            auth_medecins!medical_ordonnances_medecin_id_fkey(auth_profiles(nom, prenom))`)
+          .eq('structure_id', profil.structure_id)
+          .in('statut', ['active', 'partiellement_delivree'])
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase.from('medical_ordonnances')
+          .select('id', { count: 'exact', head: true })
+          .eq('structure_id', profil.structure_id)
+          .eq('statut', 'delivree')
+          .gte('created_at', today + 'T00:00:00'),
+        supabase.from('medical_ordonnances')
+          .select('id', { count: 'exact', head: true })
+          .eq('structure_id', profil.structure_id)
+          .eq('statut', 'partiellement_delivree'),
+      ])
 
-      return c.html(dashboardPharmacienPage(profil, ordonnances ?? []))
+      const ordonnances  = ordsRes.data ?? []
+      const totalJour    = ordonnances.length + (delivreesRes.count ?? 0)
+
+      return c.html(dashboardPharmacienPage(profil, {
+        ordonnances: ordonnances.map((o: any) => ({
+          id:               o.id,
+          numero_ordonnance: o.numero_ordonnance,
+          patient:          { nom: o.patient_dossiers?.nom ?? '', prenom: o.patient_dossiers?.prenom ?? '' },
+          medecin:          { nom: o.auth_medecins?.auth_profiles?.nom ?? '', prenom: o.auth_medecins?.auth_profiles?.prenom ?? '' },
+          statut:           o.statut,
+          created_at:       o.created_at,
+        })),
+        stats: {
+          ordonnancesJour: totalJour,
+          enAttente:       ordonnances.filter((o: any) => o.statut === 'active').length,
+          delivrees:       delivreesRes.count ?? 0,
+          stockAlertes:    0,  // pas de gestion de stock v1
+        },
+      }))
     } catch (err) {
       console.error('dashboard/pharmacien:', err)
       return c.html(erreurPage('Erreur tableau de bord pharmacien',
@@ -277,7 +327,7 @@ dashboardRoutes.get('/caissier',
           facturesJour: facturesArr.length,
           impayees:     facturesArr.filter((f: any) => f.statut === 'impayee').length,
           recetteJour:  totalJour,
-          attente:      facturesArr.filter((f: any) => f.statut === 'en_attente').length,
+          attente:      facturesArr.filter((f: any) => f.statut === 'partiellement_payee').length,
         },
       }))
     } catch (err) {
