@@ -1,12 +1,19 @@
 /**
- * src/lib/supabase.ts 
+ * src/lib/supabase.ts
  * SantéBF — Client Supabase + types partagés
  *
- * Corrections :
+ * Corrections originales :
  *   1. Bindings : RESEND_API_KEY ajouté (cohérent avec functions/[[path]].ts)
  *   2. AuthProfile : signature_url ajouté (utilisé dans PDF médecin)
  *   3. AuthProfile : numero_ordre + specialite ajoutés (depuis auth_medecins)
  *   4. Variables : type complet avec supabase typé
+ *
+ * Ajouts vs original :
+ *   5. Role : 'cnts_agent' ajouté (Centre National Transfusion Sanguine)
+ *   6. Bindings : GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET (Google Calendar dans parametres.ts)
+ *   7. AuthProfile : photo_url ajouté (colonne réelle dans auth_profiles)
+ *   8. redirectionParRole : cnts_agent → /dashboard/cnts
+ *   9. getProfil : photo_url dans le .select()
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -25,6 +32,7 @@ export type Role =
   | 'caissier'
   | 'agent_accueil'
   | 'patient'
+  | 'cnts_agent'   // ← ajout : Centre National de Transfusion Sanguine
 
 // ─── Profil utilisateur connecté ─────────────────────────
 // Correspond à auth_profiles + jointure auth_medecins si rôle médecin
@@ -38,8 +46,9 @@ export type AuthProfile = {
   structure_id:     string | null
   est_actif:        boolean
   doit_changer_mdp: boolean
-  // Depuis auth_profiles (ajouté via ALTER TABLE)
-  avatar_url?:      string | null
+  // Depuis auth_profiles
+  avatar_url?:      string | null   // garde pour compatibilité
+  photo_url?:       string | null   // ← ajout : colonne réelle DB (photo_url)
   // Depuis auth_medecins (chargé si rôle = medecin)
   signature_url?:   string | null
   numero_ordre?:    string | null
@@ -56,9 +65,11 @@ export type Variables = {
 // ─── Bindings Cloudflare ──────────────────────────────────
 
 export type Bindings = {
-  SUPABASE_URL:     string
-  SUPABASE_ANON_KEY: string
-  RESEND_API_KEY:   string   // ← ajouté : cohérent avec functions/[[path]].ts
+  SUPABASE_URL:         string
+  SUPABASE_ANON_KEY:    string
+  RESEND_API_KEY:       string   // Envoi emails (Resend)
+  GOOGLE_CLIENT_ID:     string   // ← ajout : Google Calendar OAuth2 (parametres.ts)
+  GOOGLE_CLIENT_SECRET: string   // ← ajout : Google Calendar OAuth2 (parametres.ts)
 }
 
 // ─── Client Supabase ──────────────────────────────────────
@@ -88,7 +99,7 @@ export async function getProfil(
   try {
     const { data, error } = await supabase
       .from('auth_profiles')
-      .select('id, email, nom, prenom, role, structure_id, est_actif, doit_changer_mdp, avatar_url')
+      .select('id, email, nom, prenom, role, structure_id, est_actif, doit_changer_mdp, photo_url')
       .eq('id', userId)
       .single()
 
@@ -103,7 +114,8 @@ export async function getProfil(
       structure_id:     data.structure_id,
       est_actif:        data.est_actif,
       doit_changer_mdp: data.doit_changer_mdp,
-      avatar_url:       data.avatar_url ?? null,
+      photo_url:        data.photo_url ?? null,   // ← colonne réelle
+      avatar_url:       data.photo_url ?? null,   // ← alias pour compatibilité
       signature_url:    null,
       numero_ordre:     null,
       specialite:       null,
@@ -146,6 +158,7 @@ export function redirectionParRole(role: Role): string {
     caissier:        '/dashboard/caissier',
     agent_accueil:   '/dashboard/accueil',
     patient:         '/dashboard/patient',
+    cnts_agent:      '/dashboard/cnts',   // ← ajout
   }
   return routes[role] ?? '/auth/login'
 }
