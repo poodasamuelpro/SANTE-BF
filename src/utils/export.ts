@@ -1,415 +1,312 @@
 /**
- * Service d'export Excel/CSV
- * Permet d'exporter des données en format Excel (.xlsx) ou CSV
- * 
- * Bibliothèque utilisée: exceljs (compatible Cloudflare Workers)
- * Installation: npm install exceljs
+ * src/utils/export.ts
+ * SantéBF — Fonctions d'export CSV
+ * Utilisé par src/routes/export.ts
+ *
+ * Toutes les fonctions retournent une string CSV UTF-8
+ * Compatible Cloudflare Workers (pas de fs, pas de Node streams)
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js'
-
-/**
- * Interface données export
- */
-interface ExportData {
-  headers: string[]
-  rows: any[][]
-  title?: string
-}
-
-/**
- * Générer fichier CSV
- */
-function genererCSV(data: ExportData): string {
-  const { headers, rows } = data
-  
-  // Échapper les virgules et guillemets dans les cellules
-  const escapeCSV = (value: any): string => {
-    if (value === null || value === undefined) return ''
-    const str = String(value)
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      return `"${str.replace(/"/g, '""')}"`
-    }
-    return str
+// ── Helper CSV ────────────────────────────────────────────────
+function escapeCsv(val: any): string {
+  if (val === null || val === undefined) return ''
+  const str = String(val)
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"'
   }
-  
-  // En-têtes
-  const csvHeaders = headers.map(escapeCSV).join(',')
-  
-  // Lignes
-  const csvRows = rows.map(row =>
-    row.map(escapeCSV).join(',')
-  ).join('\n')
-  
-  return `${csvHeaders}\n${csvRows}`
+  return str
 }
 
-/**
- * Exporter liste patients
- */
+function toCsv(headers: string[], rows: any[][]): string {
+  const bom = '\uFEFF' // BOM UTF-8 pour Excel
+  const header = headers.map(escapeCsv).join(',')
+  const body   = rows.map(row => row.map(escapeCsv).join(',')).join('\n')
+  return bom + header + '\n' + body
+}
+
+function fmtDate(d: string | null): string {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString('fr-FR')
+}
+
+function fmtDateTime(d: string | null): string {
+  if (!d) return ''
+  const dt = new Date(d)
+  return dt.toLocaleDateString('fr-FR') + ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function addDateFilter(query: any, dateDebut?: string, dateFin?: string, col = 'created_at') {
+  if (dateDebut) query = query.gte(col, dateDebut + 'T00:00:00')
+  if (dateFin)   query = query.lte(col, dateFin   + 'T23:59:59')
+  return query
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT PATIENTS
+// ═══════════════════════════════════════════════════════════════
 export async function exporterPatients(
-  supabase: SupabaseClient,
+  supabase: any,
   structureId: string,
-  format: 'csv' | 'excel' = 'csv'
-): Promise<string | Uint8Array> {
-  const { data: patients, error } = await supabase
+  format: 'csv' = 'csv'
+): Promise<string> {
+  const { data, error } = await supabase
     .from('patient_dossiers')
-    .select('*')
-    .eq('structure_id', structureId)
-    .order('created_at', { ascending: false })
+    .select('numero_national, nom, prenom, date_naissance, sexe, groupe_sanguin, rhesus, telephone, email, created_at')
+    .eq('structure_enregistrement_id', structureId)
+    .order('nom')
+    .limit(5000)
 
-  if (error || !patients) {
-    throw new Error('Erreur lors de la récupération des patients')
-  }
+  if (error) throw new Error('Erreur export patients : ' + error.message)
 
-  const exportData: ExportData = {
-    title: 'Liste des patients',
-    headers: [
-      'N° National',
-      'Nom',
-      'Prénom',
-      'Date naissance',
-      'Sexe',
-      'Groupe sanguin',
-      'Rhésus',
-      'Téléphone',
-      'Email',
-      'Ville',
-      'Date création'
-    ],
-    rows: patients.map(p => [
-      p.numero_national || '',
-      p.nom || '',
-      p.prenom || '',
-      p.date_naissance ? new Date(p.date_naissance).toLocaleDateString('fr-FR') : '',
-      p.sexe || '',
-      p.groupe_sanguin || '',
-      p.rhesus || '',
-      p.telephone || '',
-      p.email || '',
-      p.ville || '',
-      new Date(p.created_at).toLocaleDateString('fr-FR')
-    ])
-  }
+  const headers = [
+    'N° National', 'Nom', 'Prénom', 'Date naissance',
+    'Sexe', 'Groupe sanguin', 'Rhésus', 'Téléphone', 'Email', 'Date enregistrement'
+  ]
+  const rows = (data ?? []).map((p: any) => [
+    p.numero_national, p.nom, p.prenom, fmtDate(p.date_naissance),
+    p.sexe === 'M' ? 'Masculin' : 'Féminin',
+    p.groupe_sanguin || '', p.rhesus || '',
+    p.telephone || '', p.email || '',
+    fmtDate(p.created_at),
+  ])
 
-  if (format === 'csv') {
-    return genererCSV(exportData)
-  }
-
-  // Pour Excel, retourner CSV pour l'instant (ExcelJS nécessite plus de config)
-  return genererCSV(exportData)
+  return toCsv(headers, rows)
 }
 
-/**
- * Exporter consultations
- */
+// ═══════════════════════════════════════════════════════════════
+// EXPORT CONSULTATIONS
+// ═══════════════════════════════════════════════════════════════
 export async function exporterConsultations(
-  supabase: SupabaseClient,
+  supabase: any,
   structureId: string,
   dateDebut?: string,
   dateFin?: string,
-  format: 'csv' | 'excel' = 'csv'
-): Promise<string | Uint8Array> {
+  format: 'csv' = 'csv'
+): Promise<string> {
   let query = supabase
     .from('medical_consultations')
     .select(`
-      *,
-      patient:patient_dossiers(nom, prenom, numero_national),
+      id, motif, diagnostic_principal, type_consultation, statut, created_at,
+      patient:patient_dossiers(numero_national, nom, prenom),
       medecin:auth_profiles!medical_consultations_medecin_id_fkey(nom, prenom)
     `)
     .eq('structure_id', structureId)
+    .order('created_at', { ascending: false })
+    .limit(10000)
 
-  if (dateDebut) {
-    query = query.gte('created_at', dateDebut)
-  }
-  if (dateFin) {
-    query = query.lte('created_at', dateFin)
-  }
+  query = addDateFilter(query, dateDebut, dateFin)
+  const { data, error } = await query
 
-  const { data: consultations, error } = await query.order('created_at', { ascending: false })
+  if (error) throw new Error('Erreur export consultations : ' + error.message)
 
-  if (error || !consultations) {
-    throw new Error('Erreur lors de la récupération des consultations')
-  }
+  const headers = [
+    'Date', 'N° Patient', 'Nom patient', 'Prénom patient',
+    'Médecin', 'Motif', 'Diagnostic', 'Type', 'Statut'
+  ]
+  const rows = (data ?? []).map((c: any) => [
+    fmtDateTime(c.created_at),
+    c.patient?.numero_national || '',
+    c.patient?.nom || '', c.patient?.prenom || '',
+    `Dr. ${c.medecin?.prenom || ''} ${c.medecin?.nom || ''}`.trim(),
+    c.motif || '', c.diagnostic_principal || '',
+    c.type_consultation || '', c.statut || '',
+  ])
 
-  const exportData: ExportData = {
-    title: 'Liste des consultations',
-    headers: [
-      'Date',
-      'Patient',
-      'N° National',
-      'Médecin',
-      'Motif',
-      'Diagnostic',
-      'Température',
-      'Tension',
-      'Poids',
-      'Taille'
-    ],
-    rows: consultations.map(c => [
-      new Date(c.created_at).toLocaleDateString('fr-FR') + ' ' + new Date(c.created_at).toLocaleTimeString('fr-FR'),
-      c.patient ? `${c.patient.nom} ${c.patient.prenom}` : '',
-      c.patient?.numero_national || '',
-      c.medecin ? `Dr ${c.medecin.nom} ${c.medecin.prenom}` : '',
-      c.motif || '',
-      c.diagnostic || '',
-      c.temperature ? `${c.temperature}°C` : '',
-      c.tension_arterielle || '',
-      c.poids ? `${c.poids} kg` : '',
-      c.taille ? `${c.taille} cm` : ''
-    ])
-  }
-
-  return genererCSV(exportData)
+  return toCsv(headers, rows)
 }
 
-/**
- * Exporter factures
- */
+// ═══════════════════════════════════════════════════════════════
+// EXPORT FACTURES
+// ═══════════════════════════════════════════════════════════════
 export async function exporterFactures(
-  supabase: SupabaseClient,
+  supabase: any,
   structureId: string,
   dateDebut?: string,
   dateFin?: string,
-  format: 'csv' | 'excel' = 'csv'
-): Promise<string | Uint8Array> {
+  format: 'csv' = 'csv'
+): Promise<string> {
   let query = supabase
     .from('finance_factures')
     .select(`
-      *,
-      patient:patient_dossiers(nom, prenom, numero_national)
+      numero_facture, statut, sous_total, montant_assurance, total_ttc, montant_patient, created_at,
+      patient:patient_dossiers(numero_national, nom, prenom)
     `)
     .eq('structure_id', structureId)
+    .order('created_at', { ascending: false })
+    .limit(10000)
 
-  if (dateDebut) {
-    query = query.gte('created_at', dateDebut)
-  }
-  if (dateFin) {
-    query = query.lte('created_at', dateFin)
-  }
+  query = addDateFilter(query, dateDebut, dateFin)
+  const { data, error } = await query
 
-  const { data: factures, error } = await query.order('created_at', { ascending: false })
+  if (error) throw new Error('Erreur export factures : ' + error.message)
 
-  if (error || !factures) {
-    throw new Error('Erreur lors de la récupération des factures')
-  }
+  const headers = [
+    'Date', 'N° Facture', 'N° Patient', 'Nom patient', 'Prénom patient',
+    'Sous-total (FCFA)', 'Part assurance (FCFA)', 'Total TTC (FCFA)',
+    'Part patient (FCFA)', 'Statut'
+  ]
+  const rows = (data ?? []).map((f: any) => [
+    fmtDate(f.created_at),
+    f.numero_facture,
+    f.patient?.numero_national || '',
+    f.patient?.nom || '', f.patient?.prenom || '',
+    f.sous_total || 0, f.montant_assurance || 0,
+    f.total_ttc || 0, f.montant_patient || 0,
+    f.statut || '',
+  ])
 
-  const exportData: ExportData = {
-    title: 'Liste des factures',
-    headers: [
-      'N° Facture',
-      'Date',
-      'Patient',
-      'N° National',
-      'Total TTC',
-      'Part patient',
-      'Part assurance',
-      'Statut',
-      'Mode paiement'
-    ],
-    rows: factures.map(f => [
-      f.numero_facture || '',
-      new Date(f.created_at).toLocaleDateString('fr-FR'),
-      f.patient ? `${f.patient.nom} ${f.patient.prenom}` : '',
-      f.patient?.numero_national || '',
-      `${f.total_ttc} FCFA`,
-      `${f.montant_patient} FCFA`,
-      `${f.montant_assurance} FCFA`,
-      f.statut || '',
-      f.mode_paiement || ''
-    ])
-  }
-
-  return genererCSV(exportData)
+  return toCsv(headers, rows)
 }
 
-/**
- * Exporter ordonnances
- */
+// ═══════════════════════════════════════════════════════════════
+// EXPORT ORDONNANCES
+// ═══════════════════════════════════════════════════════════════
 export async function exporterOrdonnances(
-  supabase: SupabaseClient,
+  supabase: any,
   structureId: string,
   dateDebut?: string,
   dateFin?: string,
-  format: 'csv' | 'excel' = 'csv'
-): Promise<string | Uint8Array> {
+  format: 'csv' = 'csv'
+): Promise<string> {
   let query = supabase
     .from('medical_ordonnances')
     .select(`
-      *,
-      patient:patient_dossiers(nom, prenom, numero_national),
-      medecin:auth_profiles!medical_ordonnances_medecin_id_fkey(nom, prenom)
+      numero_ordonnance, statut, date_expiration, created_at,
+      patient:patient_dossiers(numero_national, nom, prenom),
+      medecin:auth_profiles!medical_ordonnances_medecin_id_fkey(nom, prenom),
+      lignes:medical_ordonnance_lignes(medicament_nom, dosage, frequence, duree)
     `)
     .eq('structure_id', structureId)
+    .order('created_at', { ascending: false })
+    .limit(10000)
 
-  if (dateDebut) {
-    query = query.gte('created_at', dateDebut)
-  }
-  if (dateFin) {
-    query = query.lte('created_at', dateFin)
-  }
+  query = addDateFilter(query, dateDebut, dateFin)
+  const { data, error } = await query
 
-  const { data: ordonnances, error } = await query.order('created_at', { ascending: false })
+  if (error) throw new Error('Erreur export ordonnances : ' + error.message)
 
-  if (error || !ordonnances) {
-    throw new Error('Erreur lors de la récupération des ordonnances')
-  }
-
-  const exportData: ExportData = {
-    title: 'Liste des ordonnances',
-    headers: [
-      'N° Ordonnance',
-      'Date',
-      'Patient',
-      'N° National',
-      'Médecin',
-      'Statut',
-      'Date expiration'
-    ],
-    rows: ordonnances.map(o => [
-      o.numero_ordonnance || '',
-      new Date(o.created_at).toLocaleDateString('fr-FR'),
-      o.patient ? `${o.patient.nom} ${o.patient.prenom}` : '',
+  const headers = [
+    'Date', 'N° Ordonnance', 'N° Patient', 'Nom patient', 'Prénom patient',
+    'Médecin', 'Statut', 'Date expiration',
+    'Médicaments (liste)'
+  ]
+  const rows = (data ?? []).map((o: any) => {
+    const meds = (o.lignes || [])
+      .map((l: any) => `${l.medicament_nom} ${l.dosage} ${l.frequence} ${l.duree}`.trim())
+      .join(' | ')
+    return [
+      fmtDate(o.created_at),
+      o.numero_ordonnance,
       o.patient?.numero_national || '',
-      o.medecin ? `Dr ${o.medecin.nom} ${o.medecin.prenom}` : '',
-      o.statut || '',
-      o.date_expiration ? new Date(o.date_expiration).toLocaleDateString('fr-FR') : ''
-    ])
-  }
+      o.patient?.nom || '', o.patient?.prenom || '',
+      `Dr. ${o.medecin?.prenom || ''} ${o.medecin?.nom || ''}`.trim(),
+      o.statut || '', fmtDate(o.date_expiration),
+      meds,
+    ]
+  })
 
-  return genererCSV(exportData)
+  return toCsv(headers, rows)
 }
 
-/**
- * Exporter examens laboratoire
- */
+// ═══════════════════════════════════════════════════════════════
+// EXPORT EXAMENS LABORATOIRE
+// ═══════════════════════════════════════════════════════════════
 export async function exporterExamensLabo(
-  supabase: SupabaseClient,
+  supabase: any,
   structureId: string,
   dateDebut?: string,
   dateFin?: string,
-  format: 'csv' | 'excel' = 'csv'
-): Promise<string | Uint8Array> {
+  format: 'csv' = 'csv'
+): Promise<string> {
   let query = supabase
     .from('medical_examens')
     .select(`
-      *,
-      patient:patient_dossiers(nom, prenom, numero_national),
-      medecin:auth_profiles!medical_examens_demandeur_id_fkey(nom, prenom)
+      nom_examen, type_examen, statut, est_urgent, est_anormal,
+      resultat_texte, interpretation, created_at, valide_at,
+      patient:patient_dossiers(numero_national, nom, prenom),
+      prescripteur:auth_profiles!medical_examens_prescripteur_id_fkey(nom, prenom)
     `)
     .eq('structure_id', structureId)
+    .order('created_at', { ascending: false })
+    .limit(10000)
 
-  if (dateDebut) {
-    query = query.gte('created_at', dateDebut)
-  }
-  if (dateFin) {
-    query = query.lte('created_at', dateFin)
-  }
+  query = addDateFilter(query, dateDebut, dateFin)
+  const { data, error } = await query
 
-  const { data: examens, error } = await query.order('created_at', { ascending: false })
+  if (error) throw new Error('Erreur export examens labo : ' + error.message)
 
-  if (error || !examens) {
-    throw new Error('Erreur lors de la récupération des examens')
-  }
+  const headers = [
+    'Date prescription', 'N° Patient', 'Nom patient', 'Prénom patient',
+    'Prescripteur', 'Examen', 'Type', 'Statut',
+    'Urgent', 'Anormal', 'Date résultat', 'Interprétation'
+  ]
+  const rows = (data ?? []).map((e: any) => [
+    fmtDate(e.created_at),
+    e.patient?.numero_national || '',
+    e.patient?.nom || '', e.patient?.prenom || '',
+    `Dr. ${e.prescripteur?.prenom || ''} ${e.prescripteur?.nom || ''}`.trim(),
+    e.nom_examen || '', e.type_examen || '', e.statut || '',
+    e.est_urgent ? 'Oui' : 'Non',
+    e.est_anormal ? 'Oui' : 'Non',
+    fmtDate(e.valide_at),
+    e.interpretation || '',
+  ])
 
-  const exportData: ExportData = {
-    title: 'Liste des examens laboratoire',
-    headers: [
-      'Date demande',
-      'Patient',
-      'N° National',
-      'Médecin prescripteur',
-      'Type examen',
-      'Statut',
-      'Date prélèvement',
-      'Date résultat',
-      'Validé'
-    ],
-    rows: examens.map(e => [
-      new Date(e.created_at).toLocaleDateString('fr-FR'),
-      e.patient ? `${e.patient.nom} ${e.patient.prenom}` : '',
-      e.patient?.numero_national || '',
-      e.medecin ? `Dr ${e.medecin.nom} ${e.medecin.prenom}` : '',
-      e.type_examen || '',
-      e.statut || '',
-      e.date_prelevement ? new Date(e.date_prelevement).toLocaleDateString('fr-FR') : '',
-      e.date_resultat ? new Date(e.date_resultat).toLocaleDateString('fr-FR') : '',
-      e.valide_par ? 'Oui' : 'Non'
-    ])
-  }
-
-  return genererCSV(exportData)
+  return toCsv(headers, rows)
 }
 
-/**
- * Exporter statistiques structure
- */
+// ═══════════════════════════════════════════════════════════════
+// EXPORT STATISTIQUES STRUCTURE
+// ═══════════════════════════════════════════════════════════════
 export async function exporterStatistiquesStructure(
-  supabase: SupabaseClient,
+  supabase: any,
   structureId: string,
   mois: number,
   annee: number,
-  format: 'csv' | 'excel' = 'csv'
-): Promise<string | Uint8Array> {
-  const dateDebut = new Date(annee, mois - 1, 1).toISOString()
-  const dateFin = new Date(annee, mois, 0, 23, 59, 59).toISOString()
+  format: 'csv' = 'csv'
+): Promise<string> {
+  const debut = new Date(annee, mois - 1, 1).toISOString()
+  const fin   = new Date(annee, mois, 0, 23, 59, 59).toISOString()
 
-  // Compter consultations
-  const { count: nbConsultations } = await supabase
-    .from('medical_consultations')
-    .select('*', { count: 'exact', head: true })
-    .eq('structure_id', structureId)
-    .gte('created_at', dateDebut)
-    .lte('created_at', dateFin)
+  const [consRes, factRes, ordRes, examRes, patRes] = await Promise.all([
+    supabase.from('medical_consultations')
+      .select('id', { count: 'exact', head: true })
+      .eq('structure_id', structureId)
+      .gte('created_at', debut).lte('created_at', fin),
+    supabase.from('finance_factures')
+      .select('total_ttc, statut')
+      .eq('structure_id', structureId)
+      .gte('created_at', debut).lte('created_at', fin),
+    supabase.from('medical_ordonnances')
+      .select('id', { count: 'exact', head: true })
+      .eq('structure_id', structureId)
+      .gte('created_at', debut).lte('created_at', fin),
+    supabase.from('medical_examens')
+      .select('id', { count: 'exact', head: true })
+      .eq('structure_id', structureId)
+      .gte('created_at', debut).lte('created_at', fin),
+    supabase.from('patient_dossiers')
+      .select('id', { count: 'exact', head: true })
+      .eq('structure_enregistrement_id', structureId)
+      .gte('created_at', debut).lte('created_at', fin),
+  ])
 
-  // Compter factures payées
-  const { count: nbFactures, data: factures } = await supabase
-    .from('finance_factures')
-    .select('total_ttc')
-    .eq('structure_id', structureId)
-    .eq('statut', 'payee')
-    .gte('created_at', dateDebut)
-    .lte('created_at', dateFin)
+  const factures = factRes.data ?? []
+  const recette  = factures.filter((f: any) => f.statut === 'payee')
+    .reduce((s: number, f: any) => s + (f.total_ttc || 0), 0)
+  const impayees = factures.filter((f: any) => f.statut === 'impayee').length
 
-  const recetteTotal = factures?.reduce((sum, f) => sum + (f.total_ttc || 0), 0) || 0
+  const headers = ['Indicateur', 'Valeur', 'Période']
+  const periode = `${mois.toString().padStart(2,'0')}/${annee}`
+  const rows = [
+    ['Consultations totales',              consRes.count ?? 0,  periode],
+    ['Nouveaux patients enregistrés',       patRes.count  ?? 0,  periode],
+    ['Ordonnances émises',                  ordRes.count  ?? 0,  periode],
+    ['Examens prescrits',                   examRes.count ?? 0,  periode],
+    ['Factures totales',                    factures.length,     periode],
+    ['Factures impayées',                   impayees,            periode],
+    ['Recette encaissée (FCFA)',             recette,             periode],
+  ]
 
-  // Compter nouveaux patients
-  const { count: nbNouveauxPatients } = await supabase
-    .from('patient_dossiers')
-    .select('*', { count: 'exact', head: true })
-    .eq('structure_id', structureId)
-    .gte('created_at', dateDebut)
-    .lte('created_at', dateFin)
-
-  // Compter ordonnances
-  const { count: nbOrdonnances } = await supabase
-    .from('medical_ordonnances')
-    .select('*', { count: 'exact', head: true })
-    .eq('structure_id', structureId)
-    .gte('created_at', dateDebut)
-    .lte('created_at', dateFin)
-
-  // Compter examens
-  const { count: nbExamens } = await supabase
-    .from('medical_examens')
-    .select('*', { count: 'exact', head: true })
-    .eq('structure_id', structureId)
-    .gte('created_at', dateDebut)
-    .lte('created_at', dateFin)
-
-  const exportData: ExportData = {
-    title: `Statistiques ${mois}/${annee}`,
-    headers: ['Indicateur', 'Valeur'],
-    rows: [
-      ['Période', `${mois}/${annee}`],
-      ['Nombre de consultations', nbConsultations?.toString() || '0'],
-      ['Nombre de nouveaux patients', nbNouveauxPatients?.toString() || '0'],
-      ['Nombre d\'ordonnances', nbOrdonnances?.toString() || '0'],
-      ['Nombre d\'examens', nbExamens?.toString() || '0'],
-      ['Nombre de factures payées', nbFactures?.toString() || '0'],
-      ['Recette totale', `${recetteTotal} FCFA`]
-    ]
-  }
-
-  return genererCSV(exportData)
+  return toCsv(headers, rows)
 }
