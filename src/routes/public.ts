@@ -14,7 +14,7 @@ publicRoutes.get('/urgence/:qr_token', async (c) => {
       .select(`
         id, numero_national, nom, prenom, date_naissance, sexe,
         groupe_sanguin, rhesus, allergies, maladies_chroniques,
-        patient_contacts_urgence (nom, telephone, lien)
+        patient_contacts_urgence ( nom_complet, telephone, lien_parente )
       `)
       .eq('qr_code_token', qrToken)
       .single()
@@ -24,7 +24,6 @@ publicRoutes.get('/urgence/:qr_token', async (c) => {
       return c.html(notFoundPage('QR Code invalide'), 404)
     }
 
-    // Importer la page d'urgence
     const { urgencePage } = await import('../pages/urgence-qr')
     return c.html(urgencePage(patient))
   } catch (err) {
@@ -43,9 +42,9 @@ publicRoutes.get('/ordonnance/:qr_code', async (c) => {
       .from('medical_ordonnances')
       .select(`
         id, numero_ordonnance, created_at, date_expiration, statut,
-        patient_dossiers (nom, prenom, date_naissance),
-        auth_profiles (nom, prenom),
-        medical_ordonnance_lignes (nom_medicament, posologie, duree_jours)
+        patient_dossiers ( nom, prenom, date_naissance ),
+        auth_profiles ( nom, prenom ),
+        medical_ordonnance_lignes ( medicament_nom, dosage, frequence, duree )
       `)
       .eq('qr_code_verification', qrCode)
       .single()
@@ -105,9 +104,9 @@ function errorPage(message: string): string {
 }
 
 function ordonnancePage(ordonnance: any): string {
-  const patient = ordonnance.patient_dossiers as any
-  const medecin = ordonnance.auth_profiles as any
-  const lignes = ordonnance.medical_ordonnance_lignes as any[]
+  const patient   = ordonnance.patient_dossiers as any
+  const medecin   = ordonnance.auth_profiles as any
+  const lignes    = ordonnance.medical_ordonnance_lignes as any[]
   const estExpiree = new Date(ordonnance.date_expiration) < new Date()
 
   return `<!DOCTYPE html>
@@ -183,8 +182,8 @@ function ordonnancePage(ordonnance: any): string {
       ${lignes && lignes.length > 0
         ? lignes.map((l: any) => `
           <div class="med-item">
-            <div class="med-nom">${l.nom_medicament}</div>
-            <div class="med-posologie">${l.posologie} — ${l.duree_jours} jours</div>
+            <div class="med-nom">${l.medicament_nom || ''}</div>
+            <div class="med-posologie">${[l.dosage, l.frequence, l.duree].filter(Boolean).join(' — ')}</div>
           </div>
         `).join('')
         : '<p style="text-align:center;color:#9CA3AF;padding:20px">Aucun médicament</p>'
