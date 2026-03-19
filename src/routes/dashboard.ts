@@ -21,6 +21,7 @@ import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Variables, Bindings } from '../lib/supabase'
 import { dashboardAdminPage }                               from '../pages/dashboard-admin'
+import { dashboardCNTSPage }                                from '../pages/dashboard-cnts'
 import { dashboardMedecinPage }                             from '../pages/dashboard-medecin'
 import { dashboardAccueilPage }                             from '../pages/dashboard-accueil'
 import { dashboardPharmacienPage }                          from '../pages/dashboard-pharmacien'
@@ -442,6 +443,55 @@ dashboardRoutes.get('/patient',
     } catch (err) {
       console.error('dashboard/patient:', err)
       return c.html(erreurPage('Erreur tableau de bord patient',
+        err instanceof Error ? err.message : String(err)), 500)
+    }
+  }
+)
+
+
+// ── CNTS ───────────────────────────────────────────────────
+
+dashboardRoutes.get('/cnts',
+  requireRole('cnts_agent', 'super_admin'),
+  async (c) => {
+    try {
+      const profil   = c.get('profil')
+      const supabase = c.get('supabase')
+      const debut    = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+
+      const [totalRes, dispoRes, urgenceRes, donsRes, groupesRes] = await Promise.all([
+        supabase.from('sang_donneurs').select('*', { count: 'exact', head: true }),
+        supabase.from('sang_donneurs').select('*', { count: 'exact', head: true }).eq('est_disponible', true),
+        supabase.from('sang_demandes_urgence').select('*', { count: 'exact', head: true }).eq('statut', 'en_cours'),
+        supabase.from('sang_contacts_log').select('*', { count: 'exact', head: true }).gte('contacte_at', debut),
+        supabase.from('sang_donneurs').select('groupe_sanguin, rhesus').eq('est_disponible', true).limit(1000),
+      ])
+
+      // Compter par groupe
+      const compteur: Record<string, number> = {}
+      for (const d of groupesRes.data ?? []) {
+        const key = `${d.groupe_sanguin}|${d.rhesus}`
+        compteur[key] = (compteur[key] ?? 0) + 1
+      }
+      const parGroupe = Object.entries(compteur)
+        .sort((a, b) => (b[1] as number) - (a[1] as number))
+        .map(([key, count]) => {
+          const [groupe, rhesus] = key.split('|')
+          return { groupe, rhesus, count: count as number }
+        })
+
+      return c.html(dashboardCNTSPage(profil, {
+        stats: {
+          donneursTotal:   totalRes.count   ?? 0,
+          donneursDispos:  dispoRes.count   ?? 0,
+          urgencesEnCours: urgenceRes.count ?? 0,
+          donsThisMonth:   donsRes.count    ?? 0,
+        },
+        parGroupe,
+      }))
+    } catch (err) {
+      console.error('dashboard/cnts:', err)
+      return c.html(erreurPage('Erreur dashboard CNTS',
         err instanceof Error ? err.message : String(err)), 500)
     }
   }
