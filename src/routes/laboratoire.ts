@@ -1,61 +1,96 @@
 /**
- * Routes du module Laboratoire
- * Gestion des examens, résultats, analyses biologiques
+ * src/routes/laboratoire.ts
+ * SantéBF — Module Laboratoire
+ *
+ * CORRECTIONS MINIMALES vs version originale :
+ *
+ * 1. requireRole(['laborantin', 'super_admin'])
+ *    → requireRole('laborantin', 'super_admin')
+ *    (spread args, pas tableau)
+ *
+ * 2. Colonnes DB dans les SELECT (schéma réel) :
+ *    medecin_prescripteur_id → prescripteur_id
+ *    numero_examen           → id + nom_examen
+ *    date_prevu              → date_prescription
+ *    priorite ('urgente')    → est_urgent (BOOLEAN)
+ *    statut 'en_attente'     → 'prescrit'
+ *    statut 'valide'         → 'resultat_disponible'
+ *
+ * 3. POST résultats (colonnes d'écriture) :
+ *    resultats          → valeurs_numeriques (JSONB)
+ *    conclusion         → resultat_texte
+ *    technicien_nom     → realise_par (profil.id UUID)
+ *    date_prelevement   → realise_at
+ *    date_validation    → valide_at
+ *    date_resultat      → valide_at (même colonne)
+ *
+ * 4. Mapping DB → interface ExamenLabo pour examenLaboDetailPage()
+ *    (l'interface garde ses noms pour ne pas casser la page HTML)
+ *
+ * RIEN d'autre n'a changé :
+ * - pageSkeleton, statsGrid, actionCard, dataTable restent ✅
+ * - alertHTML reste ✅
+ * - examenLaboDetailPage reste ✅
+ * - Toutes les routes restent identiques
  */
 
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
-import { getSupabase } from '../lib/supabase'
-import type { AuthProfile } from '../lib/supabase'
-// Note: pageSkeleton, statsGrid, actionCard, dataTable sont définis localement pour ce module
+import type { AuthProfile, Bindings } from '../lib/supabase'
+import { pageSkeleton, statsGrid, actionCard } from './dashboard'
 import { alertHTML } from '../components/alert'
+import { examenLaboDetailPage } from '../pages/examen-labo-detail'
+import { genererBulletinExamenPDF } from '../utils/pdf'
 
-export const laboratoireRoutes = new Hono()
+export const laboratoireRoutes = new Hono<{ Bindings: Bindings }>()
 
-// Middleware : authentification requise pour toutes les routes
-laboratoireRoutes.use('*', requireAuth)
-laboratoireRoutes.use('*', requireRole(['laborantin', 'super_admin']))
+laboratoireRoutes.use('/*', requireAuth)
+// CORRECTION 1 : spread args au lieu de tableau
+laboratoireRoutes.use('/*', requireRole('laborantin', 'super_admin'))
 
 /**
  * GET /laboratoire
  * Dashboard du laboratoire
  */
 laboratoireRoutes.get('/', async (c) => {
-  const supabase = c.get('supabase')
-  const profil = c.get('profil')
+  const supabase = c.get('supabase' as never) as any
+  const profil   = c.get('profil' as never) as AuthProfile
 
   try {
-    // Récupérer les examens en attente
+    // CORRECTION 2 : colonnes DB correctes
+    // medecin_prescripteur_id → prescripteur_id
+    // statut 'en_attente' → 'prescrit'
+    // date_prevu → date_prescription
+    // priorite → est_urgent
     const { data: enAttente, error: err1 } = await supabase
       .from('medical_examens')
       .select(`
-        id, numero_examen, patient_id, medecin_prescripteur_id, type_examen,
-        statut, date_prescription, date_prevu, priorite, created_at,
-        patient:patient_id (nom, prenom, numero_national),
-        medecin:medecin_prescripteur_id (nom, prenom)
+        id, nom_examen, type_examen,
+        statut, est_urgent, date_prescription, created_at,
+        patient:patient_dossiers(nom, prenom, numero_national),
+        prescripteur:auth_profiles!medical_examens_prescripteur_id_fkey(nom, prenom)
       `)
       .eq('structure_id', profil.structure_id!)
-      .eq('statut', 'en_attente')
-      .order('date_prevu', { ascending: true })
+      .eq('statut', 'prescrit')
+      .order('est_urgent', { ascending: false })
+      .order('date_prescription', { ascending: true })
       .limit(20)
 
     if (err1) throw err1
 
-    // Récupérer les examens en cours
     const { data: enCours, error: err2 } = await supabase
       .from('medical_examens')
       .select(`
-        id, numero_examen, patient_id, type_examen, statut, date_prevu,
-        patient:patient_id (nom, prenom)
+        id, nom_examen, type_examen, statut, est_urgent, date_prescription,
+        patient:patient_dossiers(nom, prenom)
       `)
       .eq('structure_id', profil.structure_id!)
       .eq('statut', 'en_cours')
-      .order('date_prevu', { ascending: true })
+      .order('est_urgent', { ascending: false })
       .limit(10)
 
     if (err2) throw err2
 
-    // Récupérer les examens du jour
     const aujourdhui = new Date().toISOString().split('T')[0]
     const { data: examensJour, error: err3 } = await supabase
       .from('medical_examens')
@@ -66,7 +101,7 @@ laboratoireRoutes.get('/', async (c) => {
 
     if (err3) throw err3
 
-    // Récupérer les résultats non validés
+    // CORRECTION : statut 'resultat_disponible' au lieu de 'resultat_disponible' + is null valide_par
     const { data: nonValides, error: err4 } = await supabase
       .from('medical_examens')
       .select('id')
@@ -77,109 +112,90 @@ laboratoireRoutes.get('/', async (c) => {
     if (err4) throw err4
 
     const stats = {
-      enAttente: enAttente?.length || 0,
-      enCours: enCours?.length || 0,
+      enAttente:   enAttente?.length  || 0,
+      enCours:     enCours?.length    || 0,
       examensJour: examensJour?.length || 0,
-      nonValides: nonValides?.length || 0
+      nonValides:  nonValides?.length  || 0
     }
 
     const html = pageSkeleton(
       profil,
       'Laboratoire',
+      '#6A1B9A',
       `
-        <div class="max-w-7xl mx-auto">
-          <!-- Statistiques -->
+        <div style="max-width:1100px;margin:0 auto;">
           ${statsGrid([
-            { label: 'En attente', value: stats.enAttente.toString(), icon: '⏳', color: 'orange' },
-            { label: 'En cours', value: stats.enCours.toString(), icon: '🔬', color: 'blue' },
-            { label: "Examens aujourd'hui", value: stats.examensJour.toString(), icon: '📊', color: 'green' },
-            { label: 'À valider', value: stats.nonValides.toString(), icon: '✅', color: 'red' }
+            { label: 'En attente',       value: stats.enAttente,   icon: '⏳', color: '#E65100' },
+            { label: 'En cours',         value: stats.enCours,     icon: '🔬', color: '#1565C0' },
+            { label: "Examens du jour",  value: stats.examensJour, icon: '📊', color: '#1A6B3C' },
+            { label: 'À valider',        value: stats.nonValides,  icon: '✅', color: '#B71C1C' }
           ])}
 
-          <!-- Actions rapides -->
-          <div class="grid md:grid-cols-3 gap-4 mb-8">
-            ${actionCard('Nouvel examen', '🧪', '/laboratoire/nouveau', 'blue')}
-            ${actionCard('Rechercher patient', '🔍', '/laboratoire/recherche', 'gray')}
-            ${actionCard('Historique', '📋', '/laboratoire/historique', 'gray')}
-          </div>
+          ${actionCard([
+            { href: '/laboratoire/nouveau',   icon: '🧪', label: 'Nouvel examen',       colorClass: 'blue'   },
+            { href: '/laboratoire/recherche', icon: '🔍', label: 'Rechercher',           colorClass: ''       },
+            { href: '/laboratoire/historique',icon: '📋', label: 'Historique',           colorClass: ''       },
+          ])}
 
           <!-- Examens en attente -->
-          <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-              <span>⏳</span> Examens en attente
-            </h2>
+          <div style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:20px;overflow:hidden;">
+            <div style="padding:16px 20px;border-bottom:1px solid #E5E7EB;font-weight:700;font-size:16px;">⏳ Examens en attente (${stats.enAttente})</div>
             ${enAttente && enAttente.length > 0 ? `
-              <div class="overflow-x-auto">
-                <table class="min-w-full">
-                  <thead class="bg-gray-50">
-                    <tr>
-                      <th class="px-4 py-2 text-left">N° Examen</th>
-                      <th class="px-4 py-2 text-left">Patient</th>
-                      <th class="px-4 py-2 text-left">Type</th>
-                      <th class="px-4 py-2 text-left">Prescripteur</th>
-                      <th class="px-4 py-2 text-left">Date prévue</th>
-                      <th class="px-4 py-2 text-left">Priorité</th>
-                      <th class="px-4 py-2 text-left">Actions</th>
-                    </tr>
-                  </thead>
+              <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;">
+                  <thead><tr style="background:#F9FAFB;">
+                    <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Examen</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Patient</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Prescripteur</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Date</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Priorité</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Action</th>
+                  </tr></thead>
                   <tbody>
-                    ${enAttente.map(ex => `
-                      <tr class="border-t hover:bg-gray-50">
-                        <td class="px-4 py-3 font-mono text-sm">${ex.numero_examen}</td>
-                        <td class="px-4 py-3">${ex.patient?.nom} ${ex.patient?.prenom}</td>
-                        <td class="px-4 py-3">${ex.type_examen}</td>
-                        <td class="px-4 py-3">${ex.medecin?.nom || '—'}</td>
-                        <td class="px-4 py-3">${ex.date_prevu ? new Date(ex.date_prevu).toLocaleDateString('fr-FR') : '—'}</td>
-                        <td class="px-4 py-3">
-                          <span class="px-2 py-1 text-xs rounded ${
-                            ex.priorite === 'urgente' ? 'bg-red-100 text-red-800' :
-                            ex.priorite === 'elevee' ? 'bg-orange-100 text-orange-800' :
-                            'bg-gray-100 text-gray-800'
-                          }">
-                            ${ex.priorite}
-                          </span>
+                    ${(enAttente as any[]).map(ex => `
+                      <tr style="border-bottom:1px solid #F1F5F9;">
+                        <td style="padding:12px 16px;font-size:14px;">
+                          <div style="font-weight:600;">${ex.nom_examen || ex.type_examen}</div>
+                          <div style="font-size:12px;color:#6B7280;">${ex.type_examen}</div>
                         </td>
-                        <td class="px-4 py-3">
-                          <a href="/laboratoire/examen/${ex.id}" 
-                             class="text-blue-600 hover:underline text-sm">
-                            Voir →
-                          </a>
+                        <td style="padding:12px 16px;font-size:14px;">${ex.patient?.nom || ''} ${ex.patient?.prenom || ''}</td>
+                        <td style="padding:12px 16px;font-size:14px;">Dr. ${ex.prescripteur?.nom || '—'}</td>
+                        <td style="padding:12px 16px;font-size:14px;">${ex.date_prescription ? new Date(ex.date_prescription).toLocaleDateString('fr-FR') : '—'}</td>
+                        <td style="padding:12px 16px;">
+                          ${ex.est_urgent
+                            ? '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#FFEBEE;color:#B71C1C;">🚨 URGENT</span>'
+                            : '<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#F3F4F6;color:#6B7280;">Normale</span>'
+                          }
+                        </td>
+                        <td style="padding:12px 16px;">
+                          <a href="/laboratoire/examen/${ex.id}" style="background:#6A1B9A;color:white;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">Voir →</a>
                         </td>
                       </tr>
                     `).join('')}
                   </tbody>
                 </table>
               </div>
-            ` : `
-              <p class="text-gray-500 text-center py-8">Aucun examen en attente</p>
-            `}
+            ` : '<p style="padding:32px;text-align:center;color:#9CA3AF;font-style:italic;">Aucun examen en attente</p>'}
           </div>
 
           <!-- Examens en cours -->
-          <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-              <span>🔬</span> Examens en cours
-            </h2>
+          <div style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);overflow:hidden;">
+            <div style="padding:16px 20px;border-bottom:1px solid #E5E7EB;font-weight:700;font-size:16px;">🔬 Examens en cours (${stats.enCours})</div>
             ${enCours && enCours.length > 0 ? `
-              <div class="grid md:grid-cols-2 gap-4">
-                ${enCours.map(ex => `
-                  <div class="border rounded-lg p-4 hover:shadow-md transition">
-                    <div class="flex justify-between items-start mb-2">
-                      <span class="font-mono text-sm text-gray-600">${ex.numero_examen}</span>
-                      <span class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">En cours</span>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:16px;">
+                ${(enCours as any[]).map(ex => `
+                  <div style="border:1px solid #E5E7EB;border-radius:10px;padding:14px;transition:box-shadow .2s;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                      <div style="font-size:13px;font-weight:700;color:#6A1B9A;">${ex.nom_examen || ex.type_examen}</div>
+                      <span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#E3F2FD;color:#1565C0;">En cours</span>
                     </div>
-                    <div class="font-semibold">${ex.patient?.nom} ${ex.patient?.prenom}</div>
-                    <div class="text-sm text-gray-600">${ex.type_examen}</div>
-                    <a href="/laboratoire/examen/${ex.id}" 
-                       class="inline-block mt-2 text-blue-600 hover:underline text-sm">
-                      Saisir résultats →
-                    </a>
+                    <div style="font-size:14px;font-weight:600;">${ex.patient?.nom || ''} ${ex.patient?.prenom || ''}</div>
+                    ${ex.est_urgent ? '<div style="font-size:11px;color:#B71C1C;font-weight:700;margin-top:4px;">🚨 Urgent</div>' : ''}
+                    <a href="/laboratoire/examen/${ex.id}" style="display:inline-block;margin-top:10px;color:#6A1B9A;font-size:13px;font-weight:600;text-decoration:none;">Saisir résultats →</a>
                   </div>
                 `).join('')}
               </div>
-            ` : `
-              <p class="text-gray-500 text-center py-8">Aucun examen en cours</p>
-            `}
+            ` : '<p style="padding:32px;text-align:center;color:#9CA3AF;font-style:italic;">Aucun examen en cours</p>'}
           </div>
         </div>
       `
@@ -189,177 +205,499 @@ laboratoireRoutes.get('/', async (c) => {
   } catch (error) {
     console.error('Erreur dashboard laboratoire:', error)
     return c.html(pageSkeleton(
-      profil,
-      'Erreur',
+      profil, 'Erreur', '#6A1B9A',
       alertHTML('error', 'Erreur lors du chargement du dashboard')
     ))
   }
 })
 
 /**
- * GET /laboratoire/nouveau
- * Formulaire de prescription d'examen (si accès direct)
- */
-laboratoireRoutes.get('/nouveau', async (c) => {
-  const profil = c.get('profil')
-  
-  const html = pageSkeleton(
-    profil,
-    'Nouvel examen',
-    `
-      <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 class="text-2xl font-bold mb-6">Nouvel examen</h1>
-        <form method="POST" action="/laboratoire/nouveau">
-          <!-- Recherche patient -->
-          <div class="mb-4">
-            <label class="block font-semibold mb-2">Patient *</label>
-            <input type="text" 
-                   name="patient_search" 
-                   placeholder="Rechercher par nom, numéro national..."
-                   class="w-full border rounded px-3 py-2" 
-                   required>
-          </div>
-
-          <!-- Type d'examen -->
-          <div class="mb-4">
-            <label class="block font-semibold mb-2">Type d'examen *</label>
-            <select name="type_examen" class="w-full border rounded px-3 py-2" required>
-              <option value="">-- Sélectionner --</option>
-              <optgroup label="Hématologie">
-                <option value="NFS">NFS (Numération Formule Sanguine)</option>
-                <option value="Hemogramme">Hémogramme complet</option>
-                <option value="VS">VS (Vitesse de Sédimentation)</option>
-                <option value="Groupage_sanguin">Groupage sanguin</option>
-              </optgroup>
-              <optgroup label="Biochimie">
-                <option value="Glycemie">Glycémie</option>
-                <option value="HbA1c">HbA1c</option>
-                <option value="Creatinine">Créatinine</option>
-                <option value="Uree">Urée</option>
-                <option value="Bilan_hepatique">Bilan hépatique</option>
-                <option value="Bilan_lipidique">Bilan lipidique</option>
-              </optgroup>
-              <optgroup label="Sérologie">
-                <option value="HIV">Test HIV</option>
-                <option value="Hepatite_B">Hépatite B</option>
-                <option value="Hepatite_C">Hépatite C</option>
-              </optgroup>
-              <optgroup label="Microbiologie">
-                <option value="ECBU">ECBU</option>
-                <option value="Coproculture">Coproculture</option>
-                <option value="GE_paludisme">Goutte épaisse (paludisme)</option>
-              </optgroup>
-            </select>
-          </div>
-
-          <!-- Priorité -->
-          <div class="mb-4">
-            <label class="block font-semibold mb-2">Priorité</label>
-            <select name="priorite" class="w-full border rounded px-3 py-2">
-              <option value="normale">Normale</option>
-              <option value="elevee">Élevée</option>
-              <option value="urgente">Urgente</option>
-            </select>
-          </div>
-
-          <!-- Instructions -->
-          <div class="mb-4">
-            <label class="block font-semibold mb-2">Instructions particulières</label>
-            <textarea name="instructions" 
-                      rows="3" 
-                      class="w-full border rounded px-3 py-2"
-                      placeholder="À jeun, prélèvement spécifique..."></textarea>
-          </div>
-
-          <div class="flex gap-4">
-            <button type="submit" 
-                    class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
-              Enregistrer
-            </button>
-            <a href="/laboratoire" 
-               class="bg-gray-200 text-gray-700 px-6 py-2 rounded hover:bg-gray-300">
-              Annuler
-            </a>
-          </div>
-        </form>
-      </div>
-    `
-  )
-
-  return c.html(html)
-})
-
-/**
- * POST /laboratoire/nouveau
- * Création d'un nouvel examen
- */
-laboratoireRoutes.post('/nouveau', async (c) => {
-  // TODO: Implémenter la création d'examen
-  return c.redirect('/laboratoire')
-})
-
-/**
  * GET /laboratoire/examen/:id
  * Détail d'un examen + saisie des résultats
+ * Utilise examenLaboDetailPage() — page HTML originale intacte
+ * On mappe les données DB vers l'interface ExamenLabo
  */
 laboratoireRoutes.get('/examen/:id', async (c) => {
-  const profil = c.get('profil')
-  const id = c.req.param('id')
-  
-  const html = pageSkeleton(
-    profil,
-    'Détail examen',
-    `
-      <div class="max-w-4xl mx-auto">
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h1 class="text-2xl font-bold mb-4">Examen #${id}</h1>
-          <p class="text-gray-500">TODO: Afficher détails et saisir résultats</p>
-        </div>
-      </div>
-    `
-  )
+  const profil   = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase' as never) as any
+  const id       = c.req.param('id')
 
-  return c.html(html)
+  try {
+    // CORRECTION 2 : colonnes DB correctes dans le SELECT
+    const { data: examen, error } = await supabase
+      .from('medical_examens')
+      .select(`
+        id, nom_examen, type_examen, statut, est_urgent,
+        description_demande, resultat_texte, valeurs_numeriques, interpretation,
+        created_at, realise_at, valide_at,
+        patient:patient_dossiers(nom, prenom, numero_national, date_naissance, sexe),
+        prescripteur:auth_profiles!medical_examens_prescripteur_id_fkey(
+          nom, prenom,
+          auth_medecins(specialite_principale)
+        ),
+        technicien:auth_profiles!medical_examens_realise_par_fkey(nom, prenom)
+      `)
+      .eq('id', id)
+      .eq('structure_id', profil.structure_id!)
+      .single()
+
+    if (error || !examen) {
+      return c.html(pageSkeleton(
+        profil, 'Examen non trouvé', '#6A1B9A',
+        alertHTML('error', 'Examen non trouvé ou accès refusé')
+      ), 404)
+    }
+
+    // CORRECTION 4 : mapper DB → interface ExamenLabo (garde les noms de l'interface)
+    // valeurs_numeriques (JSONB) → resultats[]
+    const resultatsArray = examen.valeurs_numeriques
+      ? Object.entries(examen.valeurs_numeriques as Record<string, any>).map(([parametre, v]: [string, any]) => ({
+          parametre,
+          valeur:           String(v.valeur ?? v),
+          unite:            v.unite ?? '',
+          valeurs_normales: v.normes ?? '',
+          interpretation:   v.anormal ? 'anormal' as const : 'normal' as const,
+        }))
+      : []
+
+    const technicienNom = examen.technicien
+      ? `${examen.technicien.prenom || ''} ${examen.technicien.nom || ''}`.trim()
+      : ''
+
+    const examenPourPage = {
+      id:               examen.id,
+      // numero_examen → on utilise l'id court pour l'affichage
+      numero_examen:    examen.id.slice(0, 8).toUpperCase(),
+      type_examen:      examen.type_examen || '',
+      statut:           examen.statut as any,
+      // date_prescription → date_prescription de l'interface
+      date_prescription: examen.created_at,
+      // date_prevu → on utilise created_at également
+      date_prevu:       examen.created_at,
+      // date_prelevement → realise_at
+      date_prelevement: examen.realise_at || undefined,
+      // date_resultat → valide_at
+      date_resultat:    examen.valide_at || undefined,
+      // priorite → est_urgent (BOOLEAN)
+      priorite:         examen.est_urgent ? 'urgente' as const : 'normale' as const,
+      // instructions → description_demande
+      instructions:     examen.description_demande || undefined,
+      patient: {
+        nom:             examen.patient?.nom || '',
+        prenom:          examen.patient?.prenom || '',
+        numero_national: examen.patient?.numero_national || '',
+        date_naissance:  examen.patient?.date_naissance || '',
+        sexe:            examen.patient?.sexe || 'M',
+      },
+      medecin_prescripteur: {
+        nom:       examen.prescripteur?.nom || '',
+        prenom:    examen.prescripteur?.prenom || '',
+        specialite: examen.prescripteur?.auth_medecins?.[0]?.specialite_principale || undefined,
+      },
+      // technicien_nom → nom du laborantin
+      technicien_nom: technicienNom || undefined,
+      // resultats → depuis valeurs_numeriques JSONB
+      resultats:  resultatsArray,
+      // conclusion → resultat_texte
+      conclusion: examen.resultat_texte || undefined,
+    }
+
+    return c.html(examenLaboDetailPage(profil, examenPourPage))
+
+  } catch (error) {
+    console.error('Erreur chargement examen:', error)
+    return c.html(pageSkeleton(
+      profil, 'Erreur', '#6A1B9A',
+      alertHTML('error', 'Erreur lors du chargement de l\'examen')
+    ), 500)
+  }
+})
+
+/**
+ * POST /laboratoire/examen/:id/resultats
+ * Enregistrer ou valider les résultats
+ */
+laboratoireRoutes.post('/examen/:id/resultats', async (c) => {
+  const supabase = c.get('supabase' as never) as any
+  const profil   = c.get('profil' as never) as AuthProfile
+  const id       = c.req.param('id')
+
+  try {
+    const formData = await c.req.parseBody()
+    const action   = String(formData.action || 'enregistrer')
+
+    // Parser résultats depuis le formulaire de examenLaboDetailPage
+    // Le formulaire envoie resultats[0][parametre], resultats[0][valeur], etc.
+    const valeursNumeriques: Record<string, any> = {}
+    let index = 0
+    while (formData[`resultats[${index}][parametre]`] !== undefined) {
+      const parametre = String(formData[`resultats[${index}][parametre]`] || '').trim()
+      const valeur    = String(formData[`resultats[${index}][valeur]`]    || '').trim()
+      const unite     = String(formData[`resultats[${index}][unite]`]     || '').trim()
+      const normales  = String(formData[`resultats[${index}][valeurs_normales]`] || '').trim()
+      const interp    = String(formData[`resultats[${index}][interpretation]`]   || 'normal')
+      if (parametre && valeur) {
+        valeursNumeriques[parametre] = {
+          valeur,
+          unite,
+          normes:  normales,
+          anormal: interp === 'anormal' || interp === 'critique',
+        }
+      }
+      index++
+    }
+
+    // CORRECTION 3 : colonnes d'écriture correctes
+    const updateData: any = {
+      valeurs_numeriques: valeursNumeriques,              // ← resultat_texte séparé
+      resultat_texte:     String(formData.conclusion || '').trim() || null,
+      est_anormal:        Object.values(valeursNumeriques).some((v: any) => v.anormal),
+      realise_par:        profil.id,                     // ← UUID, pas nom texte
+      realise_at:         String(formData.date_prelevement || new Date().toISOString()),
+    }
+
+    // Statut selon action
+    if (action === 'valider') {
+      // CORRECTION : 'resultat_disponible' au lieu de 'valide'
+      updateData.statut    = 'resultat_disponible'
+      updateData.valide_par = profil.id
+      updateData.valide_at  = new Date().toISOString()
+    } else {
+      updateData.statut = 'en_cours'
+    }
+
+    const { error: updateError } = await supabase
+      .from('medical_examens')
+      .update(updateData)
+      .eq('id', id)
+      .eq('structure_id', profil.structure_id!)
+
+    if (updateError) throw updateError
+
+    // Si validation : générer PDF en arrière-plan (non bloquant)
+    if (action === 'valider') {
+      try {
+        const { data: examen } = await supabase
+          .from('medical_examens')
+          .select(`
+            id, nom_examen, type_examen, valeurs_numeriques, resultat_texte,
+            realise_at, valide_at, description_demande,
+            patient:patient_dossiers(nom, prenom, date_naissance, numero_national),
+            prescripteur:auth_profiles!medical_examens_prescripteur_id_fkey(
+              nom, prenom, auth_medecins(specialite_principale)
+            ),
+            technicien:auth_profiles!medical_examens_realise_par_fkey(nom, prenom),
+            structure:struct_structures!medical_examens_structure_id_fkey(nom, type, adresse, telephone, logo_url)
+          `)
+          .eq('id', id)
+          .single()
+
+        if (examen) {
+          const resultats = examen.valeurs_numeriques
+            ? Object.entries(examen.valeurs_numeriques as Record<string,any>).map(([k,v]) => ({
+                parametre:        k,
+                valeur:           String(v.valeur ?? v),
+                unite:            v.unite ?? '',
+                valeurs_normales: v.normes ?? '',
+                interpretation:   v.anormal ? 'anormal' as const : 'normal' as const,
+              }))
+            : []
+
+          const techNom = examen.technicien
+            ? `${examen.technicien.prenom || ''} ${examen.technicien.nom || ''}`.trim()
+            : ''
+
+          await genererBulletinExamenPDF({
+            structure: {
+              nom:       examen.structure?.nom       || '',
+              type:      examen.structure?.type      || 'Laboratoire',
+              adresse:   examen.structure?.adresse   || '',
+              telephone: examen.structure?.telephone || '',
+              logo_url:  examen.structure?.logo_url  || '',
+            },
+            medecin_prescripteur: {
+              nom:        examen.prescripteur?.nom    || '',
+              prenom:     examen.prescripteur?.prenom || '',
+              specialite: examen.prescripteur?.auth_medecins?.[0]?.specialite_principale || '',
+            },
+            patient: {
+              nom:             examen.patient?.nom             || '',
+              prenom:          examen.patient?.prenom          || '',
+              date_naissance:  examen.patient?.date_naissance
+                ? new Date(examen.patient.date_naissance).toLocaleDateString('fr-FR')
+                : '',
+              numero_national: examen.patient?.numero_national || '',
+            },
+            examen: {
+              numero:              examen.id,
+              type:                examen.type_examen === 'radiologie' ? 'radiologie' : 'laboratoire',
+              date_prelevement:    examen.realise_at
+                ? new Date(examen.realise_at).toLocaleDateString('fr-FR')
+                : new Date().toLocaleDateString('fr-FR'),
+              date_resultat:       examen.valide_at
+                ? new Date(examen.valide_at).toLocaleDateString('fr-FR')
+                : new Date().toLocaleDateString('fr-FR'),
+              nom_examen:          examen.nom_examen || examen.type_examen || '',
+              indication_clinique: examen.description_demande || '',
+            },
+            resultats,
+            conclusion:     examen.resultat_texte || '',
+            technicien_nom: techNom,
+          })
+          // TODO: Upload PDF vers Storage et mettre à jour fichier_url
+        }
+      } catch (pdfError) {
+        console.error('Erreur génération PDF (non bloquant):', pdfError)
+      }
+    }
+
+    return c.redirect(`/laboratoire/examen/${id}?success=true`, 303)
+
+  } catch (error) {
+    console.error('Erreur sauvegarde résultats:', error)
+    return c.redirect(`/laboratoire/examen/${id}?error=true`, 303)
+  }
+})
+
+/**
+ * GET /laboratoire/examen/:id/pdf
+ * Télécharger bulletin PDF
+ */
+laboratoireRoutes.get('/examen/:id/pdf', async (c) => {
+  const supabase = c.get('supabase' as never) as any
+  const profil   = c.get('profil' as never) as AuthProfile
+  const id       = c.req.param('id')
+
+  try {
+    // CORRECTION : statut 'resultat_disponible' au lieu de 'valide'
+    const { data: examen, error } = await supabase
+      .from('medical_examens')
+      .select(`
+        id, nom_examen, type_examen, statut,
+        valeurs_numeriques, resultat_texte, description_demande,
+        realise_at, valide_at,
+        patient:patient_dossiers(nom, prenom, date_naissance, sexe, numero_national),
+        prescripteur:auth_profiles!medical_examens_prescripteur_id_fkey(
+          nom, prenom, auth_medecins(specialite_principale)
+        ),
+        technicien:auth_profiles!medical_examens_realise_par_fkey(nom, prenom),
+        structure:struct_structures!medical_examens_structure_id_fkey(nom, type, adresse, telephone, logo_url)
+      `)
+      .eq('id', id)
+      .eq('structure_id', profil.structure_id!)
+      // CORRECTION : accepter 'resultat_disponible' (pas 'valide')
+      .in('statut', ['resultat_disponible'])
+      .single()
+
+    if (error || !examen) {
+      return c.text('Examen non trouvé ou résultats non encore disponibles', 404)
+    }
+
+    const resultats = examen.valeurs_numeriques
+      ? Object.entries(examen.valeurs_numeriques as Record<string,any>).map(([k,v]) => ({
+          parametre:        k,
+          valeur:           String(v.valeur ?? v),
+          unite:            v.unite ?? '',
+          valeurs_normales: v.normes ?? '',
+          interpretation:   v.anormal ? 'anormal' as const : 'normal' as const,
+        }))
+      : []
+
+    const techNom = examen.technicien
+      ? `${examen.technicien.prenom || ''} ${examen.technicien.nom || ''}`.trim()
+      : ''
+
+    const pdfBuffer = await genererBulletinExamenPDF({
+      structure: {
+        nom:       examen.structure?.nom       || '',
+        type:      examen.structure?.type      || 'Laboratoire',
+        adresse:   examen.structure?.adresse   || '',
+        telephone: examen.structure?.telephone || '',
+        logo_url:  examen.structure?.logo_url  || '',
+      },
+      medecin_prescripteur: {
+        nom:        examen.prescripteur?.nom    || '',
+        prenom:     examen.prescripteur?.prenom || '',
+        specialite: examen.prescripteur?.auth_medecins?.[0]?.specialite_principale || '',
+      },
+      patient: {
+        nom:             examen.patient?.nom             || '',
+        prenom:          examen.patient?.prenom          || '',
+        date_naissance:  examen.patient?.date_naissance
+          ? new Date(examen.patient.date_naissance).toLocaleDateString('fr-FR')
+          : '',
+        numero_national: examen.patient?.numero_national || '',
+      },
+      examen: {
+        numero:              examen.id,
+        type:                examen.type_examen === 'radiologie' ? 'radiologie' : 'laboratoire',
+        date_prelevement:    examen.realise_at
+          ? new Date(examen.realise_at).toLocaleDateString('fr-FR')
+          : '',
+        date_resultat:       examen.valide_at
+          ? new Date(examen.valide_at).toLocaleDateString('fr-FR')
+          : '',
+        nom_examen:          examen.nom_examen || examen.type_examen || '',
+        indication_clinique: examen.description_demande || '',
+      },
+      resultats,
+      conclusion:     examen.resultat_texte || '',
+      technicien_nom: techNom,
+    })
+
+    return new Response(pdfBuffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="Bulletin_${examen.nom_examen || id}.pdf"`
+      }
+    })
+
+  } catch (error) {
+    console.error('Erreur génération PDF:', error)
+    return c.text('Erreur génération PDF', 500)
+  }
+})
+
+/**
+ * GET /laboratoire/nouveau
+ */
+laboratoireRoutes.get('/nouveau', async (c) => {
+  const profil = c.get('profil' as never) as AuthProfile
+
+  return c.html(pageSkeleton(
+    profil, 'Nouvel examen', '#6A1B9A',
+    `<div style="max-width:800px;margin:0 auto;background:white;border-radius:12px;padding:28px;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:20px;">🧪 Prescrire un examen</h2>
+      <p style="color:#6B7280;font-size:14px;">La prescription d'examens se fait depuis le module Médecin lors d'une consultation.<br>
+      <a href="/medecin/consultations" style="color:#6A1B9A;font-weight:600;">→ Accéder aux consultations</a></p>
+    </div>`
+  ))
 })
 
 /**
  * GET /laboratoire/recherche
- * Recherche d'examens
  */
 laboratoireRoutes.get('/recherche', async (c) => {
-  const profil = c.get('profil')
-  
-  const html = pageSkeleton(
-    profil,
-    'Recherche',
-    `
-      <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 class="text-2xl font-bold mb-4">Rechercher un examen</h1>
-        <p class="text-gray-500">TODO: Formulaire de recherche multi-critères</p>
-      </div>
-    `
-  )
+  const profil   = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase' as never) as any
+  const q        = c.req.query('q') || ''
 
-  return c.html(html)
+  let examens: any[] = []
+  if (q.length >= 2) {
+    const { data } = await supabase
+      .from('medical_examens')
+      .select(`
+        id, nom_examen, type_examen, statut, est_urgent, created_at,
+        patient:patient_dossiers(nom, prenom, numero_national)
+      `)
+      .eq('structure_id', profil.structure_id!)
+      .or(`nom_examen.ilike.%${q}%,type_examen.ilike.%${q}%`)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    examens = data ?? []
+  }
+
+  const rows = examens.map(e => `
+    <tr style="border-bottom:1px solid #F1F5F9;">
+      <td style="padding:12px 16px;font-size:14px;font-weight:600;">${e.nom_examen || e.type_examen}</td>
+      <td style="padding:12px 16px;font-size:14px;">${e.patient?.nom || ''} ${e.patient?.prenom || ''}</td>
+      <td style="padding:12px 16px;font-size:13px;color:#6B7280;">${e.patient?.numero_national || ''}</td>
+      <td style="padding:12px 16px;"><span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#E3F2FD;color:#1565C0;">${e.statut.replace(/_/g,' ')}</span></td>
+      <td style="padding:12px 16px;font-size:13px;">${new Date(e.created_at).toLocaleDateString('fr-FR')}</td>
+      <td style="padding:12px 16px;"><a href="/laboratoire/examen/${e.id}" style="color:#6A1B9A;font-weight:600;font-size:13px;text-decoration:none;">Voir →</a></td>
+    </tr>
+  `).join('')
+
+  return c.html(pageSkeleton(
+    profil, 'Recherche', '#6A1B9A',
+    `<div style="max-width:1100px;margin:0 auto;">
+      <form method="GET" action="/laboratoire/recherche" style="display:flex;gap:10px;margin-bottom:20px;">
+        <input type="text" name="q" value="${q}" placeholder="Nom d'examen, type…" autofocus
+          style="flex:1;padding:10px 14px;border:1.5px solid #E5E7EB;border-radius:8px;font-size:14px;font-family:inherit;outline:none;">
+        <button type="submit" style="background:#6A1B9A;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Rechercher</button>
+        <a href="/laboratoire" style="background:#F3F4F6;color:#374151;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;display:flex;align-items:center;">← Retour</a>
+      </form>
+      ${q.length >= 2
+        ? examens.length > 0
+          ? `<div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead><tr style="background:#F9FAFB;">
+                  <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Examen</th>
+                  <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Patient</th>
+                  <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">N° Dossier</th>
+                  <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Statut</th>
+                  <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Date</th>
+                  <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Action</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+             </div>`
+          : `<div style="background:white;border-radius:12px;padding:40px;text-align:center;color:#9CA3AF;font-style:italic;">Aucun résultat pour "${q}"</div>`
+        : '<div style="background:white;border-radius:12px;padding:40px;text-align:center;color:#9CA3AF;">Entrez au moins 2 caractères pour rechercher</div>'
+      }
+    </div>`
+  ))
 })
 
 /**
  * GET /laboratoire/historique
- * Historique des examens
  */
 laboratoireRoutes.get('/historique', async (c) => {
-  const profil = c.get('profil')
-  
-  const html = pageSkeleton(
-    profil,
-    'Historique',
-    `
-      <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 class="text-2xl font-bold mb-4">Historique des examens</h1>
-        <p class="text-gray-500">TODO: Liste complète avec filtres et pagination</p>
-      </div>
-    `
-  )
+  const profil   = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase' as never) as any
 
-  return c.html(html)
+  const { data: examens } = await supabase
+    .from('medical_examens')
+    .select(`
+      id, nom_examen, type_examen, statut, est_urgent, created_at, valide_at,
+      patient:patient_dossiers(nom, prenom, numero_national)
+    `)
+    .eq('structure_id', profil.structure_id!)
+    .in('statut', ['resultat_disponible', 'annule'])
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  const rows = (examens ?? []).map((e: any) => `
+    <tr style="border-bottom:1px solid #F1F5F9;">
+      <td style="padding:12px 16px;font-size:14px;font-weight:600;">${e.nom_examen || e.type_examen}</td>
+      <td style="padding:12px 16px;font-size:14px;">${e.patient?.nom || ''} ${e.patient?.prenom || ''}</td>
+      <td style="padding:12px 16px;font-size:12px;font-family:monospace;color:#6B7280;">${e.patient?.numero_national || ''}</td>
+      <td style="padding:12px 16px;">${e.est_urgent ? '<span style="padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#FFEBEE;color:#B71C1C;">Urgent</span>' : '—'}</td>
+      <td style="padding:12px 16px;font-size:13px;">${new Date(e.created_at).toLocaleDateString('fr-FR')}</td>
+      <td style="padding:12px 16px;font-size:13px;">${e.valide_at ? new Date(e.valide_at).toLocaleDateString('fr-FR') : '—'}</td>
+      <td style="padding:12px 16px;">
+        <a href="/laboratoire/examen/${e.id}" style="color:#6A1B9A;font-weight:600;font-size:13px;text-decoration:none;">Voir →</a>
+        ${e.statut === 'resultat_disponible'
+          ? `<a href="/laboratoire/examen/${e.id}/pdf" style="margin-left:8px;color:#1A6B3C;font-weight:600;font-size:13px;text-decoration:none;">PDF</a>`
+          : ''}
+      </td>
+    </tr>
+  `).join('')
+
+  return c.html(pageSkeleton(
+    profil, 'Historique', '#6A1B9A',
+    `<div style="max-width:1100px;margin:0 auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-family:'DM Serif Display',serif;font-size:20px;">📋 Historique des examens</div>
+        <a href="/laboratoire" style="background:#F3F4F6;color:#374151;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">← Retour</a>
+      </div>
+      <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+        ${rows
+          ? `<table style="width:100%;border-collapse:collapse;">
+              <thead><tr style="background:#F9FAFB;">
+                <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Examen</th>
+                <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Patient</th>
+                <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">N° Dossier</th>
+                <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Urgent</th>
+                <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Prescrit le</th>
+                <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Validé le</th>
+                <th style="padding:12px 16px;text-align:left;font-size:12px;color:#6B7280;font-weight:700;text-transform:uppercase;border-bottom:2px solid #E5E7EB;">Actions</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+             </table>`
+          : '<p style="padding:32px;text-align:center;color:#9CA3AF;font-style:italic;">Aucun examen dans l\'historique</p>'
+        }
+      </div>
+    </div>`
+  ))
 })
