@@ -903,3 +903,27 @@ ${topbar(profil, 'Rapport')}
 
   return c.html(page('Rapport', html))
 })
+
+// ═══════════════════════════════════════════════════════════════
+// ROUTES ALIASES (liens sidebar dashboard)
+// ═══════════════════════════════════════════════════════════════
+
+// /encaissement → /facture/nouvelle
+caissierRoutes.get('/encaissement', async (c) => {
+  return c.redirect('/caissier/facture/nouvelle', 303)
+})
+
+// /recherche → /factures?statut=impayee
+caissierRoutes.get('/recherche', async (c) => {
+  return c.redirect('/caissier/factures?statut=impayee', 303)
+})
+
+// /historique → /factures?statut=all
+caissierRoutes.get('/historique', async (c) => {
+  return c.redirect('/caissier/factures?statut=all', 303)
+})
+
+// /cloture → /rapport
+caissierRoutes.get('/cloture', async (c) => {
+  return c.redirect('/caissier/rapport', 303)
+})
