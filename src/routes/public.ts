@@ -17,6 +17,8 @@ import { accueilPatientAppPage } from '../pages/accueil-patient-app'
 export const publicRoutes = new Hono<{ Bindings: Bindings }>()
 
 // ── Page landing marketing ─────────────────────────────────────
+// Matcher /public ET /public/ (avec et sans slash final)
+publicRoutes.get('',  (c) => c.html(landingPage()))
 publicRoutes.get('/', (c) => c.html(landingPage()))
 
 // ── Page d'accueil app mobile patient ─────────────────────────
