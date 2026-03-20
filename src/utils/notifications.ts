@@ -455,3 +455,101 @@ export async function declencherNotification(
  * }
  * ═══════════════════════════════════════════════════════════
  */
+
+// ═══════════════════════════════════════════════════════════
+// Notifications Push (FCM Firebase Cloud Messaging)
+// Nécessite FCM_SERVER_KEY dans Cloudflare Pages Variables
+// ═══════════════════════════════════════════════════════════
+
+export async function envoyerNotifPush(
+  fcmToken:     string,
+  titre:        string,
+  corps:        string,
+  url:          string,
+  fcmServerKey: string
+): Promise<boolean> {
+  if (!fcmToken || !fcmServerKey) return false
+  try {
+    const res = await fetch('https://fcm.googleapis.com/fcm/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `key=${fcmServerKey}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({
+        to:           fcmToken,
+        notification: { title: titre, body: corps, sound: 'default' },
+        data:         { url },
+        priority:     'high',
+      }),
+    })
+    const result = await res.json() as any
+    if (result.failure > 0) {
+      console.error('FCM push failed:', result)
+      return false
+    }
+    return true
+  } catch (e) {
+    console.error('envoyerNotifPush error:', e)
+    return false
+  }
+}
+
+// ── Récupérer le token FCM d'un utilisateur ────────────────
+export async function getFcmToken(sb: any, userId: string): Promise<string | null> {
+  try {
+    const { data } = await sb
+      .from('auth_profiles')
+      .select('fcm_token')
+      .eq('id', userId)
+      .single()
+    return data?.fcm_token || null
+  } catch {
+    return null
+  }
+}
+
+// ── Push + Email combinés ─────────────────────────────────
+// Envoie email ET notification push si les deux sont configurés
+export async function notifierPatient(opts: {
+  sb:           any
+  patientId:    string      // patient_dossiers.id
+  profileId?:   string      // auth_profiles.id (si connu)
+  titre:        string
+  message:      string
+  url:          string
+  emailSubject: string
+  emailHtml:    string
+  resendKey?:   string
+  fcmServerKey?: string
+}): Promise<void> {
+  const { sb, patientId, titre, message, url, emailSubject, emailHtml, resendKey, fcmServerKey } = opts
+
+  // 1. Email
+  if (resendKey) {
+    const email = await getPatientEmail(sb, patientId)
+    if (email) {
+      await sendEmail({ resendKey, to: email, subject: emailSubject, html: emailHtml })
+    }
+  }
+
+  // 2. Push notification
+  if (fcmServerKey) {
+    // Récupérer profile_id depuis patient_dossiers
+    let profileId = opts.profileId
+    if (!profileId) {
+      const { data: dos } = await sb
+        .from('patient_dossiers')
+        .select('profile_id')
+        .eq('id', patientId)
+        .single()
+      profileId = dos?.profile_id
+    }
+    if (profileId) {
+      const token = await getFcmToken(sb, profileId)
+      if (token) {
+        await envoyerNotifPush(token, titre, message, url, fcmServerKey)
+      }
+    }
+  }
+}
