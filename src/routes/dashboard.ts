@@ -1,40 +1,12 @@
-/
-
-export function alertHTML(type: 'error' | 'success' | 'warning', message: string): string {
-  const styles: Record<string, string> = {
-    error:   'background:#FFF5F5;border-left:4px solid #B71C1C;color:#B71C1C;',
-    success: 'background:#E8F5E9;border-left:4px solid #1A6B3C;color:#1A6B3C;',
-    warning: 'background:#FFF8E1;border-left:4px solid #F9A825;color:#E65100;',
-  }
-  const icons: Record<string, string> = { error: '⚠️', success: '✓', warning: '⚠️' }
-  return `<div style="${styles[type]}border-radius:10px;padding:16px 18px;font-size:14px;font-weight:600;margin:12px 0;">
-    ${icons[type]} ${message}
-  </div>`
-}
-**
+/**
  * src/routes/dashboard.ts
  * SantéBF — Routes des tableaux de bord par rôle
- *
- * Corrections :
- *   1. BUG CRITIQUE /dashboard/medecin :
- *      dashboardMedecinPage() attendait {rdvJour, consultations, stats:{...}}
- *      mais le code ne passait PAS stats → crash TypeScript → écran noir
- *      → Ajout des 3 requêtes stats (consultationsJour, rdvAVenir, ordonnancesActives)
- *
- *   2. Tous les catch retournaient c.text('Erreur serveur', 500) → écran noir
- *      → Remplacés par pages HTML propres avec lien de retour
- *
- *   3. pageSkeleton/statsGrid/actionCard restent exportés ici pour les routes
- *      qui l'importent depuis './dashboard' (accueil, caissier, etc.)
- *      Les modules grossesse/infirmerie/radiologie l'importent depuis module-helpers
- *      → Pas de conflit car ce sont des exports nommés différents
  */
 
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Variables, Bindings } from '../lib/supabase'
 import { dashboardAdminPage }                               from '../pages/dashboard-admin'
-import { dashboardCNTSPage }                                from '../pages/dashboard-cnts'
 import { dashboardMedecinPage }                             from '../pages/dashboard-medecin'
 import { dashboardAccueilPage }                             from '../pages/dashboard-accueil'
 import { dashboardPharmacienPage }                          from '../pages/dashboard-pharmacien'
@@ -49,7 +21,7 @@ export const dashboardRoutes = new Hono<{
 
 dashboardRoutes.use('/*', requireAuth)
 
-// ─── Helper page d'erreur inline ─────────────────────────
+// \u2500\u2500\u2500 Helper page d'erreur inline \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 function erreurPage(titre: string, detail?: string): string {
   return `<!DOCTYPE html>
@@ -86,7 +58,7 @@ function erreurPage(titre: string, detail?: string): string {
 </body></html>`
 }
 
-// ── Super Admin ────────────────────────────────────────────
+// \u2500\u2500 Super Admin \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 dashboardRoutes.get('/admin',
   requireRole('super_admin'),
@@ -114,7 +86,7 @@ dashboardRoutes.get('/admin',
   }
 )
 
-// ── Admin Structure ────────────────────────────────────────
+// \u2500\u2500 Admin Structure \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 dashboardRoutes.get('/structure',
   requireRole('admin_structure'),
@@ -124,8 +96,8 @@ dashboardRoutes.get('/structure',
       const supabase = c.get('supabase')
 
       if (!profil.structure_id) {
-        return c.html(erreurPage('Aucune structure assignée',
-          'Votre compte n\'est pas lié à une structure. Contactez le super admin.'), 400)
+        return c.html(erreurPage('Aucune structure assign\u00e9e',
+          'Votre compte n\'est pas li\u00e9 \u00e0 une structure. Contactez le super admin.'), 400)
       }
 
       const { data: structure } = await supabase
@@ -183,7 +155,7 @@ dashboardRoutes.get('/structure',
   }
 )
 
-// ── Médecin / Infirmier / Sage-femme / Labo / Radio ───────
+// \u2500\u2500 M\u00e9decin / Infirmier / Sage-femme / Labo / Radio \u2500\u2500\u2500\u2500\u2500\u2500\u2500
 // FIX CRITIQUE : ajout des stats manquantes qui causaient le crash
 
 dashboardRoutes.get('/medecin',
@@ -205,7 +177,7 @@ dashboardRoutes.get('/medecin',
           .order('date_heure', { ascending: true })
           .limit(10),
 
-        // Consultations récentes
+        // Consultations r\u00e9centes
         supabase.from('medical_consultations')
           .select('id, created_at, motif, diagnostic_principal, patient_dossiers(nom, prenom)')
           .eq('medecin_id', profil.id)
@@ -218,7 +190,7 @@ dashboardRoutes.get('/medecin',
           .eq('medecin_id', profil.id)
           .gte('created_at', today + 'T00:00:00'),
 
-        // Stats : ordonnances actives émises par ce médecin
+        // Stats : ordonnances actives \u00e9mises par ce m\u00e9decin
         supabase.from('medical_ordonnances')
           .select('*', { count: 'exact', head: true })
           .eq('medecin_id', profil.id)
@@ -231,7 +203,7 @@ dashboardRoutes.get('/medecin',
       return c.html(dashboardMedecinPage(profil, {
         rdvJour,
         consultations,
-        // ← stats OBLIGATOIRES — c'était la cause du crash
+        // \u2190 stats OBLIGATOIRES \u2014 c'\u00e9tait la cause du crash
         stats: {
           consultationsJour:  cntConsultJour.count  ?? 0,
           rdvAVenir:          rdvJour.length,
@@ -246,7 +218,7 @@ dashboardRoutes.get('/medecin',
   }
 )
 
-// ── Pharmacien ─────────────────────────────────────────────
+// \u2500\u2500 Pharmacien \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 dashboardRoutes.get('/pharmacien',
   requireRole('pharmacien'),
@@ -304,7 +276,7 @@ dashboardRoutes.get('/pharmacien',
   }
 )
 
-// ── Caissier ───────────────────────────────────────────────
+// \u2500\u2500 Caissier \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 dashboardRoutes.get('/caissier',
   requireRole('caissier'),
@@ -352,7 +324,7 @@ dashboardRoutes.get('/caissier',
   }
 )
 
-// ── Agent Accueil ──────────────────────────────────────────
+// \u2500\u2500 Agent Accueil \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 dashboardRoutes.get('/accueil',
   requireRole('agent_accueil'),
@@ -383,7 +355,7 @@ dashboardRoutes.get('/accueil',
   }
 )
 
-// ── Patient ────────────────────────────────────────────────
+// \u2500\u2500 Patient \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 dashboardRoutes.get('/patient',
   requireRole('patient'),
@@ -439,7 +411,7 @@ dashboardRoutes.get('/patient',
             nom:        p.nom,
             prenom:     p.prenom,
             avatar_url: p.avatar_url,
-            specialite: p.auth_medecins?.[0]?.specialite_principale ?? 'Médecin généraliste',
+            specialite: p.auth_medecins?.[0]?.specialite_principale ?? 'M\u00e9decin g\u00e9n\u00e9raliste',
             structure:  (p.struct_structures as any)?.nom ?? '',
           }
         })
@@ -461,6 +433,11 @@ dashboardRoutes.get('/patient',
   }
 )
 
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// HELPERS PARTAG\u00c9S
+// Export\u00e9s ici pour les modules qui les importent depuis './dashboard'
+// Les modules grossesse/infirmerie/radiologie utilisent './module-helpers'
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 // ── CNTS ───────────────────────────────────────────────────
 
@@ -480,7 +457,6 @@ dashboardRoutes.get('/cnts',
         supabase.from('sang_donneurs').select('groupe_sanguin, rhesus').eq('est_disponible', true).limit(1000),
       ])
 
-      // Compter par groupe
       const compteur: Record<string, number> = {}
       for (const d of groupesRes.data ?? []) {
         const key = `${d.groupe_sanguin}|${d.rhesus}`
@@ -493,6 +469,7 @@ dashboardRoutes.get('/cnts',
           return { groupe, rhesus, count: count as number }
         })
 
+      const { dashboardCNTSPage } = await import('../pages/dashboard-cnts')
       return c.html(dashboardCNTSPage(profil, {
         stats: {
           donneursTotal:   totalRes.count   ?? 0,
@@ -510,11 +487,6 @@ dashboardRoutes.get('/cnts',
   }
 )
 
-// ══════════════════════════════════════════════════════════
-// HELPERS PARTAGÉS
-// Exportés ici pour les modules qui les importent depuis './dashboard'
-// Les modules grossesse/infirmerie/radiologie utilisent './module-helpers'
-// ══════════════════════════════════════════════════════════
 
 export function pageSkeleton(
   profil:  AuthProfile,
@@ -638,4 +610,13 @@ export function dataTable(headers: string[], rows: string[][]): string {
     ? `<tr><td colspan="${headers.length}" class="empty">Aucune donn&#xe9;e disponible</td></tr>`
     : rows.map(row => '<tr>' + row.map(cell => '<td>' + cell + '</td>').join('') + '</tr>').join('')
   return '<div class="table-wrap"><table><thead><tr>' + ths + '</tr></thead><tbody>' + trs + '</tbody></table></div>'
+}\
+export function alertHTML(type: 'error' | 'success' | 'warning', message: string): string {
+  const styles: Record<string, string> = {
+    error:   'background:#FFF5F5;border-left:4px solid #B71C1C;color:#B71C1C;',
+    success: 'background:#E8F5E9;border-left:4px solid #1A6B3C;color:#1A6B3C;',
+    warning: 'background:#FFF8E1;border-left:4px solid #F9A825;color:#E65100;',
+  }
+  const icons: Record<string, string> = { error: '⚠️', success: '✓', warning: '⚠️' }
+  return `<div style="${styles[type]}border-radius:10px;padding:16px 18px;font-size:14px;font-weight:600;margin:12px 0;">${icons[type]} ${message}</div>`
 }
