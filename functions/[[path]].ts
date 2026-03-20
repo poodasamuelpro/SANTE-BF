@@ -38,23 +38,39 @@ import { patientPdfRoutes }                 from '../src/routes/patient-pdf'
 import { exportRoutes }                     from '../src/routes/export'
 import { profilRoutes }                     from '../src/routes/profil'
 import { sangPatientRoutes, cntsRoutes }    from '../src/routes/sang'
+import { iaRoutes }                          from '../src/routes/ia'
 
 import { landingPage } from '../src/pages/landing'
 
-// Paiements + abonnements — DÉCOMMENTER quand les fichiers seront créés
+// Paiements + abonnements — fichiers créés, décommenter quand clé API prête
+// CINETPAY: ajouter CINETPAY_SITE_ID + CINETPAY_API_KEY + CINETPAY_SECRET dans Cloudflare Variables
 // import { webhookRoutes }     from '../src/routes/webhooks'
 // import { abonnementRoutes }  from '../src/routes/abonnement'
 
 // ─── Type Env ────────────────────────────────────────────
 type Env = {
   Bindings: {
-    SUPABASE_URL:         string
-    SUPABASE_ANON_KEY:    string
-    RESEND_API_KEY:       string   // Envoi emails
-    GOOGLE_CLIENT_ID:     string   // Google Calendar OAuth2
-    GOOGLE_CLIENT_SECRET: string   // Google Calendar OAuth2
-    CINETPAY_SECRET:      string   // Webhooks paiement CinetPay
-    ENVIRONMENT:          string   // 'development' | 'production'
+    // ── Obligatoires ──────────────────────────────────────
+    SUPABASE_URL:         string   // URL projet Supabase
+    SUPABASE_ANON_KEY:    string   // Clé publique Supabase
+    // ── Emails (Resend) ───────────────────────────────────
+    RESEND_API_KEY:       string   // Envoi emails automatiques
+    // ── IA médicale (Anthropic) ───────────────────────────
+    ANTHROPIC_API_KEY?:   string   // IA médicale — ajouter quand prêt
+    // ── Notifications Push (Firebase FCM) ─────────────────
+    FCM_SERVER_KEY?:      string   // Notifications push mobiles
+    // ── Paiement CinetPay ────────────────────────────────
+    CINETPAY_SITE_ID?:    string   // Site ID CinetPay
+    CINETPAY_API_KEY?:    string   // Clé API CinetPay
+    CINETPAY_SECRET?:     string   // Secret webhook CinetPay
+    // ── Paiement DuniaPay (alternative) ──────────────────
+    DUNIAPAY_API_KEY?:    string   // Clé API DuniaPay
+    DUNIAPAY_SECRET?:     string   // Secret webhook DuniaPay
+    // ── Google Calendar ───────────────────────────────────
+    GOOGLE_CLIENT_ID?:    string   // Google Calendar OAuth2
+    GOOGLE_CLIENT_SECRET?: string  // Google Calendar OAuth2
+    // ── Environnement ─────────────────────────────────────
+    ENVIRONMENT?:         string   // 'development' | 'production'
   }
 }
 
@@ -90,7 +106,10 @@ app.route('/profil',           profilRoutes)
 app.route('/sang',             sangPatientRoutes)
 app.route('/cnts',             cntsRoutes)
 
-// Paiements — DÉCOMMENTER quand prêt
+// Module IA médicale — actif, nécessite ANTHROPIC_API_KEY dans Cloudflare Variables
+app.route('/ia',               iaRoutes)
+
+// Paiements — DÉCOMMENTER quand clé API passerelle prête
 // app.route('/webhooks',      webhookRoutes)
 // app.route('/abonnement',    abonnementRoutes)
 
