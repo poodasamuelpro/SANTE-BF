@@ -17,6 +17,7 @@ import { loginPage }              from '../pages/login'
 import { changerMdpPage }         from '../pages/changer-mdp'
 import { resetPasswordPage, resetConfirmPage } from '../pages/reset-password'
 import { inscriptionPatientPage } from '../pages/inscription-patient'
+import { accueilPatientAppPage }  from '../pages/accueil-patient-app'
 
 export const authRoutes = new Hono<{ Bindings: Bindings }>()
 
@@ -27,6 +28,13 @@ const COOKIE_OPTS = {
   maxAge:   604800,
   path:     '/',
 }
+
+
+// ── GET /auth/welcome ─────────────────────────────────────
+// Page d'accueil de l'application mobile patient
+// Affiche : "J'ai déjà un compte" | "Créer mon compte"
+
+authRoutes.get('/welcome', (c) => c.html(accueilPatientAppPage()))
 
 // ── GET /auth/login ───────────────────────────────────────
 
