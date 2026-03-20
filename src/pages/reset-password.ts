@@ -223,3 +223,4 @@ export function resetConfirmPage(erreur?: string): string {
 </body>
 </html>`
 }
+ 
