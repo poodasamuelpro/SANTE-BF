@@ -28,7 +28,7 @@
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
-import { pageSkeleton, statsGrid, actionCard, alertHTML } from './dashboard'
+import { pageSkeleton, statsGrid, actionCard } from './dashboard'
 
 export const radiologieRoutes = new Hono<{ Bindings: Bindings }>()
 
@@ -170,7 +170,7 @@ radiologieRoutes.get('/', async (c) => {
 
   } catch (err) {
     console.error('Erreur dashboard radiologie:', err)
-    return c.html(pageSkeleton(profil, 'Erreur', '#00838F', alertHTML('error', 'Erreur lors du chargement')))
+    return c.html(pageSkeleton(profil, 'Erreur', '#00838F', '<div style="background:#FFF5F5;border-left:4px solid #B71C1C;border-radius:10px;padding:16px;font-size:14px;font-weight:600;color:#B71C1C;">⚠️ Erreur lors du chargement</div>'))
   }
 })
 
@@ -298,7 +298,7 @@ radiologieRoutes.get('/examen/:id', async (c) => {
     .single()
 
   if (!examen) {
-    return c.html(pageSkeleton(profil, 'Introuvable', '#00838F', alertHTML('error', 'Examen introuvable')))
+    return c.html(pageSkeleton(profil, 'Introuvable', '#00838F', '<div style="background:#FFF5F5;border-left:4px solid #B71C1C;border-radius:10px;padding:16px;font-size:14px;font-weight:600;color:#B71C1C;">⚠️ Examen introuvable</div>'))
   }
 
   const patient    = examen.patient as any
