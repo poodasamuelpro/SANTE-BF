@@ -1,6 +1,6 @@
 /**
  * src/pages/accueil-patient-app.ts
- * SantéBF — Page d'accueil de l'application patient (Capacitor)
+ * SantéBF — Page d'accueil de l'application patient (Capacitor) 
  *
  * Affichée quand l'app s'ouvre :
  *   → "J'ai déjà un compte" → /auth/login
