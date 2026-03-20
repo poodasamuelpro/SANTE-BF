@@ -428,3 +428,4 @@ adminRoutes.get('/logs', async (c) => {
 adminRoutes.get('/cnts', async (c) => {
   return c.redirect('/dashboard/cnts', 302)
 })
+ 
