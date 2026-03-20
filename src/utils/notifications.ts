@@ -53,6 +53,62 @@ async function sendEmail(opts: EmailOpts): Promise<boolean> {
   }
 }
 
+// ── Envoi email via Brevo (Sendinblue) ────────────────────────────────────
+// Alternative à Resend — mêmes fonctionnalités, plan gratuit différent
+// Pour activer Brevo : ajouter BREVO_API_KEY dans Cloudflare Variables
+// Le code utilise automatiquement Brevo si RESEND_API_KEY est absent
+
+interface BrevoEmailOpts {
+  brevoKey: string
+  to:       string
+  subject:  string
+  html:     string
+}
+
+async function sendEmailBrevo(opts: BrevoEmailOpts): Promise<boolean> {
+  if (!opts.to || !opts.brevoKey) return false
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method:  'POST',
+      headers: {
+        'accept':       'application/json',
+        'api-key':      opts.brevoKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender:  { name: 'Sant\u00e9BF', email: 'noreply@santebf.izicardouaga.com' },
+        to:      [{ email: opts.to }],
+        subject: opts.subject,
+        htmlContent: opts.html,
+      }),
+    })
+    return res.ok
+  } catch (e) {
+    console.error('sendEmailBrevo error:', e)
+    return false
+  }
+}
+
+// ── Dispatcher email intelligent ──────────────────────────────────────────
+// Utilise Resend si RESEND_API_KEY disponible, sinon Brevo
+// Tu n'as qu'à mettre la clé de ton choix dans Cloudflare Variables
+
+export async function envoyerEmail(
+  to:      string,
+  subject: string,
+  html:    string,
+  env:     { RESEND_API_KEY?: string; BREVO_API_KEY?: string }
+): Promise<boolean> {
+  if (env.RESEND_API_KEY) {
+    return sendEmail({ resendKey: env.RESEND_API_KEY, to, subject, html })
+  }
+  if (env.BREVO_API_KEY) {
+    return sendEmailBrevo({ brevoKey: env.BREVO_API_KEY, to, subject, html })
+  }
+  console.warn('Aucune clé email configurée (RESEND_API_KEY ou BREVO_API_KEY)')
+  return false
+}
+
 // ─── Template email HTML commun ───────────────────────────
 
 function emailWrapper(opts: {
@@ -456,36 +512,154 @@ export async function declencherNotification(
  * ═══════════════════════════════════════════════════════════
  */
 
+
 // ═══════════════════════════════════════════════════════════
-// Notifications Push (FCM Firebase Cloud Messaging)
-// Nécessite FCM_SERVER_KEY dans Cloudflare Pages Variables
+// NOTIFICATIONS PUSH — Firebase Cloud Messaging (FCM v1 API)
+// ═══════════════════════════════════════════════════════════
+//
+// Utilise le Service Account Firebase (nouvelles API FCM v1)
+// Plus besoin de FCM_SERVER_KEY — utiliser ces 3 variables Cloudflare :
+//   FCM_PROJECT_ID   = sante-bf-64d92
+//   FCM_CLIENT_EMAIL = firebase-adminsdk-fbsvc@sante-bf-64d92.iam.gserviceaccount.com
+//   FCM_PRIVATE_KEY  = (clé privée du service account — voir guide)
+//
+// FCM v1 est l'API recommandée par Google depuis 2024.
+// L'ancienne "Legacy API" avec FCM_SERVER_KEY est dépréciée.
 // ═══════════════════════════════════════════════════════════
 
+// ── Signer un JWT avec SubtleCrypto (natif Cloudflare Workers) ──────────
+// Cloudflare Workers ne supporte pas firebase-admin SDK
+// On signe le JWT manuellement avec l'API WebCrypto
+
+async function signJWT(
+  clientEmail: string,
+  privateKeyPem: string,
+  scopes: string[]
+): Promise<string> {
+  const now        = Math.floor(Date.now() / 1000)
+  const expiry     = now + 3600
+
+  const header  = { alg: 'RS256', typ: 'JWT' }
+  const payload = {
+    iss:   clientEmail,
+    sub:   clientEmail,
+    aud:   'https://oauth2.googleapis.com/token',
+    iat:   now,
+    exp:   expiry,
+    scope: scopes.join(' '),
+  }
+
+  const b64url = (obj: object) =>
+    btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+  const headerB64  = b64url(header)
+  const payloadB64 = b64url(payload)
+  const signingInput = `${headerB64}.${payloadB64}`
+
+  // Importer la clé privée PEM
+  const pemBody = privateKeyPem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\n/g, '')
+    .replace(/\\n/g, '')
+    .trim()
+
+  const binaryKey = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0))
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    binaryKey,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    new TextEncoder().encode(signingInput)
+  )
+
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+  return `${signingInput}.${sigB64}`
+}
+
+// ── Obtenir un Access Token OAuth2 Google ────────────────────────────────
+async function getGoogleAccessToken(
+  clientEmail: string,
+  privateKey: string
+): Promise<string> {
+  const jwt = await signJWT(clientEmail, privateKey, [
+    'https://www.googleapis.com/auth/firebase.messaging'
+  ])
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion:  jwt,
+    }),
+  })
+
+  const data = await res.json() as any
+  if (!data.access_token) {
+    throw new Error('FCM token error: ' + JSON.stringify(data))
+  }
+  return data.access_token
+}
+
+// ── Envoyer une notification push via FCM v1 ─────────────────────────────
+// opts.env doit contenir: FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY
+//
+// Exemple d'appel depuis une route :
+//   if (c.env.FCM_PROJECT_ID && token) {
+//     await envoyerNotifPush(token, 'Titre', 'Corps', '/patient/dossier', c.env)
+//   }
+
 export async function envoyerNotifPush(
-  fcmToken:     string,
-  titre:        string,
-  corps:        string,
-  url:          string,
-  fcmServerKey: string
+  fcmToken:    string,
+  titre:       string,
+  corps:       string,
+  url:         string,
+  env:         { FCM_PROJECT_ID?: string; FCM_CLIENT_EMAIL?: string; FCM_PRIVATE_KEY?: string }
 ): Promise<boolean> {
-  if (!fcmToken || !fcmServerKey) return false
+  if (!fcmToken || !env.FCM_PROJECT_ID || !env.FCM_CLIENT_EMAIL || !env.FCM_PRIVATE_KEY) {
+    return false
+  }
   try {
-    const res = await fetch('https://fcm.googleapis.com/fcm/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `key=${fcmServerKey}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        to:           fcmToken,
-        notification: { title: titre, body: corps, sound: 'default' },
-        data:         { url },
-        priority:     'high',
-      }),
-    })
+    const accessToken = await getGoogleAccessToken(
+      env.FCM_CLIENT_EMAIL,
+      env.FCM_PRIVATE_KEY
+    )
+
+    const res = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${env.FCM_PROJECT_ID}/messages:send`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify({
+          message: {
+            token: fcmToken,
+            notification: { title: titre, body: corps },
+            data: { url },
+            android: {
+              priority: 'high',
+              notification: { sound: 'default', click_action: 'FLUTTER_NOTIFICATION_CLICK' }
+            },
+          }
+        }),
+      }
+    )
+
     const result = await res.json() as any
-    if (result.failure > 0) {
-      console.error('FCM push failed:', result)
+    if (!res.ok) {
+      console.error('FCM v1 error:', result)
       return false
     }
     return true
@@ -495,7 +669,7 @@ export async function envoyerNotifPush(
   }
 }
 
-// ── Récupérer le token FCM d'un utilisateur ────────────────
+// ── Récupérer le token FCM d'un utilisateur ──────────────────────────────
 export async function getFcmToken(sb: any, userId: string): Promise<string | null> {
   try {
     const { data } = await sb
@@ -509,46 +683,50 @@ export async function getFcmToken(sb: any, userId: string): Promise<string | nul
   }
 }
 
-// ── Push + Email combinés ─────────────────────────────────
-// Envoie email ET notification push si les deux sont configurés
+// ── Notifier un patient (email + push combinés) ──────────────────────────
+// Envoie l'email via Resend OU Brevo selon la clé configurée,
+// ET la notification push si FCM est configuré.
+
 export async function notifierPatient(opts: {
   sb:           any
-  patientId:    string      // patient_dossiers.id
-  profileId?:   string      // auth_profiles.id (si connu)
+  patientId:    string
+  profileId?:   string
   titre:        string
   message:      string
   url:          string
   emailSubject: string
   emailHtml:    string
-  resendKey?:   string
-  fcmServerKey?: string
+  env:          {
+    RESEND_API_KEY?:   string
+    BREVO_API_KEY?:    string
+    FCM_PROJECT_ID?:   string
+    FCM_CLIENT_EMAIL?: string
+    FCM_PRIVATE_KEY?:  string
+  }
 }): Promise<void> {
-  const { sb, patientId, titre, message, url, emailSubject, emailHtml, resendKey, fcmServerKey } = opts
+  const { sb, patientId, titre, message, url, emailSubject, emailHtml, env } = opts
 
-  // 1. Email
-  if (resendKey) {
-    const email = await getPatientEmail(sb, patientId)
-    if (email) {
-      await sendEmail({ resendKey, to: email, subject: emailSubject, html: emailHtml })
+  // 1. Email (Resend OU Brevo selon clé disponible)
+  const email = await getPatientEmail(sb, patientId)
+  if (email) {
+    if (env.RESEND_API_KEY) {
+      await sendEmail({ resendKey: env.RESEND_API_KEY, to: email, subject: emailSubject, html: emailHtml })
+    } else if (env.BREVO_API_KEY) {
+      await sendEmailBrevo({ brevoKey: env.BREVO_API_KEY, to: email, subject: emailSubject, html: emailHtml })
     }
   }
 
   // 2. Push notification
-  if (fcmServerKey) {
-    // Récupérer profile_id depuis patient_dossiers
+  if (env.FCM_PROJECT_ID) {
     let profileId = opts.profileId
     if (!profileId) {
-      const { data: dos } = await sb
-        .from('patient_dossiers')
-        .select('profile_id')
-        .eq('id', patientId)
-        .single()
+      const { data: dos } = await sb.from('patient_dossiers').select('profile_id').eq('id', patientId).single()
       profileId = dos?.profile_id
     }
     if (profileId) {
       const token = await getFcmToken(sb, profileId)
       if (token) {
-        await envoyerNotifPush(token, titre, message, url, fcmServerKey)
+        await envoyerNotifPush(token, titre, message, url, env)
       }
     }
   }
