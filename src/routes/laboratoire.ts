@@ -38,8 +38,7 @@ import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 import { pageSkeleton, statsGrid, actionCard } from './dashboard'
-import { alertHTML } from '../components/alert'
-import { examenLaboDetailPage } from '../pages/examen-labo-detail'
+// examenLaboDetailPage inliné ci-dessous
 import { genererBulletinExamenPDF } from '../utils/pdf'
 
 export const laboratoireRoutes = new Hono<{ Bindings: Bindings }>()
@@ -206,7 +205,7 @@ laboratoireRoutes.get('/', async (c) => {
     console.error('Erreur dashboard laboratoire:', error)
     return c.html(pageSkeleton(
       profil, 'Erreur', '#6A1B9A',
-      alertHTML('error', 'Erreur lors du chargement du dashboard')
+      '<div style="background:#FFF5F5;border-left:4px solid #B71C1C;border-radius:10px;padding:16px;font-size:14px;font-weight:600;color:#B71C1C;">⚠️ Erreur lors du chargement du dashboard</div>'
     ))
   }
 })
@@ -244,7 +243,7 @@ laboratoireRoutes.get('/examen/:id', async (c) => {
     if (error || !examen) {
       return c.html(pageSkeleton(
         profil, 'Examen non trouvé', '#6A1B9A',
-        alertHTML('error', 'Examen non trouvé ou accès refusé')
+        '<div style="background:#FFF5F5;border-left:4px solid #B71C1C;border-radius:10px;padding:16px;font-size:14px;font-weight:600;color:#B71C1C;">⚠️ Examen non trouvé ou accès refusé</div>'
       ), 404)
     }
 
@@ -302,13 +301,41 @@ laboratoireRoutes.get('/examen/:id', async (c) => {
       conclusion: examen.resultat_texte || undefined,
     }
 
-    return c.html(examenLaboDetailPage(profil, examenPourPage))
+    // Page de détail examen labo (inline)
+    const ex = examenPourPage as any
+    const resultatHtml = (ex.resultats || []).map((r: any) =>
+      `<div style="border-left:3px solid #4A148C;padding:10px 14px;margin-bottom:8px;background:#fafbff;border-radius:0 8px 8px 0;">
+        <div style="font-size:13px;font-weight:700;">${r.nom || ''}</div>
+        <div style="font-size:14px;color:#1A1A2E;">${r.valeur || ''} ${r.unite || ''}</div>
+        ${r.interpretation ? `<div style="font-size:12px;color:#6b7280;">${r.interpretation}</div>` : ''}
+      </div>`
+    ).join('')
+
+    const contenuDetail = `
+      <div style="margin-bottom:14px;">
+        <a href="/laboratoire" style="background:white;border:1px solid #e2e8e4;color:#374151;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;">← Retour</a>
+      </div>
+      <div style="background:white;border-radius:12px;padding:22px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:14px;">
+        <h2 style="font-family:'DM Serif Display',serif;font-size:18px;margin-bottom:14px;">${ex.nom_examen || 'Examen laboratoire'}</h2>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;"><span style="color:#6b7280;">Patient</span><strong>${ex.patient_nom || ''}</strong></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:#6b7280;">Date prescription</span><span>${ex.date_prescription || '—'}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:#6b7280;">Statut</span><span class="badge badge-blue">${ex.statut || ''}</span></div>
+          ${ex.conclusion ? `<div style="margin-top:8px;background:#f9fafb;border-radius:8px;padding:12px;font-size:13px;">${ex.conclusion}</div>` : ''}
+        </div>
+      </div>
+      ${resultatHtml ? `<div style="background:white;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;">📊 Résultats</h3>
+        ${resultatHtml}
+      </div>` : ''}
+    `
+    return c.html(pageSkeleton(profil, 'Examen laboratoire', '#4A148C', contenuDetail))
 
   } catch (error) {
     console.error('Erreur chargement examen:', error)
     return c.html(pageSkeleton(
       profil, 'Erreur', '#6A1B9A',
-      alertHTML('error', 'Erreur lors du chargement de l\'examen')
+      '<div style="background:#FFF5F5;border-left:4px solid #B71C1C;border-radius:10px;padding:16px;font-size:14px;font-weight:600;color:#B71C1C;">⚠️ Erreur de chargement</div>'
     ), 500)
   }
 })
