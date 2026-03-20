@@ -15,7 +15,7 @@ import { Hono } from 'hono'
 import { requireAuth } from '../middleware/auth'
 import { pageSkeleton } from './dashboard'
 import type { AuthProfile, Bindings } from '../lib/supabase'
-import { alertHTML } from '../components/alert'
+import { alertHTML } from './dashboard'
 
 export const parametresRoutes = new Hono<{ Bindings: Bindings }>()
 
