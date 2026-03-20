@@ -993,3 +993,4 @@ accueilRoutes.post('/rdv/:id/statut', async (c) => {
   const ref = c.req.header('referer') || '/accueil/rdv'
   return c.redirect(ref, 303)
 })
+ 
