@@ -20,7 +20,10 @@
  */
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
+import { getSupabase } from '../lib/supabase'
 import type { AuthProfile, Bindings } from '../lib/supabase'
+import { genererMdpTemporaire } from '../utils/password'
+import { sendEmail, templateBienvenue } from '../utils/email'
 
 export const accueilRoutes = new Hono<{ Bindings: Bindings }>()
 accueilRoutes.use('/*', requireAuth, requireRole('agent_accueil', 'admin_structure', 'super_admin'))
@@ -205,6 +208,13 @@ ${topbar(profil, 'Nouveau patient')}
           <label class="form-label">Téléphone</label>
           <input type="tel" name="telephone" placeholder="70 12 34 56">
         </div>
+        <div class="form-group">
+          <label class="form-label">Email (optionnel)</label>
+          <input type="email" name="email" placeholder="patient@exemple.com">
+          <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+            Si renseigné, un compte SantéBF est créé automatiquement avec envoi du mot de passe par email.
+          </div>
+        </div>
       </div>
     </div>
 
@@ -371,6 +381,47 @@ accueilRoutes.post('/nouveau-patient', async (c) => {
       duree_minutes: 30,
       statut:        'planifie',
     })
+  }
+
+  // ── Création compte Supabase si email fourni ─────────────────
+  // Si l'agent d'accueil fournit un email, on crée le compte Auth.
+  // Un MDP temporaire est généré et envoyé par email au patient.
+  // À sa première connexion, il devra changer son MDP (doit_changer_mdp=true).
+  const emailPatient = String(body.email ?? '').trim().toLowerCase()
+  if (emailPatient) {
+    try {
+      const sbAdmin = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+      const mdpTemp = genererMdpTemporaire()
+
+      const { data: authData, error: authError } = await sbAdmin.auth.admin.createUser({
+        email:         emailPatient,
+        password:      mdpTemp,
+        email_confirm: true,
+        user_metadata: { nom, prenom, role: 'patient' },
+      })
+
+      if (!authError && authData?.user) {
+        await supabase
+          .from('auth_profiles')
+          .update({ nom, prenom, role: 'patient', doit_changer_mdp: true, est_actif: true })
+          .eq('id', authData.user.id)
+
+        await supabase
+          .from('patient_dossiers')
+          .update({ profile_id: authData.user.id })
+          .eq('id', patient.id)
+
+        if (c.env.RESEND_API_KEY) {
+          await sendEmail({
+            to:      emailPatient,
+            subject: 'Votre acces SanteBF — Connexion',
+            html:    templateBienvenue(nom, prenom, emailPatient, mdpTemp, 'patient'),
+          }, c.env.RESEND_API_KEY)
+        }
+      }
+    } catch (err) {
+      console.error('Creation compte patient (non bloquant):', err)
+    }
   }
 
   return c.redirect(`/accueil/patient/${patient.id}?nouveau=1`, 303)
