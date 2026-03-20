@@ -1,245 +1,182 @@
 /**
  * src/pages/landing.ts
- * SantéBF — Page d'accueil publique (marketing)
- * Route : GET / dans public.ts (route publique sans auth) 
- *
- * Design : responsive, moderne, professionnel
- * Sections : Hero, Stats, Fonctionnalités, Plans, Apps, Contact
+ * SantéBF — Page d'accueil publique
+ * Route : GET /public/ via src/routes/public.ts
  */
+
 export function landingPage(): string {
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="SantéBF — Le système national de santé numérique du Burkina Faso. Dossier médical partagé, ordonnances numériques, téléconsultation.">
-<title>SantéBF — Santé Numérique Burkina Faso</title>
+<meta name="description" content="SantéBF — Plateforme numérique de gestion de santé pour les structures sanitaires. Dossiers patients, consultations, ordonnances, examens, hospitalisations.">
+<title>SantéBF — Plateforme de Santé Numérique</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
 <style>
-:root{
-  --vert:#1A6B3C;--vert-f:#0d4a2a;--vert-c:#e8f5ee;--vert-m:#2E8B57;
-  --or:#C9A84C;--or-c:#fdf6e3;
-  --texte:#0f1923;--soft:#5a6a78;--bg:#f8faf8;--blanc:#fff;--bordure:#e2e8e4;
-  --sh:0 4px 24px rgba(0,0,0,.07);--r:16px;--rs:10px;
+:root{--v:#1A6B3C;--vf:#0d4a2a;--vc:#e8f5ee;--vm:#2E8B57;--b:#1565C0;--bc:#e3f2fd;--or:#C9A84C;--oc:#fdf6e3;--r:#b71c1c;--rc:#fff5f5;--tx:#0f1923;--soft:#5a6a78;--bg:#f8faf8;--w:#fff;--bd:#e2e8e4}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Plus Jakarta Sans',sans-serif;color:var(--tx);background:var(--bg)}
+
+/* NAV */
+nav{background:var(--w);border-bottom:1px solid var(--bd);padding:0 5%;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.nb{display:flex;align-items:center;gap:10px;font-family:'Fraunces',serif;font-size:22px;color:var(--tx);text-decoration:none}
+.ni{width:38px;height:38px;background:var(--v);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.nl{display:flex;align-items:center;gap:24px}
+.nl a{font-size:14px;color:var(--soft);text-decoration:none;font-weight:500;transition:color .2s}
+.nl a:hover{color:var(--v)}
+.nc{background:var(--v);color:#fff!important;padding:10px 20px;border-radius:9px;font-weight:700!important}
+.nc:hover{background:var(--vf)!important}
+.mb{display:none;background:none;border:none;font-size:24px;cursor:pointer;color:var(--tx)}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,var(--vf) 0%,var(--v) 60%,#2a7d4f 100%);padding:100px 5%;text-align:center;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:60px;background:var(--bg);clip-path:ellipse(55% 100% at 50% 100%)}
+.hc{max-width:820px;margin:0 auto;position:relative;z-index:1}
+.hbadge{display:inline-block;background:rgba(255,255,255,.15);color:#fff;padding:8px 20px;border-radius:30px;font-size:13px;font-weight:600;margin-bottom:24px;border:1px solid rgba(255,255,255,.2)}
+.hero h1{font-family:'Fraunces',serif;font-size:clamp(34px,6vw,60px);color:#fff;line-height:1.15;margin-bottom:22px}
+.hero h1 em{font-style:italic;opacity:.85}
+.hsub{font-size:17px;color:rgba(255,255,255,.8);max-width:600px;margin:0 auto 40px;line-height:1.75}
+.hbtns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:60px}
+.btn1{background:#fff;color:var(--vf);padding:15px 30px;border-radius:11px;font-size:15px;font-weight:700;text-decoration:none;transition:all .2s}
+.btn1:hover{background:var(--vc);transform:translateY(-2px)}
+.btn2{background:rgba(255,255,255,.15);color:#fff;padding:15px 30px;border-radius:11px;font-size:15px;font-weight:600;text-decoration:none;border:1px solid rgba(255,255,255,.3);transition:all .2s}
+.btn2:hover{background:rgba(255,255,255,.25)}
+.hstats{display:flex;gap:48px;justify-content:center;flex-wrap:wrap}
+.hs strong{display:block;font-family:'Fraunces',serif;font-size:38px;color:#fff;font-weight:700}
+.hs span{font-size:13px;color:rgba(255,255,255,.65)}
+
+/* SECTIONS COMMUNES */
+section{padding:80px 5%}
+.si{max-width:1100px;margin:0 auto}
+.stag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--v);margin-bottom:12px}
+.stitle{font-family:'Fraunces',serif;font-size:clamp(26px,4vw,40px);color:var(--tx);line-height:1.2;margin-bottom:14px}
+.ssub{font-size:16px;color:var(--soft);max-width:580px;line-height:1.7;margin-bottom:48px}
+
+/* POUR QUI */
+.pourqui{background:var(--w)}
+.pq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px}
+.pq-card{background:var(--bg);border-radius:14px;padding:24px;border:1.5px solid var(--bd);transition:all .2s;cursor:default}
+.pq-card:hover{border-color:var(--v);box-shadow:0 8px 24px rgba(26,107,60,.1);transform:translateY(-2px)}
+.pq-ico{font-size:34px;margin-bottom:14px}
+.pq-card h3{font-size:16px;font-weight:700;margin-bottom:7px}
+.pq-card p{font-size:13px;color:var(--soft);line-height:1.65}
+
+/* MODULES */
+.modules{background:var(--bg)}
+.mod-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:32px}
+.mod-tab{padding:9px 18px;border-radius:30px;font-size:13px;font-weight:600;border:1.5px solid var(--bd);background:var(--w);cursor:pointer;transition:all .2s;color:var(--soft)}
+.mod-tab.active,.mod-tab:hover{background:var(--v);color:#fff;border-color:var(--v)}
+.mod-panels{}
+.mod-panel{display:none;background:var(--w);border-radius:16px;border:1.5px solid var(--bd);overflow:hidden}
+.mod-panel.active{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.mod-info{padding:36px}
+.mod-info h3{font-family:'Fraunces',serif;font-size:24px;margin-bottom:12px}
+.mod-info p{font-size:14px;color:var(--soft);line-height:1.75;margin-bottom:20px}
+.mod-features{display:flex;flex-direction:column;gap:9px}
+.mf{display:flex;align-items:flex-start;gap:10px;font-size:13.5px}
+.mf::before{content:'✓';color:var(--v);font-weight:700;flex-shrink:0;margin-top:1px}
+.mod-visual{background:linear-gradient(135deg,var(--vc),var(--bc));display:flex;align-items:center;justify-content:center;font-size:80px;min-height:280px}
+
+/* AVANTAGES */
+.avantages{background:var(--vf)}
+.avantages .stag{color:rgba(255,255,255,.5)}
+.avantages .stitle{color:#fff}
+.avantages .ssub{color:rgba(255,255,255,.7)}
+.av-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.av-card{background:rgba(255,255,255,.07);border-radius:14px;padding:24px;border:1px solid rgba(255,255,255,.1);transition:all .2s}
+.av-card:hover{background:rgba(255,255,255,.12)}
+.av-card h3{font-size:15px;font-weight:700;color:#fff;margin-bottom:8px}
+.av-card p{font-size:13px;color:rgba(255,255,255,.65);line-height:1.65}
+
+/* PLANS */
+.plans{background:var(--w)}
+.plans-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
+.plan{border-radius:16px;padding:28px;border:2px solid var(--bd);position:relative;transition:all .2s}
+.plan:hover{border-color:var(--v);transform:translateY(-2px)}
+.plan.pop{border-color:var(--v);background:var(--vc)}
+.pop-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--v);color:#fff;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.plan-name{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--soft);margin-bottom:10px}
+.plan-price{font-family:'Fraunces',serif;font-size:30px;font-weight:700;margin-bottom:4px}
+.plan-period{font-size:12px;color:var(--soft);margin-bottom:14px}
+.plan-list{display:flex;flex-direction:column;gap:7px;margin-bottom:20px}
+.pl{font-size:12.5px;display:flex;gap:7px;align-items:flex-start}
+.pl::before{content:'✓';color:var(--v);font-weight:700;flex-shrink:0}
+.plan-btn{display:block;text-align:center;padding:11px;border-radius:9px;font-size:13px;font-weight:700;text-decoration:none;background:var(--v);color:#fff;transition:background .2s}
+.plan-btn:hover{background:var(--vf)}
+.plan-note{font-size:12px;color:var(--soft);text-align:center;margin-top:8px}
+
+/* SECURITE */
+.securite{background:var(--bg)}
+.sec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+.sec-card{background:var(--w);border-radius:14px;padding:24px;border:1.5px solid var(--bd)}
+.sec-icon{font-size:30px;margin-bottom:12px}
+.sec-card h3{font-size:15px;font-weight:700;margin-bottom:8px}
+.sec-card p{font-size:13px;color:var(--soft);line-height:1.65}
+
+/* APPS */
+.apps{background:var(--w)}
+.apps-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.app-card{background:var(--bg);border-radius:16px;padding:32px;border:1.5px solid var(--bd);text-align:center}
+.app-ico{font-size:52px;margin-bottom:16px}
+.app-card h3{font-size:20px;font-weight:700;margin-bottom:10px}
+.app-card p{font-size:14px;color:var(--soft);line-height:1.65;margin-bottom:20px}
+.app-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.app-btn{display:inline-flex;align-items:center;gap:8px;background:var(--tx);color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:600;text-decoration:none;transition:background .2s}
+.app-btn:hover{background:#374151}
+.app-btn-label{display:block;font-size:9px;opacity:.6;font-weight:400}
+.app-url{font-size:11px;color:var(--soft);margin-top:10px;font-family:monospace;background:var(--bd);padding:4px 10px;border-radius:6px;display:inline-block}
+
+/* FAQ */
+.faq{background:var(--bg)}
+.faq-cats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:32px}
+.faq-cat{padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;border:1.5px solid var(--bd);background:var(--w);cursor:pointer;transition:all .2s;color:var(--soft)}
+.faq-cat.active,.faq-cat:hover{background:var(--v);color:#fff;border-color:var(--v)}
+.faq-group{display:none}
+.faq-group.active{display:block}
+.faq-item{background:var(--w);border-radius:12px;border:1.5px solid var(--bd);margin-bottom:10px;overflow:hidden;transition:border-color .2s}
+.faq-item.open{border-color:var(--v)}
+.faq-q{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;cursor:pointer;font-size:15px;font-weight:600;gap:12px}
+.faq-q:hover{background:#f9fbf9}
+.faq-ico{font-size:18px;transition:transform .3s;flex-shrink:0;color:var(--v)}
+.faq-item.open .faq-ico{transform:rotate(45deg)}
+.faq-a{display:none;padding:0 20px 18px;font-size:14px;color:var(--soft);line-height:1.75}
+.faq-item.open .faq-a{display:block}
+.faq-a strong{color:var(--tx)}
+.faq-a ul{margin:8px 0 8px 18px}
+.faq-a li{margin-bottom:5px}
+
+/* CTA FINAL */
+.cta{background:linear-gradient(135deg,var(--vf),var(--v));padding:80px 5%;text-align:center}
+.cta h2{font-family:'Fraunces',serif;font-size:clamp(28px,5vw,44px);color:#fff;margin-bottom:16px}
+.cta p{font-size:17px;color:rgba(255,255,255,.8);margin-bottom:36px;max-width:500px;margin-left:auto;margin-right:auto}
+.cta-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+
+/* FOOTER */
+footer{background:var(--tx);padding:56px 5% 28px}
+.fg{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;max-width:1100px;margin:0 auto 36px}
+.fb h2{font-family:'Fraunces',serif;font-size:20px;color:#fff;margin-bottom:10px}
+.fb p{font-size:13px;color:rgba(255,255,255,.45);line-height:1.7;max-width:260px}
+.fc h4{font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px}
+.fc a{display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px;transition:color .2s}
+.fc a:hover{color:#fff}
+.fbot{max-width:1100px;margin:0 auto;border-top:1px solid rgba(255,255,255,.08);padding-top:24px;display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.3);flex-wrap:wrap;gap:8px}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .mod-panel.active{grid-template-columns:1fr}
+  .mod-visual{display:none}
+  .apps-grid{grid-template-columns:1fr}
+  .fg{grid-template-columns:1fr 1fr}
 }
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
-html{scroll-behavior:smooth;}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--texte);line-height:1.6;}
-
-/* ── NAV ──────────────────────────────────────────────────── */
-nav{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(255,255,255,.92);
-  backdrop-filter:blur(12px);border-bottom:1px solid var(--bordure);
-  height:64px;display:flex;align-items:center;padding:0 max(24px, calc(50% - 580px));}
-.nav-inner{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:1160px;margin:0 auto;}
-.nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none;}
-.nav-logo{width:38px;height:38px;background:var(--vert);border-radius:10px;
-  display:flex;align-items:center;justify-content:center;font-size:20px;}
-.nav-name{font-family:'Fraunces',serif;font-size:20px;color:var(--texte);}
-.nav-links{display:flex;align-items:center;gap:28px;}
-.nav-links a{font-size:14px;font-weight:600;color:var(--soft);text-decoration:none;transition:color .2s;}
-.nav-links a:hover{color:var(--vert);}
-.nav-cta{display:flex;gap:10px;align-items:center;}
-.btn-outline{padding:9px 18px;border:2px solid var(--vert);color:var(--vert);border-radius:var(--rs);
-  font-size:14px;font-weight:700;text-decoration:none;transition:all .2s;}
-.btn-outline:hover{background:var(--vert);color:white;}
-.btn-solid{padding:9px 18px;background:var(--vert);color:white;border-radius:var(--rs);
-  font-size:14px;font-weight:700;text-decoration:none;transition:background .2s;}
-.btn-solid:hover{background:var(--vert-f);}
-.menu-btn{display:none;background:none;border:none;font-size:24px;cursor:pointer;color:var(--texte);}
-
-/* ── HERO ─────────────────────────────────────────────────── */
-.hero{
-  background:linear-gradient(135deg, var(--vert-f) 0%, var(--vert) 50%, var(--vert-m) 100%);
-  min-height:100vh;display:flex;align-items:center;padding:100px max(24px, calc(50% - 580px)) 80px;
-  position:relative;overflow:hidden;
-}
-.hero::before{content:'';position:absolute;width:600px;height:600px;border-radius:50%;
-  background:rgba(255,255,255,.03);top:-200px;right:-200px;}
-.hero::after{content:'';position:absolute;width:400px;height:400px;border-radius:50%;
-  background:rgba(255,255,255,.03);bottom:-150px;left:-100px;}
-.hero-inner{max-width:1160px;margin:0 auto;width:100%;display:grid;
-  grid-template-columns:1fr 1fr;gap:60px;align-items:center;position:relative;z-index:1;}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);
-  color:white;padding:7px 14px;border-radius:20px;font-size:12px;font-weight:700;
-  letter-spacing:.5px;text-transform:uppercase;margin-bottom:20px;}
-.hero h1{font-family:'Fraunces',serif;font-size:clamp(32px, 5vw, 54px);color:white;
-  line-height:1.15;margin-bottom:18px;}
-.hero h1 em{font-style:italic;color:rgba(255,255,255,.75);}
-.hero p{font-size:17px;color:rgba(255,255,255,.8);max-width:480px;margin-bottom:32px;line-height:1.7;}
-.hero-btns{display:flex;gap:14px;flex-wrap:wrap;}
-.hero-btn-main{padding:16px 28px;background:white;color:var(--vert);border-radius:var(--r);
-  font-size:15px;font-weight:800;text-decoration:none;transition:all .2s;
-  box-shadow:0 4px 16px rgba(0,0,0,.15);}
-.hero-btn-main:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.2);}
-.hero-btn-sec{padding:16px 28px;background:rgba(255,255,255,.15);color:white;
-  border:2px solid rgba(255,255,255,.4);border-radius:var(--r);font-size:15px;font-weight:700;
-  text-decoration:none;transition:all .2s;}
-.hero-btn-sec:hover{background:rgba(255,255,255,.25);}
-
-/* Hero image/mockup */
-.hero-visual{display:flex;flex-direction:column;gap:14px;align-items:center;}
-.mockup-card{background:white;border-radius:20px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.25);
-  width:100%;max-width:320px;}
-.mc-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-.mc-av{width:40px;height:40px;border-radius:50%;background:var(--vert-c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--vert);}
-.mc-info{flex:1;}
-.mc-name{font-size:13px;font-weight:700;color:var(--texte);}
-.mc-sub{font-size:11px;color:var(--soft);}
-.mc-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;
-  border-bottom:1px solid #F0F0F0;font-size:13px;}
-.mc-row:last-child{border-bottom:none;}
-.mc-lbl{color:var(--soft);font-size:12px;}
-.mc-val{font-weight:700;}
-.badge-pill{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;
-  background:var(--vert-c);color:var(--vert);}
-.floating-notif{background:white;border-radius:12px;padding:12px 16px;
-  box-shadow:0 8px 32px rgba(0,0,0,.15);display:flex;align-items:center;gap:10px;
-  align-self:flex-end;margin-right:20px;max-width:280px;}
-.fn-ico{font-size:20px;}
-.fn-text{font-size:12px;font-weight:600;color:var(--texte);}
-.fn-sub{font-size:11px;color:var(--soft);}
-
-/* ── STATS ────────────────────────────────────────────────── */
-.stats{background:white;padding:48px max(24px, calc(50% - 580px));border-bottom:1px solid var(--bordure);}
-.stats-inner{max-width:1160px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;}
-.stat-item{text-align:center;}
-.stat-num{font-family:'Fraunces',serif;font-size:42px;color:var(--vert);margin-bottom:4px;}
-.stat-lbl{font-size:14px;color:var(--soft);font-weight:500;}
-
-/* ── SECTIONS communes ────────────────────────────────────── */
-section{padding:80px max(24px, calc(50% - 580px));}
-.section-inner{max-width:1160px;margin:0 auto;}
-.section-badge{display:inline-block;background:var(--vert-c);color:var(--vert);
-  padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;
-  letter-spacing:.5px;text-transform:uppercase;margin-bottom:14px;}
-.section-title{font-family:'Fraunces',serif;font-size:clamp(26px, 4vw, 40px);
-  margin-bottom:14px;line-height:1.2;}
-.section-sub{font-size:16px;color:var(--soft);max-width:560px;line-height:1.7;}
-
-/* ── FONCTIONNALITÉS ──────────────────────────────────────── */
-.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px;}
-.feat-card{background:white;border-radius:var(--r);padding:28px;border:1px solid var(--bordure);
-  box-shadow:var(--sh);transition:transform .2s,box-shadow .2s;}
-.feat-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.1);}
-.feat-ico{width:52px;height:52px;background:var(--vert-c);border-radius:14px;
-  display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:16px;}
-.feat-title{font-size:17px;font-weight:700;margin-bottom:8px;}
-.feat-desc{font-size:14px;color:var(--soft);line-height:1.6;}
-.feat-tag{display:inline-block;margin-top:12px;font-size:11px;font-weight:700;
-  color:var(--vert);background:var(--vert-c);padding:3px 10px;border-radius:20px;}
-
-/* ── POUR QUI ─────────────────────────────────────────────── */
-.targets{background:linear-gradient(135deg, var(--vert-f), var(--vert));padding:80px max(24px, calc(50% - 580px));}
-.targets-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px;}
-.target-card{background:rgba(255,255,255,.1);backdrop-filter:blur(8px);
-  border:1px solid rgba(255,255,255,.2);border-radius:var(--r);padding:28px;color:white;}
-.target-ico{font-size:36px;margin-bottom:14px;}
-.target-title{font-family:'Fraunces',serif;font-size:20px;margin-bottom:10px;}
-.target-desc{font-size:14px;opacity:.8;line-height:1.6;}
-.target-list{margin-top:14px;display:flex;flex-direction:column;gap:7px;}
-.target-list li{font-size:13px;opacity:.9;display:flex;align-items:flex-start;gap:8px;}
-.target-list li::before{content:'✓';color:rgba(255,255,255,.6);flex-shrink:0;margin-top:1px;}
-
-/* ── PLANS ────────────────────────────────────────────────── */
-.plans-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:48px;}
-.plan-card{background:white;border-radius:var(--r);padding:28px;border:2px solid var(--bordure);
-  position:relative;transition:border-color .2s;}
-.plan-card.popular{border-color:var(--vert);box-shadow:0 8px 32px rgba(26,107,60,.15);}
-.plan-badge-pop{position:absolute;top:-12px;left:50%;transform:translateX(-50%);
-  background:var(--vert);color:white;padding:4px 16px;border-radius:20px;
-  font-size:12px;font-weight:700;white-space:nowrap;}
-.plan-name{font-size:16px;font-weight:700;margin-bottom:6px;}
-.plan-price{font-family:'Fraunces',serif;font-size:32px;color:var(--vert);margin-bottom:4px;}
-.plan-price span{font-size:14px;font-weight:500;color:var(--soft);}
-.plan-cible{font-size:12px;color:var(--soft);margin-bottom:18px;padding-bottom:18px;
-  border-bottom:1px solid var(--bordure);}
-.plan-list{display:flex;flex-direction:column;gap:9px;}
-.plan-list li{font-size:13px;color:var(--soft);display:flex;align-items:flex-start;gap:8px;}
-.plan-list li.ok::before{content:'✓';color:var(--vert);font-weight:700;flex-shrink:0;}
-.plan-list li.no{opacity:.4;}
-.plan-list li.no::before{content:'✗';color:#999;flex-shrink:0;}
-.plan-cta{display:block;margin-top:20px;padding:12px;background:var(--vert);color:white;
-  border-radius:var(--rs);font-size:14px;font-weight:700;text-decoration:none;text-align:center;
-  transition:background .2s;}
-.plan-cta:hover{background:var(--vert-f);}
-.plan-cta.sec{background:var(--bg);color:var(--vert);border:2px solid var(--vert);}
-.plan-cta.sec:hover{background:var(--vert-c);}
-
-/* ── APPS ─────────────────────────────────────────────────── */
-.apps{background:var(--or-c);}
-.apps-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;margin-top:48px;}
-.app-card{background:white;border-radius:24px;padding:32px;border:1px solid var(--bordure);
-  box-shadow:var(--sh);}
-.app-ico{width:72px;height:72px;border-radius:20px;display:flex;align-items:center;
-  justify-content:center;font-size:34px;margin-bottom:18px;}
-.app-ico.patient{background:linear-gradient(135deg,#1565C0,#0d47a1);}
-.app-ico.medecin{background:linear-gradient(135deg,var(--vert-f),var(--vert));}
-.app-title{font-family:'Fraunces',serif;font-size:24px;margin-bottom:8px;}
-.app-desc{font-size:14px;color:var(--soft);margin-bottom:20px;line-height:1.7;}
-.app-features{display:flex;flex-direction:column;gap:8px;margin-bottom:24px;}
-.app-feat{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--texte);}
-.app-feat::before{content:'•';color:var(--vert);font-size:18px;font-weight:700;flex-shrink:0;}
-.store-btns{display:flex;gap:10px;flex-wrap:wrap;}
-.store-btn{display:flex;align-items:center;gap:8px;padding:11px 16px;border-radius:10px;
-  font-size:13px;font-weight:700;text-decoration:none;border:2px solid;transition:all .2s;}
-.store-btn.android{border-color:var(--vert);color:var(--vert);}
-.store-btn.android:hover{background:var(--vert);color:white;}
-.store-btn.ios{border-color:#1565C0;color:#1565C0;}
-.store-btn.ios:hover{background:#1565C0;color:white;}
-.store-btn.web{border-color:var(--or);color:var(--or);}
-.store-btn.web:hover{background:var(--or);color:white;}
-
-/* ── CONTACT ──────────────────────────────────────────────── */
-.contact{background:var(--vert-f);color:white;}
-.contact-inner{max-width:680px;margin:0 auto;text-align:center;}
-.contact-title{font-family:'Fraunces',serif;font-size:36px;margin-bottom:14px;}
-.contact-sub{font-size:16px;opacity:.8;margin-bottom:32px;}
-.contact-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:36px;}
-.cc{background:rgba(255,255,255,.1);border-radius:var(--r);padding:20px;border:1px solid rgba(255,255,255,.15);}
-.cc-ico{font-size:28px;margin-bottom:8px;}
-.cc-label{font-size:12px;opacity:.7;margin-bottom:4px;}
-.cc-val{font-size:14px;font-weight:700;}
-.btn-contact{display:inline-flex;align-items:center;gap:10px;background:white;color:var(--vert);
-  padding:16px 32px;border-radius:var(--r);font-size:15px;font-weight:800;
-  text-decoration:none;transition:all .2s;}
-.btn-contact:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.2);}
-
-/* ── FOOTER ───────────────────────────────────────────────── */
-footer{background:#0a3320;padding:40px max(24px, calc(50% - 580px)) 24px;color:white;}
-.footer-inner{max-width:1160px;margin:0 auto;}
-.footer-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px;}
-.footer-brand-name{font-family:'Fraunces',serif;font-size:22px;margin-bottom:8px;}
-.footer-brand-desc{font-size:13px;opacity:.6;line-height:1.6;}
-.footer-col h4{font-size:13px;font-weight:700;margin-bottom:14px;opacity:.7;
-  text-transform:uppercase;letter-spacing:.5px;}
-.footer-col a{display:block;font-size:13px;color:rgba(255,255,255,.6);text-decoration:none;
-  margin-bottom:8px;transition:color .2s;}
-.footer-col a:hover{color:white;}
-.footer-bottom{border-top:1px solid rgba(255,255,255,.1);padding-top:20px;
-  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
-.footer-bottom p{font-size:12px;opacity:.5;}
-
-/* ── RESPONSIVE ───────────────────────────────────────────── */
-@media(max-width:1024px){
-  .hero-inner{grid-template-columns:1fr;text-align:center;}
-  .hero-visual{display:none;}
-  .hero p{max-width:100%;}
-  .features-grid{grid-template-columns:1fr 1fr;}
-  .targets-grid{grid-template-columns:1fr 1fr;}
-  .plans-grid{grid-template-columns:1fr 1fr;}
-  .footer-top{grid-template-columns:1fr 1fr;}
-  .stats-inner{grid-template-columns:repeat(2,1fr);}
-}
-@media(max-width:768px){
-  .nav-links,.nav-cta{display:none;}
-  .menu-btn{display:block;}
-  .hero{padding-top:80px;}
-  .hero h1{font-size:32px;}
-  .features-grid,.targets-grid,.plans-grid,.apps-grid{grid-template-columns:1fr;}
-  .stats-inner{grid-template-columns:1fr 1fr;}
-  .contact-cards{grid-template-columns:1fr;}
-  .footer-top{grid-template-columns:1fr;}
-  .footer-bottom{flex-direction:column;text-align:center;}
+@media(max-width:640px){
+  .nl{display:none}
+  .mb{display:block}
+  section{padding:60px 5%}
+  .hstats{gap:28px}
+  .fg{grid-template-columns:1fr}
+  .plans-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -247,392 +184,491 @@ footer{background:#0a3320;padding:40px max(24px, calc(50% - 580px)) 24px;color:w
 
 <!-- NAV -->
 <nav>
-  <div class="nav-inner">
-    <a href="/" class="nav-brand">
-      <div class="nav-logo">🏥</div>
-      <span class="nav-name">SantéBF</span>
-    </a>
-    <div class="nav-links">
-      <a href="#fonctionnalites">Fonctionnalités</a>
-      <a href="#pour-qui">Pour qui</a>
-      <a href="#plans">Tarifs</a>
-      <a href="#apps">Applications</a>
-      <a href="#contact">Contact</a>
-    </div>
-    <div class="nav-cta">
-      <a href="/auth/login" class="btn-outline">Se connecter</a>
-      <a href="#contact" class="btn-solid">Démo gratuite</a>
-    </div>
-    <button class="menu-btn" onclick="toggleMobileMenu()">☰</button>
+  <a href="/" class="nb"><div class="ni">🏥</div>SantéBF</a>
+  <div class="nl">
+    <a href="#modules">Modules</a>
+    <a href="#securite">Sécurité</a>
+    <a href="#plans">Tarifs</a>
+    <a href="#faq">FAQ</a>
+    <a href="#contact">Contact</a>
+    <a href="/auth/login" class="nc">Connexion →</a>
   </div>
+  <button class="mb" onclick="toggleMenu()">☰</button>
 </nav>
 
 <!-- HERO -->
-<div class="hero">
-  <div class="hero-inner">
-    <div>
-      <div class="hero-badge">🇧🇫 Système National de Santé Numérique</div>
-      <h1>Le dossier médical de <em>chaque burkinabè</em>, partout, toujours.</h1>
-      <p>SantéBF unifie les structures sanitaires du Burkina Faso autour d'un dossier médical partagé, sécurisé et accessible depuis n'importe quel appareil.</p>
-      <div class="hero-btns">
-        <a href="#contact" class="hero-btn-main">🚀 Démarrer gratuitement</a>
-        <a href="#fonctionnalites" class="hero-btn-sec">Voir les fonctionnalités →</a>
-      </div>
+<section class="hero">
+  <div class="hc">
+    <div class="hbadge">🏥 Plateforme de Santé Numérique — Burkina Faso</div>
+    <h1>Gérez votre structure de santé<br><em>simplement, efficacement</em></h1>
+    <p class="hsub">SantéBF connecte médecins, infirmiers, pharmaciens, laborantins et patients dans une seule plateforme sécurisée. Zéro papier, zéro perte de dossier.</p>
+    <div class="hbtns">
+      <a href="/auth/inscription" class="btn1">🚀 Essai gratuit 6 mois</a>
+      <a href="/auth/login" class="btn2">Se connecter →</a>
     </div>
-    <div class="hero-visual">
-      <div class="floating-notif">
-        <div class="fn-ico">✅</div>
-        <div><div class="fn-text">Résultats disponibles</div><div class="fn-sub">Glycémie · NFS · Créatinine</div></div>
-      </div>
-      <div class="mockup-card">
-        <div class="mc-header">
-          <div class="mc-av">AM</div>
-          <div class="mc-info">
-            <div class="mc-name">Aminata Moné</div>
-            <div class="mc-sub">BF-2024-00847 · Groupe A+</div>
-          </div>
-          <span class="badge-pill">Actif</span>
-        </div>
-        <div class="mc-row"><span class="mc-lbl">Dernier RDV</span><span class="mc-val">Hier, 10h30</span></div>
-        <div class="mc-row"><span class="mc-lbl">Ordonnances</span><span class="mc-val">2 actives</span></div>
-        <div class="mc-row"><span class="mc-lbl">Vaccinations</span><span class="mc-val">À jour ✓</span></div>
-        <div class="mc-row"><span class="mc-lbl">Médecin</span><span class="mc-val">Dr. Ouédraogo</span></div>
-      </div>
-      <div class="floating-notif" style="align-self:flex-start;margin-left:20px;">
-        <div class="fn-ico">💊</div>
-        <div><div class="fn-text">Nouvelle ordonnance</div><div class="fn-sub">Dr. Sawadogo · 3 médicaments</div></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- STATS -->
-<div class="stats">
-  <div class="stats-inner">
-    <div class="stat-item"><div class="stat-num">45+</div><div class="stat-lbl">Provinces couvertes</div></div>
-    <div class="stat-item"><div class="stat-num">12</div><div class="stat-lbl">Types de structures</div></div>
-    <div class="stat-item"><div class="stat-num">100%</div><div class="stat-lbl">Confidentiel & sécurisé</div></div>
-    <div class="stat-item"><div class="stat-num">24/7</div><div class="stat-lbl">Disponibilité</div></div>
-  </div>
-</div>
-
-<!-- FONCTIONNALITÉS -->
-<section id="fonctionnalites">
-  <div class="section-inner">
-    <div class="section-badge">Fonctionnalités</div>
-    <h2 class="section-title">Tout ce dont votre structure a besoin</h2>
-    <p class="section-sub">De la consultation au paiement, SantéBF couvre l'intégralité du parcours de soin.</p>
-    <div class="features-grid">
-      <div class="feat-card">
-        <div class="feat-ico">📋</div>
-        <div class="feat-title">Dossier médical partagé</div>
-        <div class="feat-desc">Chaque patient dispose d'un dossier national accessible depuis toute structure SantéBF. Consultations, antécédents, allergies, tout en un seul endroit.</div>
-        <span class="feat-tag">Tous les plans</span>
-      </div>
-      <div class="feat-card">
-        <div class="feat-ico">💊</div>
-        <div class="feat-title">Ordonnances numériques</div>
-        <div class="feat-desc">Génération de PDF sécurisés avec QR code de vérification. Le patient reçoit son ordonnance par email instantanément.</div>
-        <span class="feat-tag">Tous les plans</span>
-      </div>
-      <div class="feat-card">
-        <div class="feat-ico">📅</div>
-        <div class="feat-title">Gestion des rendez-vous</div>
-        <div class="feat-desc">Planification des consultations, rappels automatiques par email et SMS, synchronisation Google Calendar optionnelle.</div>
-        <span class="feat-tag">Tous les plans</span>
-      </div>
-      <div class="feat-card">
-        <div class="feat-ico">🧪</div>
-        <div class="feat-title">Laboratoire & Radiologie</div>
-        <div class="feat-desc">Prescription et suivi des examens biologiques et d'imagerie. Résultats directement liés au dossier patient.</div>
-        <span class="feat-tag">Tous les plans</span>
-      </div>
-      <div class="feat-card">
-        <div class="feat-ico">💰</div>
-        <div class="feat-title">Facturation & Caisse</div>
-        <div class="feat-desc">Gestion des actes, facturation avec prise en charge assurance, suivi des paiements et export comptable CSV.</div>
-        <span class="feat-tag">Plan Starter+</span>
-      </div>
-      <div class="feat-card">
-        <div class="feat-ico">🤖</div>
-        <div class="feat-title">Aide IA au diagnostic</div>
-        <div class="feat-desc">Assistant intelligent pour l'aide au diagnostic, vérification des interactions médicamenteuses et résumé patient automatique.</div>
-        <span class="feat-tag">Plan Standard+</span>
-      </div>
-      <div class="feat-card">
-        <div class="feat-ico">🤰</div>
-        <div class="feat-title">Suivi de grossesse CPN</div>
-        <div class="feat-desc">Suivi complet des grossesses avec carnet CPN numérique, alertes risques, et synchronisation entre structures.</div>
-        <span class="feat-tag">Tous les plans</span>
-      </div>
-      <div class="feat-card">
-        <div class="feat-ico">🩸</div>
-        <div class="feat-title">Don de sang / CNTS</div>
-        <div class="feat-desc">Banque nationale de donneurs potentiels. Les agents CNTS peuvent rechercher des donneurs compatibles en urgence.</div>
-        <span class="feat-tag">Gratuit</span>
-      </div>
-      <div class="feat-card">
-        <div class="feat-ico">📊</div>
-        <div class="feat-title">Statistiques & rapports</div>
-        <div class="feat-desc">Tableaux de bord en temps réel, exports CSV, rapports mensuels automatiques et détection d'épidémies locale.</div>
-        <span class="feat-tag">Plan Standard+</span>
-      </div>
+    <div class="hstats">
+      <div class="hs"><strong>12+</strong><span>Modules intégrés</span></div>
+      <div class="hs"><strong>100%</strong><span>Web, aucune installation</span></div>
+      <div class="hs"><strong>24/7</strong><span>Disponible en ligne</span></div>
+      <div class="hs"><strong>0 papier</strong><span>Tout numérique</span></div>
     </div>
   </div>
 </section>
 
 <!-- POUR QUI -->
-<section id="pour-qui" class="targets">
-  <div class="section-inner">
-    <div class="section-badge" style="background:rgba(255,255,255,.15);color:white;">Pour qui ?</div>
-    <h2 class="section-title" style="color:white;">Conçu pour toutes les structures sanitaires</h2>
-    <p class="section-sub" style="color:rgba(255,255,255,.75);">De la clinique privée au CHU national, SantéBF s'adapte à chaque contexte.</p>
-    <div class="targets-grid">
-      <div class="target-card">
-        <div class="target-ico">🏥</div>
-        <div class="target-title">Hôpitaux & CHU</div>
-        <div class="target-desc">Gestion complète multi-services, hospitalisations, urgences, bloc opératoire.</div>
-        <ul class="target-list">
-          <li>Gestion des lits en temps réel</li>
-          <li>Hospitalisations et transferts</li>
-          <li>Multi-services et multi-médecins</li>
-          <li>Export données pour le DGISS</li>
-        </ul>
+<section class="pourqui" id="pourqui">
+  <div class="si">
+    <div class="stag">Pour qui ?</div>
+    <h2 class="stitle">Adapté à chaque acteur de santé</h2>
+    <p class="ssub">Que vous soyez une clinique privée, un cabinet médical ou un grand hôpital, SantéBF s'adapte à votre structure et à votre équipe.</p>
+    <div class="pq-grid">
+      <div class="pq-card"><div class="pq-ico">🏥</div><h3>Hôpitaux & Cliniques</h3><p>Gérez hospitalisations, personnel, lits, finances et statistiques depuis un seul outil accessible partout.</p></div>
+      <div class="pq-card"><div class="pq-ico">👨‍⚕️</div><h3>Médecins & Spécialistes</h3><p>Accédez à l'historique complet de vos patients, rédigez ordonnances et examens, suivez vos consultations.</p></div>
+      <div class="pq-card"><div class="pq-ico">💊</div><h3>Pharmaciens</h3><p>Vérifiez et délivrez les ordonnances par QR code, contrôlez les interactions médicamenteuses en temps réel.</p></div>
+      <div class="pq-card"><div class="pq-ico">🔬</div><h3>Laborantins & Radiologues</h3><p>Recevez les prescriptions, saisissez les résultats et notifiez automatiquement le médecin prescripteur.</p></div>
+      <div class="pq-card"><div class="pq-ico">🤰</div><h3>Sages-femmes</h3><p>Suivez grossesses, CPN et accouchements avec un module entièrement dédié à la santé maternelle.</p></div>
+      <div class="pq-card"><div class="pq-ico">📱</div><h3>Patients</h3><p>Consultez votre dossier, ordonnances et résultats depuis votre téléphone via l'application mobile SantéBF.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULES -->
+<section class="modules" id="modules">
+  <div class="si">
+    <div class="stag">Modules</div>
+    <h2 class="stitle">Tout ce dont votre structure a besoin</h2>
+    <p class="ssub">Cliquez sur un module pour voir le détail des fonctionnalités disponibles.</p>
+    <div class="mod-tabs">
+      <button class="mod-tab active" onclick="showMod('dossier',this)">📂 Dossier Patient</button>
+      <button class="mod-tab" onclick="showMod('consult',this)">🩺 Consultations</button>
+      <button class="mod-tab" onclick="showMod('hospit',this)">🛏️ Hospitalisations</button>
+      <button class="mod-tab" onclick="showMod('pharma',this)">💊 Pharmacie</button>
+      <button class="mod-tab" onclick="showMod('labo',this)">🔬 Labo / Radio</button>
+      <button class="mod-tab" onclick="showMod('grossesse',this)">🤰 Grossesse</button>
+      <button class="mod-tab" onclick="showMod('finance',this)">💰 Finances</button>
+      <button class="mod-tab" onclick="showMod('sang',this)">🩸 Don de Sang</button>
+      <button class="mod-tab" onclick="showMod('ia',this)">🤖 IA Médicale</button>
+    </div>
+    <div id="mod-dossier" class="mod-panel active">
+      <div class="mod-info">
+        <h3>Dossier Patient Partagé</h3>
+        <p>Chaque patient dispose d'un dossier médical unique accessible depuis toutes les structures auxquelles il a donné son accord. Fini les dossiers perdus ou dupliqués.</p>
+        <div class="mod-features">
+          <div class="mf">Informations complètes : allergies, maladies chroniques, traitements permanents</div>
+          <div class="mf">Historique de toutes les consultations, examens, ordonnances et hospitalisations</div>
+          <div class="mf">Carnet de vaccination numérique</div>
+          <div class="mf">QR code d'accès d'urgence — dossier accessible en 24h sans connexion obligatoire</div>
+          <div class="mf">Consentement patient obligatoire avant tout partage de données</div>
+          <div class="mf">Contacts d'urgence enregistrés</div>
+        </div>
       </div>
-      <div class="target-card">
-        <div class="target-ico">🏨</div>
-        <div class="target-title">Cliniques privées</div>
-        <div class="target-desc">Gestion professionnelle avec facturation, assurances et applications mobiles patient.</div>
-        <ul class="target-list">
-          <li>Facturation et prise en charge</li>
-          <li>Application mobile patient incluse</li>
-          <li>RDV en ligne pour les patients</li>
-          <li>Rapports financiers automatiques</li>
-        </ul>
+      <div class="mod-visual">📂</div>
+    </div>
+    <div id="mod-consult" class="mod-panel">
+      <div class="mod-info">
+        <h3>Consultations & Ordonnances</h3>
+        <p>Le médecin rédige sa consultation, prescrit des médicaments et des examens, et génère une ordonnance PDF avec QR code de vérification, directement depuis son téléphone.</p>
+        <div class="mod-features">
+          <div class="mf">Création de consultation avec motif, diagnostic, notes cliniques</div>
+          <div class="mf">Ordonnances numériques avec QR code — vérifiable par tout pharmacien</div>
+          <div class="mf">Prescription d'examens biologiques et d'imagerie</div>
+          <div class="mf">Agenda et gestion des rendez-vous</div>
+          <div class="mf">Constantes vitales (tension, température, pouls, SpO2, poids)</div>
+          <div class="mf">Rappels automatiques par email avant les RDV</div>
+        </div>
       </div>
-      <div class="target-card">
-        <div class="target-ico">💊</div>
-        <div class="target-title">Centres de santé & CMA</div>
-        <div class="target-desc">Solution simple et efficace pour les structures de soins primaires en zone urbaine et rurale.</div>
-        <ul class="target-list">
-          <li>Dossier patient même hors-ligne</li>
-          <li>Vaccinations et suivi grossesse</li>
-          <li>Ordonnances PDF sécurisées</li>
-          <li>Statistiques épidémiologiques</li>
-        </ul>
+      <div class="mod-visual">🩺</div>
+    </div>
+    <div id="mod-hospit" class="mod-panel">
+      <div class="mod-info">
+        <h3>Hospitalisations</h3>
+        <p>Suivi en temps réel des patients hospitalisés. Gestion des lits par service, notes d'évolution et comptes rendus de sortie.</p>
+        <div class="mod-features">
+          <div class="mf">Admission rapide avec choix du lit disponible</div>
+          <div class="mf">Tableau de bord des lits occupés / disponibles par service</div>
+          <div class="mf">Notes d'évolution quotidienne</div>
+          <div class="mf">Sortie du patient avec type (guéri, transféré, contre avis médical…)</div>
+          <div class="mf">Rapport de sortie et instructions post-hospitalisation</div>
+        </div>
       </div>
+      <div class="mod-visual">🛏️</div>
+    </div>
+    <div id="mod-pharma" class="mod-panel">
+      <div class="mod-info">
+        <h3>Pharmacie</h3>
+        <p>Le pharmacien scanne le QR code de l'ordonnance, vérifie les allergies du patient et délivre les médicaments ligne par ligne ou en une seule action.</p>
+        <div class="mod-features">
+          <div class="mf">Scan QR code ordonnance — accès immédiat au détail</div>
+          <div class="mf">Alerte automatique si le patient a des allergies documentées</div>
+          <div class="mf">Délivrance partielle ou totale des médicaments</div>
+          <div class="mf">Mise à jour automatique du statut de l'ordonnance</div>
+          <div class="mf">Historique de toutes les délivrances</div>
+        </div>
+      </div>
+      <div class="mod-visual">💊</div>
+    </div>
+    <div id="mod-labo" class="mod-panel">
+      <div class="mod-info">
+        <h3>Laboratoire & Radiologie</h3>
+        <p>Les examens prescrits arrivent directement dans le module laboratoire/radiologie. Le technicien saisit les résultats et le médecin prescripteur est notifié automatiquement.</p>
+        <div class="mod-features">
+          <div class="mf">Réception automatique des prescriptions d'examens</div>
+          <div class="mf">Saisie des résultats biologiques avec valeurs numériques et interprétation</div>
+          <div class="mf">Imagerie : compte rendu et indication des anomalies</div>
+          <div class="mf">Gestion des urgences (marquage prioritaire)</div>
+          <div class="mf">Résultats accessibles par le patient dans son dossier</div>
+        </div>
+      </div>
+      <div class="mod-visual">🔬</div>
+    </div>
+    <div id="mod-grossesse" class="mod-panel">
+      <div class="mod-info">
+        <h3>Suivi de Grossesse & CPN</h3>
+        <p>Module dédié aux sages-femmes et gynécologues pour le suivi complet de la grossesse, des consultations prénatales jusqu'à l'accouchement.</p>
+        <div class="mod-features">
+          <div class="mf">Déclaration de grossesse avec calcul automatique de la DPA</div>
+          <div class="mf">Suivi des CPN avec constantes (poids, tension, hauteur utérine, FCF)</div>
+          <div class="mf">Identification des grossesses à risque</div>
+          <div class="mf">Planification des prochaines CPN</div>
+          <div class="mf">Enregistrement des accouchements et données du nouveau-né</div>
+        </div>
+      </div>
+      <div class="mod-visual">🤰</div>
+    </div>
+    <div id="mod-finance" class="mod-panel">
+      <div class="mod-info">
+        <h3>Facturation & Caisse</h3>
+        <p>Le caissier crée les factures, enregistre les paiements et génère les rapports de recettes du jour par mode de paiement.</p>
+        <div class="mod-features">
+          <div class="mf">Création de factures avec actes du catalogue de tarifs</div>
+          <div class="mf">Paiement immédiat ou différé</div>
+          <div class="mf">Modes : espèces, Orange Money, Moov Money, virement</div>
+          <div class="mf">Rapport des recettes du jour par mode de paiement</div>
+          <div class="mf">Factures visibles par le patient dans son espace</div>
+        </div>
+      </div>
+      <div class="mod-visual">💰</div>
+    </div>
+    <div id="mod-sang" class="mod-panel">
+      <div class="mod-info">
+        <h3>Don de Sang</h3>
+        <p>Les patients volontaires s'inscrivent comme donneurs potentiels. En cas d'urgence, les agents peuvent rechercher et contacter rapidement des donneurs compatibles.</p>
+        <div class="mod-features">
+          <div class="mf">Inscription volontaire des patients comme donneurs</div>
+          <div class="mf">Consentement explicite requis — révocable à tout moment</div>
+          <div class="mf">Recherche par groupe sanguin et rhésus</div>
+          <div class="mf">Gestion des demandes d'urgence</div>
+          <div class="mf">Historique des contacts et des dons</div>
+        </div>
+      </div>
+      <div class="mod-visual">🩸</div>
+    </div>
+    <div id="mod-ia" class="mod-panel">
+      <div class="mod-info">
+        <h3>IA Médicale (à venir)</h3>
+        <p>Des outils d'assistance intelligente pour les médecins, basés sur les données du dossier patient. En cours de déploiement progressif selon le plan souscrit.</p>
+        <div class="mod-features">
+          <div class="mf">Aide au diagnostic différentiel</div>
+          <div class="mf">Vérification des interactions médicamenteuses</div>
+          <div class="mf">Résumé automatique du dossier patient</div>
+          <div class="mf">Assistant médical conversationnel</div>
+          <div class="mf">Génération automatique de rapports</div>
+          <div class="mf" style="color:#6b7280;">Disponible selon le plan d'abonnement</div>
+        </div>
+      </div>
+      <div class="mod-visual">🤖</div>
+    </div>
+  </div>
+</section>
+
+<!-- AVANTAGES -->
+<section class="avantages" id="avantages">
+  <div class="si">
+    <div class="stag">Avantages</div>
+    <h2 class="stitle">Pourquoi choisir SantéBF ?</h2>
+    <p class="ssub">Conçu pour les réalités du terrain au Burkina Faso. Simple à prendre en main, performant sur mobile, accessible avec une connexion basique.</p>
+    <div class="av-grid">
+      <div class="av-card"><h3>⚡ Zéro installation</h3><p>Tout fonctionne dans le navigateur web. Aucun logiciel à installer sur les postes. Accès immédiat depuis n'importe quel appareil.</p></div>
+      <div class="av-card"><h3>📱 Optimisé mobile</h3><p>Interface conçue pour fonctionner sur smartphone Android. Vos équipes travaillent depuis leur téléphone, en salle ou en visite.</p></div>
+      <div class="av-card"><h3>🌐 Connectivité réduite</h3><p>Pensé pour fonctionner même avec une connexion 3G. Pages légères, temps de chargement optimisés pour le réseau local.</p></div>
+      <div class="av-card"><h3>👥 Multi-rôles</h3><p>Chaque membre de votre équipe a accès uniquement à ce qui le concerne. Médecin, infirmier, pharmacien, caissier — chacun son espace.</p></div>
+      <div class="av-card"><h3>🔗 Dossier partagé</h3><p>Un patient vu dans plusieurs structures garde un dossier unique. Plus de duplication, plus de perte d'information entre établissements.</p></div>
+      <div class="av-card"><h3>📊 Statistiques temps réel</h3><p>Tableaux de bord avec nombre de consultations, recettes du jour, lits occupés, RDV à venir — toujours à jour.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- SÉCURITÉ -->
+<section class="securite" id="securite">
+  <div class="si">
+    <div class="stag">Sécurité & Confidentialité</div>
+    <h2 class="stitle">Vos données sont protégées</h2>
+    <p class="ssub">La confidentialité des données médicales est au cœur de SantéBF. Chaque accès est contrôlé, tracé et soumis au consentement du patient.</p>
+    <div class="sec-grid">
+      <div class="sec-card"><div class="sec-icon">🔒</div><h3>Chiffrement de bout en bout</h3><p>Toutes les données transitent via HTTPS. Les données au repos sont chiffrées dans la base de données Supabase hébergée sur des serveurs sécurisés.</p></div>
+      <div class="sec-card"><div class="sec-icon">✅</div><h3>Consentement patient obligatoire</h3><p>Un médecin ne peut accéder au dossier complet d'un patient que si celui-ci a explicitement accordé son consentement depuis son espace personnel. Révocable à tout moment.</p></div>
+      <div class="sec-card"><div class="sec-icon">👁️</div><h3>Traçabilité totale</h3><p>Chaque consultation, modification ou accès au dossier est enregistré avec la date, l'heure et l'identité du membre du personnel concerné.</p></div>
+      <div class="sec-card"><div class="sec-icon">🔑</div><h3>Authentification sécurisée</h3><p>Connexion par email et mot de passe fort obligatoire. À la première connexion, chaque nouveau compte est forcé de changer son mot de passe temporaire.</p></div>
+      <div class="sec-card"><div class="sec-icon">🏥</div><h3>Accès par structure</h3><p>Le personnel n'accède qu'aux dossiers des patients de sa structure. Aucun croisement de données entre structures sans consentement explicite.</p></div>
+      <div class="sec-card"><div class="sec-icon">🆘</div><h3>Accès d'urgence QR</h3><p>En cas d'urgence médicale, un code QR permet un accès temporaire (24h) aux données vitales du patient — groupe sanguin, allergies, contacts — sans connexion.</p></div>
     </div>
   </div>
 </section>
 
 <!-- PLANS -->
-<section id="plans" style="background:var(--bg);">
-  <div class="section-inner">
-    <div class="section-badge">Tarifs</div>
-    <h2 class="section-title">Des prix adaptés à chaque structure</h2>
-    <p class="section-sub">Commencez gratuitement. Évoluez selon vos besoins. Annulez à tout moment.</p>
+<section class="plans" id="plans">
+  <div class="si">
+    <div class="stag">Tarifs</div>
+    <h2 class="stitle">Des plans adaptés à chaque structure</h2>
+    <p class="ssub">Démarrez gratuitement pendant 6 mois. Aucune carte de crédit requise pour l'essai gratuit.</p>
     <div class="plans-grid">
-      <div class="plan-card">
+      <div class="plan">
         <div class="plan-name">Gratuit</div>
-        <div class="plan-price">0 <span>FCFA/mois</span></div>
-        <div class="plan-cible">Lancement et test · 6 mois</div>
-        <ul class="plan-list">
-          <li class="ok">Dossier patient</li>
-          <li class="ok">Consultations illimitées</li>
-          <li class="ok">Rendez-vous</li>
-          <li class="ok">Don de sang CNTS</li>
-          <li class="no">PDF ordonnances</li>
-          <li class="no">Pharmacien/Caissier</li>
-          <li class="no">SMS rappels</li>
-          <li class="no">IA médicale</li>
-        </ul>
-        <a href="#contact" class="plan-cta sec">Commencer</a>
+        <div class="plan-price">0 FCFA</div>
+        <div class="plan-period">6 mois — essai complet</div>
+        <div class="plan-list">
+          <div class="pl">Dossiers patients</div>
+          <div class="pl">Consultations</div>
+          <div class="pl">RDV & Agenda</div>
+          <div class="pl">Dashboard basique</div>
+        </div>
+        <a href="/auth/inscription" class="plan-btn">Commencer gratuitement</a>
       </div>
-      <div class="plan-card">
+      <div class="plan">
         <div class="plan-name">Starter</div>
-        <div class="plan-price">15 000 <span>FCFA/mois</span></div>
-        <div class="plan-cible">Pharmacie · Cabinet médical</div>
-        <ul class="plan-list">
-          <li class="ok">Tout le plan Gratuit</li>
-          <li class="ok">PDF ordonnances/examens</li>
-          <li class="ok">Module pharmacien</li>
-          <li class="ok">Module caissier</li>
-          <li class="ok">Export CSV</li>
-          <li class="no">SMS rappels</li>
-          <li class="no">IA médicale</li>
-          <li class="no">API publique</li>
-        </ul>
-        <a href="#contact" class="plan-cta sec">Démarrer</a>
+        <div class="plan-price">15 000 FCFA</div>
+        <div class="plan-period">par mois</div>
+        <div class="plan-list">
+          <div class="pl">Tout du plan Gratuit</div>
+          <div class="pl">Ordonnances PDF</div>
+          <div class="pl">Module pharmacien</div>
+          <div class="pl">Facturation & caisse</div>
+          <div class="pl">3 utilisateurs max</div>
+        </div>
+        <a href="#contact" class="plan-btn">Nous contacter</a>
       </div>
-      <div class="plan-card popular">
-        <div class="plan-badge-pop">🌟 Le plus populaire</div>
+      <div class="plan pop">
+        <div class="pop-badge">⭐ Le plus populaire</div>
         <div class="plan-name">Standard</div>
-        <div class="plan-price">40 000 <span>FCFA/mois</span></div>
-        <div class="plan-cible">Clinique · Centre de santé</div>
-        <ul class="plan-list">
-          <li class="ok">Tout le plan Starter</li>
-          <li class="ok">IA médicale (100/mois)</li>
-          <li class="ok">SMS rappels (200/mois)</li>
-          <li class="ok">Statistiques avancées</li>
-          <li class="ok">Support prioritaire</li>
-          <li class="ok">Rapport mensuel auto</li>
-          <li class="no">IA illimitée</li>
-          <li class="no">API publique</li>
-        </ul>
-        <a href="#contact" class="plan-cta">Choisir Standard</a>
+        <div class="plan-price">40 000 FCFA</div>
+        <div class="plan-period">par mois</div>
+        <div class="plan-list">
+          <div class="pl">Tout du Starter</div>
+          <div class="pl">Labo & Radiologie</div>
+          <div class="pl">Hospitalisations</div>
+          <div class="pl">Grossesses & CPN</div>
+          <div class="pl">IA médicale (100 req/mois)</div>
+          <div class="pl">SMS rappels (200/mois)</div>
+        </div>
+        <a href="#contact" class="plan-btn">Nous contacter</a>
       </div>
-      <div class="plan-card">
+      <div class="plan">
         <div class="plan-name">Pro</div>
-        <div class="plan-price">80 000 <span>FCFA/mois</span></div>
-        <div class="plan-cible">Hôpital · CHU</div>
-        <ul class="plan-list">
-          <li class="ok">Tout le plan Standard</li>
-          <li class="ok">IA médicale illimitée</li>
-          <li class="ok">SMS illimités</li>
-          <li class="ok">Support 24/7 dédié</li>
-          <li class="ok">Onboarding sur site</li>
-          <li class="ok">Formation équipes</li>
-          <li class="ok">SLA 99.9%</li>
-          <li class="ok">API publique</li>
-        </ul>
-        <a href="#contact" class="plan-cta">Nous contacter</a>
+        <div class="plan-price">80 000 FCFA</div>
+        <div class="plan-period">par mois</div>
+        <div class="plan-list">
+          <div class="pl">Tout du Standard</div>
+          <div class="pl">IA illimitée</div>
+          <div class="pl">SMS illimités</div>
+          <div class="pl">Support prioritaire</div>
+          <div class="pl">Utilisateurs illimités</div>
+        </div>
+        <a href="#contact" class="plan-btn">Nous contacter</a>
+      </div>
+      <div class="plan">
+        <div class="plan-name">Enterprise</div>
+        <div class="plan-price">Sur devis</div>
+        <div class="plan-period">infrastructure dédiée</div>
+        <div class="plan-list">
+          <div class="pl">Tout du Pro</div>
+          <div class="pl">Serveur dédié</div>
+          <div class="pl">SLA 99,9%</div>
+          <div class="pl">API publique</div>
+          <div class="pl">Onboarding sur site</div>
+        </div>
+        <a href="#contact" class="plan-btn">Demander un devis</a>
       </div>
     </div>
+    <p style="text-align:center;margin-top:20px;font-size:13px;color:var(--soft);">Tous les prix sont HT. Remise de 20% pour un engagement annuel. Remise multi-structures disponible.</p>
   </div>
 </section>
 
-<!-- APPLICATIONS MOBILES -->
-<section id="apps" class="apps">
-  <div class="section-inner">
-    <div class="section-badge" style="background:var(--or-c);color:var(--or);">Applications mobiles</div>
-    <h2 class="section-title">SantéBF dans votre poche</h2>
-    <p class="section-sub">Deux applications dédiées — une pour les patients, une pour les professionnels de santé.</p>
+<!-- APPS -->
+<section class="apps" id="apps">
+  <div class="si">
+    <div class="stag">Applications mobiles</div>
+    <h2 class="stitle">SantéBF dans votre poche</h2>
+    <p class="ssub">Deux applications mobiles — une pour les patients, une pour le personnel médical. Aucune installation serveur requise.</p>
     <div class="apps-grid">
       <div class="app-card">
-        <div class="app-ico patient">👤</div>
-        <div class="app-title">SantéBF Patient</div>
-        <div class="app-desc">Permettez à vos patients d'accéder à leur dossier, ordonnances et résultats d'examens depuis leur téléphone.</div>
-        <div class="app-features">
-          <div class="app-feat">Dossier médical complet</div>
-          <div class="app-feat">Ordonnances PDF téléchargeables</div>
-          <div class="app-feat">Résultats d'examens</div>
-          <div class="app-feat">Code d'urgence QR</div>
-          <div class="app-feat">Carnet de vaccination</div>
-          <div class="app-feat">Gestion des consentements</div>
+        <div class="app-ico">📱</div>
+        <h3>SantéBF Patient</h3>
+        <p>Consultez votre dossier médical, vos ordonnances, vos résultats d'examens et vos prochains rendez-vous depuis votre téléphone. Donnez votre consentement et gérez vos accès médecins.</p>
+        <div class="app-btns">
+          <a href="/public/patient/welcome" class="app-btn">🌐 <span><span class="app-btn-label">Accéder via</span>Application Web</span></a>
         </div>
-        <div class="store-btns">
-          <a href="#" class="store-btn android">▶ Google Play</a>
-          <a href="#" class="store-btn ios"> App Store</a>
-          <a href="/patient/welcome" class="store-btn web">🌐 Web</a>
-        </div>
+        <div class="app-url">santebf.izicardouaga.com/public/patient/welcome</div>
       </div>
       <div class="app-card">
-        <div class="app-ico medecin">👨‍⚕️</div>
-        <div class="app-title">SantéBF Médecin</div>
-        <div class="app-desc">Accédez au dossier de vos patients, rédigez vos ordonnances et suivez vos consultations depuis n'importe où.</div>
-        <div class="app-features">
-          <div class="app-feat">Dossier patient en mobilité</div>
-          <div class="app-feat">Rédaction d'ordonnances</div>
-          <div class="app-feat">Planning des consultations</div>
-          <div class="app-feat">Résultats laboratoire</div>
-          <div class="app-feat">Aide IA au diagnostic</div>
-          <div class="app-feat">Signature numérique</div>
+        <div class="app-ico">🏥</div>
+        <h3>SantéBF Médecin</h3>
+        <p>Accédez à vos consultations, dossiers patients, ordonnances et agenda depuis votre smartphone. Conçu pour fonctionner en mobilité dans les services hospitaliers.</p>
+        <div class="app-btns">
+          <a href="/auth/login" class="app-btn">🔑 <span><span class="app-btn-label">Accéder via</span>Connexion Médecin</span></a>
         </div>
-        <div class="store-btns">
-          <a href="#" class="store-btn android">▶ Google Play</a>
-          <a href="#" class="store-btn ios"> App Store</a>
-          <a href="/auth/login" class="store-btn web">🌐 Web</a>
-        </div>
+        <div class="app-url">santebf.izicardouaga.com/auth/login</div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- CONTACT -->
-<section id="contact" class="contact">
-  <div class="contact-inner">
-    <div class="section-badge" style="background:rgba(255,255,255,.15);color:white;">Contact</div>
-    <div class="contact-title">Prêt à digitaliser votre structure ?</div>
-    <div class="contact-sub">Contactez notre équipe pour une démonstration gratuite et un accompagnement personnalisé.</div>
-    <div class="contact-cards">
-      <div class="cc"><div class="cc-ico">📧</div><div class="cc-label">Email</div><div class="cc-val">contact@santebf.bf</div></div>
-      <div class="cc"><div class="cc-ico">📞</div><div class="cc-label">Téléphone</div><div class="cc-val">+226 25 XX XX XX</div></div>
-      <div class="cc"><div class="cc-ico">📍</div><div class="cc-label">Localisation</div><div class="cc-val">Ouagadougou, BF</div></div>
+<!-- FAQ -->
+<section class="faq" id="faq">
+  <div class="si">
+    <div class="stag">Questions fréquentes</div>
+    <h2 class="stitle">Vous avez des questions ? Nous avons les réponses.</h2>
+    <p class="ssub">Retrouvez les réponses aux questions les plus posées sur la sécurité, la confidentialité, le fonctionnement et la connexion.</p>
+    <div class="faq-cats">
+      <button class="faq-cat active" onclick="showFaqCat('securite',this)">🔒 Sécurité</button>
+      <button class="faq-cat" onclick="showFaqCat('confidentialite',this)">🛡️ Confidentialité</button>
+      <button class="faq-cat" onclick="showFaqCat('consentement',this)">✅ Consentement</button>
+      <button class="faq-cat" onclick="showFaqCat('connexion',this)">🔑 Connexion & Compte</button>
+      <button class="faq-cat" onclick="showFaqCat('fonctionnement',this)">⚙️ Fonctionnement</button>
+      <button class="faq-cat" onclick="showFaqCat('tarifs',this)">💳 Tarifs & Abonnement</button>
     </div>
-    <a href="mailto:contact@santebf.bf" class="btn-contact">✉️ Nous contacter</a>
+
+    <!-- SÉCURITÉ -->
+    <div id="faq-securite" class="faq-group active">
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Où sont hébergées les données de SantéBF ?<span class="faq-ico">+</span></div><div class="faq-a">Les données sont hébergées sur <strong>Supabase</strong> (base de données PostgreSQL chiffrée) et <strong>Cloudflare Pages</strong> (edge computing mondial). Les deux services utilisent un chiffrement AES-256 au repos et TLS 1.3 en transit. Les serveurs sont localisés dans des datacenters certifiés ISO 27001.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Est-ce que les données médicales sont chiffrées ?<span class="faq-ico">+</span></div><div class="faq-a">Oui. Toutes les communications entre votre navigateur et nos serveurs sont chiffrées via <strong>HTTPS/TLS</strong>. Les données stockées dans la base de données sont chiffrées au repos. Les mots de passe sont hashés avec bcrypt et ne sont jamais stockés en clair.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Que se passe-t-il si un membre du personnel perd son téléphone ?<span class="faq-ico">+</span></div><div class="faq-a">L'accès est protégé par email et mot de passe. Si un appareil est perdu, l'administrateur de la structure peut <strong>immédiatement désactiver le compte</strong> depuis le tableau de bord administrateur. La session active est alors invalidée. Aucune donnée n'est stockée localement sur l'appareil.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Peut-on accéder à SantéBF depuis l'extérieur de la structure ?<span class="faq-ico">+</span></div><div class="faq-a">Oui, SantéBF est accessible depuis n'importe où via internet. L'accès est sécurisé par authentification obligatoire. Chaque connexion est enregistrée avec la date, l'heure et l'adresse IP. Un administrateur peut voir l'historique des connexions de son équipe.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Comment SantéBF est-il protégé contre les attaques informatiques ?<span class="faq-ico">+</span></div><div class="faq-a">SantéBF bénéficie de la protection <strong>Cloudflare</strong> qui inclut : protection DDoS, pare-feu applicatif web (WAF), limitation de débit des requêtes. En plus, les comptes sont automatiquement bloqués après plusieurs tentatives de connexion échouées.</div></div>
+    </div>
+
+    <!-- CONFIDENTIALITÉ -->
+    <div id="faq-confidentialite" class="faq-group">
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Qui peut voir le dossier médical d'un patient ?<span class="faq-ico">+</span></div><div class="faq-a">Uniquement les personnels de santé auxquels le patient a <strong>explicitement accordé son consentement</strong>. Sans consentement, aucun médecin externe à la structure ne peut accéder au dossier. À l'intérieur d'une structure, l'accès est limité au personnel autorisé selon son rôle.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">SantéBF vend-il ou partage-t-il des données avec des tiers ?<span class="faq-ico">+</span></div><div class="faq-a"><strong>Non.</strong> SantéBF ne vend ni ne partage aucune donnée médicale ou personnelle avec des tiers, annonceurs ou partenaires commerciaux. Les données appartiennent à la structure de santé et au patient. Elles ne sont utilisées que pour le fonctionnement du service.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Un médecin d'une autre ville peut-il voir le dossier de mon patient ?<span class="faq-ico">+</span></div><div class="faq-a">Non, sauf si le patient a accordé un consentement à ce médecin ou à cette structure. Le partage de données entre structures est toujours soumis au <strong>consentement explicite du patient</strong>, qui peut le révoquer à tout moment depuis son espace personnel.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Le patient peut-il voir qui a consulté son dossier ?<span class="faq-ico">+</span></div><div class="faq-a">Oui. Chaque patient dispose d'une section <strong>"Historique des accès"</strong> dans son espace personnel. Il peut voir qui a consulté son dossier, quand et depuis quelle structure. Aucun accès n'est invisible.</div></div>
+    </div>
+
+    <!-- CONSENTEMENT -->
+    <div id="faq-consentement" class="faq-group">
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Comment fonctionne le système de consentement ?<span class="faq-ico">+</span></div><div class="faq-a">Le consentement fonctionne à deux niveaux :<ul><li><strong>Consentement médecin</strong> : accordé à un médecin précis lors d'une visite. Il peut être révoqué à tout moment.</li><li><strong>Consentement structure</strong> : accordé à une structure complète, valable 3 mois, renouvelable, révocable immédiatement.</li></ul>Sans consentement actif, aucun accès extérieur n'est possible.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Un patient peut-il révoquer un consentement déjà accordé ?<span class="faq-ico">+</span></div><div class="faq-a"><strong>Oui, à tout moment.</strong> Depuis son espace "Consentements", le patient peut révoquer l'accès d'un médecin ou d'une structure en un clic. L'accès est immédiatement coupé, sans délai.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Que se passe-t-il en cas d'urgence médicale sans consentement ?<span class="faq-ico">+</span></div><div class="faq-a">Chaque patient peut obtenir un <strong>code QR d'urgence</strong>. Ce code permet un accès temporaire (24 heures) aux données vitales uniquement : groupe sanguin, allergies, maladies chroniques et contacts d'urgence. Cet accès est tracé et le patient en est informé.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Le consentement est-il obligatoire pour créer un dossier ?<span class="faq-ico">+</span></div><div class="faq-a">Non. L'agent d'accueil crée le dossier médical lors de la visite. Le consentement de partage n'est requis que pour donner l'accès à d'autres structures ou médecins. Le dossier existe et peut être utilisé par la structure d'accueil sans consentement de partage.</div></div>
+    </div>
+
+    <!-- CONNEXION -->
+    <div id="faq-connexion" class="faq-group">
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Comment un médecin obtient-il ses accès ?<span class="faq-ico">+</span></div><div class="faq-a">L'administrateur de la structure crée le compte du médecin depuis le tableau de bord structure. Un <strong>mot de passe temporaire est généré automatiquement</strong> et envoyé par email au médecin. À sa première connexion, il est obligé de choisir un nouveau mot de passe personnel.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">J'ai oublié mon mot de passe, que faire ?<span class="faq-ico">+</span></div><div class="faq-a">Cliquez sur <strong>"Mot de passe oublié"</strong> sur la page de connexion. Un lien de réinitialisation vous sera envoyé par email. Ce lien est valable 1 heure. Si vous n'avez pas reçu l'email, vérifiez vos spams ou contactez l'administrateur de votre structure.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Mon compte a été bloqué. Que faire ?<span class="faq-ico">+</span></div><div class="faq-a">Après plusieurs tentatives de connexion échouées, le compte est temporairement bloqué pour des raisons de sécurité. Attendez 15 minutes ou contactez l'administrateur de votre structure pour un déblocage immédiat.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Un patient peut-il créer son propre compte ?<span class="faq-ico">+</span></div><div class="faq-a">Oui. Un patient peut créer son propre compte sur la page d'inscription depuis l'application mobile. Son dossier sera vide au départ. Il devra se présenter à l'accueil d'une structure SantéBF avec son email pour que son dossier existant lui soit lié.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Combien d'appareils peut-on utiliser simultanément ?<span class="faq-ico">+</span></div><div class="faq-a">Il n'y a pas de limite. Un médecin peut se connecter depuis son téléphone, sa tablette et son ordinateur en même temps. Chaque session est indépendante et sécurisée. La déconnexion d'une session n'affecte pas les autres.</div></div>
+    </div>
+
+    <!-- FONCTIONNEMENT -->
+    <div id="faq-fonctionnement" class="faq-group">
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Faut-il une connexion internet en permanence ?<span class="faq-ico">+</span></div><div class="faq-a">Oui, SantéBF est une application web qui nécessite une connexion internet. Elle est cependant <strong>optimisée pour les connexions lentes</strong> (3G/4G). Les pages sont légères et les requêtes minimisées. Une connexion WiFi basique ou une 3G stable suffit pour utiliser toutes les fonctionnalités.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Peut-on utiliser SantéBF sur n'importe quel téléphone ?<span class="faq-ico">+</span></div><div class="faq-a">Oui. SantéBF fonctionne sur tout smartphone avec un navigateur web récent (Chrome, Firefox, Safari). Pas besoin de télécharger une application depuis un store. Il suffit d'ouvrir le navigateur et d'aller sur l'URL de la plateforme.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Comment se passe l'intégration pour une nouvelle structure ?<span class="faq-ico">+</span></div><div class="faq-a">C'est simple : <ul><li>1. Contact avec notre équipe</li><li>2. Création de votre structure dans le système</li><li>3. Création des comptes de votre équipe par votre administrateur</li><li>4. Formation rapide (1 à 2 heures) — la prise en main est intuitive</li><li>5. Début d'utilisation immédiat</li></ul>Aucune installation informatique requise de votre côté.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Que se passe-t-il si le service est temporairement indisponible ?<span class="faq-ico">+</span></div><div class="faq-a">SantéBF est hébergé sur Cloudflare, l'une des infrastructures les plus fiables au monde avec un SLA de 99,9%. En cas de maintenance planifiée, les utilisateurs sont prévenus à l'avance. L'historique des incidents et la disponibilité en temps réel sont consultables.</div></div>
+    </div>
+
+    <!-- TARIFS -->
+    <div id="faq-tarifs" class="faq-group">
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">L'essai gratuit inclut-il toutes les fonctionnalités ?<span class="faq-ico">+</span></div><div class="faq-a">L'essai gratuit de 6 mois inclut les fonctionnalités de base : dossiers patients, consultations, RDV, dashboard. Les modules avancés (pharmacie, laboratoire, facturation, IA) nécessitent un abonnement payant. Vous pouvez passer à un plan payant à tout moment.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Comment fonctionne le paiement de l'abonnement ?<span class="faq-ico">+</span></div><div class="faq-a">Le paiement de l'abonnement est actuellement géré manuellement pendant notre phase de lancement. Contactez-nous pour convenir des modalités (virement, Mobile Money). Un système de paiement en ligne automatisé est en cours d'intégration.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Peut-on changer de plan en cours d'abonnement ?<span class="faq-ico">+</span></div><div class="faq-a"><strong>Oui.</strong> Vous pouvez passer à un plan supérieur à tout moment. Le montant est calculé au prorata de la période restante. Contactez-nous pour toute modification de plan.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Y a-t-il une remise pour plusieurs structures du même groupe ?<span class="faq-ico">+</span></div><div class="faq-a">Oui. Une remise de <strong>15%</strong> est appliquée à partir de 3 structures d'un même groupe (cliniques, hôpitaux, cabinets). Une remise de 20% est accordée pour un engagement annuel. Contactez-nous pour un devis personnalisé.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA CONTACT -->
+<section class="cta" id="contact">
+  <div style="max-width:600px;margin:0 auto">
+    <h2>Prêt à digitaliser votre structure ?</h2>
+    <p>Contactez-nous pour une démonstration gratuite ou pour toute question sur SantéBF.</p>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+      <a href="/auth/inscription" class="btn1" style="background:white;color:var(--vf)">🚀 Essai gratuit 6 mois</a>
+      <a href="mailto:contact@santebf.izicardouaga.com" class="btn2" style="background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3)">✉️ Nous contacter</a>
+    </div>
   </div>
 </section>
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-inner">
-    <div class="footer-top">
-      <div>
-        <div class="footer-brand-name">🏥 SantéBF</div>
-        <div class="footer-brand-desc">Système National de Santé Numérique<br>Burkina Faso 🇧🇫<br><br>Conçu pour améliorer l'accès aux soins et faciliter le travail des professionnels de santé burkinabè.</div>
-      </div>
-      <div class="footer-col">
-        <h4>Produit</h4>
-        <a href="#fonctionnalites">Fonctionnalités</a>
-        <a href="#pour-qui">Pour qui</a>
-        <a href="#plans">Tarifs</a>
-        <a href="#apps">Applications</a>
-      </div>
-      <div class="footer-col">
-        <h4>Connexion</h4>
-        <a href="/auth/login">Se connecter</a>
-        <a href="/auth/inscription">Créer un compte</a>
-        <a href="/patient/welcome">App Patient</a>
-        <a href="/auth/reset-password">Mot de passe oublié</a>
-      </div>
-      <div class="footer-col">
-        <h4>Légal</h4>
-        <a href="/public/confidentialite">Confidentialité</a>
-        <a href="/public/conditions">Conditions d'utilisation</a>
-        <a href="/public/securite">Sécurité des données</a>
-        <a href="#contact">Contact</a>
-      </div>
+  <div class="fg">
+    <div class="fb">
+      <h2>🏥 SantéBF</h2>
+      <p>Plateforme numérique de gestion de santé pour les structures sanitaires du Burkina Faso.</p>
     </div>
-    <div class="footer-bottom">
-      <p>© 2025 SantéBF — Tous droits réservés</p>
-      <p>Fait avec ❤️ pour la santé au Burkina Faso</p>
+    <div class="fc">
+      <h4>Plateforme</h4>
+      <a href="#modules">Modules</a>
+      <a href="#plans">Tarifs</a>
+      <a href="#securite">Sécurité</a>
+      <a href="#apps">Applications</a>
     </div>
+    <div class="fc">
+      <h4>Accès</h4>
+      <a href="/auth/login">Connexion</a>
+      <a href="/auth/inscription">Créer un compte</a>
+      <a href="/public/patient/welcome">App Patient</a>
+    </div>
+    <div class="fc">
+      <h4>Support</h4>
+      <a href="#faq">FAQ</a>
+      <a href="mailto:contact@santebf.izicardouaga.com">Nous contacter</a>
+    </div>
+  </div>
+  <div class="fbot">
+    <span>© 2026 SantéBF — Tous droits réservés</span>
+    <span>Fait avec ❤️ au Burkina Faso</span>
   </div>
 </footer>
 
 <script>
-// Navigation mobile
-function toggleMobileMenu() {
-  // Implémentation simple — ouvre un menu overlay
-  alert('Menu mobile — à implémenter avec un drawer')
+// Modules tabs
+function showMod(id, btn) {
+  document.querySelectorAll('.mod-panel').forEach(p => p.classList.remove('active'))
+  document.querySelectorAll('.mod-tab').forEach(t => t.classList.remove('active'))
+  document.getElementById('mod-' + id).classList.add('active')
+  btn.classList.add('active')
 }
 
-// Animation scroll
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      entry.target.style.opacity = '1';
-      entry.target.style.transform = 'translateY(0)';
-    }
-  });
-}, { threshold: 0.1 });
+// FAQ categories
+function showFaqCat(id, btn) {
+  document.querySelectorAll('.faq-group').forEach(g => g.classList.remove('active'))
+  document.querySelectorAll('.faq-cat').forEach(c => c.classList.remove('active'))
+  document.getElementById('faq-' + id).classList.add('active')
+  btn.classList.add('active')
+}
 
-document.querySelectorAll('.feat-card, .target-card, .plan-card, .app-card').forEach(el => {
-  el.style.opacity = '0';
-  el.style.transform = 'translateY(20px)';
-  el.style.transition = 'opacity .5s, transform .5s';
-  observer.observe(el);
-});
+// FAQ accordion
+function toggleFaq(q) {
+  const item = q.parentElement
+  const wasOpen = item.classList.contains('open')
+  // Fermer tous dans le même groupe
+  const group = item.closest('.faq-group')
+  group.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'))
+  if (!wasOpen) item.classList.add('open')
+}
 
-// Nav scroll
-window.addEventListener('scroll', () => {
-  const nav = document.querySelector('nav');
-  if (window.scrollY > 50) {
-    nav.style.boxShadow = '0 4px 24px rgba(0,0,0,.1)';
+// Nav mobile
+function toggleMenu() {
+  const nl = document.querySelector('.nl')
+  if (nl.style.display === 'flex') {
+    nl.style.display = ''
   } else {
-    nav.style.boxShadow = 'none';
+    nl.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:64px;left:0;right:0;background:white;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:199;gap:16px;'
   }
-});
+}
 </script>
 </body>
 </html>`
