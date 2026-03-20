@@ -345,3 +345,4 @@ authRoutes.get('/logout', async (c) => {
   }
   return c.redirect('/auth/login')
 })
+ 
