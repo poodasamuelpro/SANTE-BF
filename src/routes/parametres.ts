@@ -15,7 +15,6 @@ import { Hono } from 'hono'
 import { requireAuth } from '../middleware/auth'
 import { pageSkeleton } from './dashboard'
 import type { AuthProfile, Bindings } from '../lib/supabase'
-import { alertHTML } from './dashboard'
 
 export const parametresRoutes = new Hono<{ Bindings: Bindings }>()
 
@@ -60,7 +59,7 @@ parametresRoutes.get('/', async (c) => {
     return c.html(html)
   } catch (err) {
     console.error('Erreur chargement paramètres:', err)
-    return c.html(pageSkeleton(profil, 'Erreur', '#1A6B3C', alertHTML('error', 'Erreur lors du chargement des paramètres')))
+    return c.html(pageSkeleton(profil, 'Erreur', '#1A6B3C', '<div style="background:#FFF5F5;border-left:4px solid #B71C1C;border-radius:10px;padding:16px;font-size:14px;font-weight:600;color:#B71C1C;">⚠️ Erreur lors du chargement des paramètres</div>'))
   }
 })
 
