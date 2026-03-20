@@ -55,8 +55,11 @@ type Env = {
     SUPABASE_ANON_KEY:    string   // Clé publique Supabase
     // ── Emails (Resend) ───────────────────────────────────
     RESEND_API_KEY:       string   // Envoi emails automatiques
-    // ── IA médicale (Anthropic) ───────────────────────────
-    ANTHROPIC_API_KEY?:   string   // IA médicale — ajouter quand prêt
+    // ── IA médicale ────────────────────────────────────────
+    ANTHROPIC_API_KEY?:   string   // IA Claude Haiku — console.anthropic.com
+    GEMINI_API_KEY?:      string   // IA Gemini Flash-Lite GRATUIT — aistudio.google.com
+    HUGGINGFACE_API_KEY?: string   // IA BioMistral médical GRATUIT — huggingface.co
+    IA_MODEL?:            string   // Forcer un modèle : 'anthropic'|'gemini'|'biomistral'|'auto'
     // ── Notifications Push (FCM v1 — Service Account) ────
     FCM_PROJECT_ID?:      string   // sante-bf-64d92
     FCM_CLIENT_EMAIL?:    string   // firebase-adminsdk-fbsvc@sante-bf-64d92.iam.gserviceaccount.com
