@@ -39,6 +39,8 @@ import { exportRoutes }                     from '../src/routes/export'
 import { profilRoutes }                     from '../src/routes/profil'
 import { sangPatientRoutes, cntsRoutes }    from '../src/routes/sang'
 
+import { landingPage } from '../src/pages/landing'
+
 // Paiements + abonnements — DÉCOMMENTER quand les fichiers seront créés
 // import { webhookRoutes }     from '../src/routes/webhooks'
 // import { abonnementRoutes }  from '../src/routes/abonnement'
@@ -92,9 +94,9 @@ app.route('/cnts',             cntsRoutes)
 // app.route('/webhooks',      webhookRoutes)
 // app.route('/abonnement',    abonnementRoutes)
 
-// Racine → login
-// Racine → landing
-app.get('/', (c) => c.redirect('/public/'))
+// Racine → Landing page (servie directement, sans redirect)
+app.get('/',        (c) => c.html(landingPage()))
+app.get('/public',  (c) => c.html(landingPage()))
 
 // ─── 404 — page propre ────────────────────────────────────
 app.notFound((c) => {
