@@ -19,7 +19,7 @@
  *   Par défaut, toutes les notifications sont envoyées si l'email est renseigné.
  */
 
-import type { ReturnType as SupaReturn } from './supabase-type-helper'
+// import supprimé (supabase-type-helper non nécessaire)
 
 // ─── sendEmail — fetch natif Workers (pas de SDK Node) ────
 
