@@ -1,4 +1,17 @@
-/**
+/
+
+export function alertHTML(type: 'error' | 'success' | 'warning', message: string): string {
+  const styles: Record<string, string> = {
+    error:   'background:#FFF5F5;border-left:4px solid #B71C1C;color:#B71C1C;',
+    success: 'background:#E8F5E9;border-left:4px solid #1A6B3C;color:#1A6B3C;',
+    warning: 'background:#FFF8E1;border-left:4px solid #F9A825;color:#E65100;',
+  }
+  const icons: Record<string, string> = { error: '⚠️', success: '✓', warning: '⚠️' }
+  return `<div style="${styles[type]}border-radius:10px;padding:16px 18px;font-size:14px;font-weight:600;margin:12px 0;">
+    ${icons[type]} ${message}
+  </div>`
+}
+**
  * src/routes/dashboard.ts
  * SantéBF — Routes des tableaux de bord par rôle
  *
