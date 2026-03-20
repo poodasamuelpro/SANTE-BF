@@ -93,7 +93,8 @@ app.route('/cnts',             cntsRoutes)
 // app.route('/abonnement',    abonnementRoutes)
 
 // Racine → login
-app.get('/', (c) => c.redirect('/auth/login'))
+// Racine → landing
+app.get('/', (c) => c.redirect('/public/'))
 
 // ─── 404 — page propre ────────────────────────────────────
 app.notFound((c) => {
