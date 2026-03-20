@@ -1,7 +1,7 @@
 /**
  * src/pages/landing.ts
  * SantéBF — Page d'accueil publique (marketing)
- * Route : GET / dans public.ts (route publique sans auth) 
+ * Route : GET / dans public.ts (route publique sans auth)
  *
  * Design : responsive, moderne, professionnel
  * Sections : Hero, Stats, Fonctionnalités, Plans, Apps, Contact
