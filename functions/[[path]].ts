@@ -57,8 +57,10 @@ type Env = {
     RESEND_API_KEY:       string   // Envoi emails automatiques
     // ── IA médicale (Anthropic) ───────────────────────────
     ANTHROPIC_API_KEY?:   string   // IA médicale — ajouter quand prêt
-    // ── Notifications Push (Firebase FCM) ─────────────────
-    FCM_SERVER_KEY?:      string   // Notifications push mobiles
+    // ── Notifications Push (FCM v1 — Service Account) ────
+    FCM_PROJECT_ID?:      string   // sante-bf-64d92
+    FCM_CLIENT_EMAIL?:    string   // firebase-adminsdk-fbsvc@sante-bf-64d92.iam.gserviceaccount.com
+    FCM_PRIVATE_KEY?:     string   // Clé privée RSA complète (BEGIN PRIVATE KEY...)
     // ── Paiement CinetPay ────────────────────────────────
     CINETPAY_SITE_ID?:    string   // Site ID CinetPay
     CINETPAY_API_KEY?:    string   // Clé API CinetPay
@@ -66,6 +68,8 @@ type Env = {
     // ── Paiement DuniaPay (alternative) ──────────────────
     DUNIAPAY_API_KEY?:    string   // Clé API DuniaPay
     DUNIAPAY_SECRET?:     string   // Secret webhook DuniaPay
+    // ── Email Brevo (alternative à Resend) ───────────────
+    BREVO_API_KEY?:       string   // API Brevo/Sendinblue — alternative Resend
     // ── Google Calendar ───────────────────────────────────
     GOOGLE_CLIENT_ID?:    string   // Google Calendar OAuth2
     GOOGLE_CLIENT_SECRET?: string  // Google Calendar OAuth2
