@@ -251,3 +251,4 @@ export function changerMdpPage(erreur?: string): string {
 </body>
 </html>`
 }
+ 
