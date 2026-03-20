@@ -4,7 +4,7 @@
  *
  * 3 modèles supportés — le système utilise automatiquement
  * le premier modèle disponible selon les clés configurées,
- * OU celui choisi par l'admin dans les paramètres.
+ * OU celui choisi par l'admin dans les paramètres. 
  *
  * ┌─────────────────────────────────────────────────────────┐
  * │  MODÈLE 1 — Anthropic Claude Haiku                      │
