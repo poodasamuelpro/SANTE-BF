@@ -134,7 +134,7 @@ function ordonnancePage(ordonnance: any): string {
       <div class="header">
         <div style="font-size:48px;margin-bottom:8px">💊</div>
         <h1>Vérification d'ordonnance</h1>
-        <p class="subtitle">SantéBF — Système National de Santé</p>
+        <p class="subtitle">SantéBF — Plateforme de Santé Numérique</p>
         <div class="badge ${ordonnance.statut}">${ordonnance.statut}</div>
       </div>
       ${estExpiree ? '<div class="alert">⚠️ <strong>Attention :</strong> Cette ordonnance est expirée.</div>' : ''}
@@ -158,4 +158,3 @@ function ordonnancePage(ordonnance: any): string {
 </body>
 </html>`
 }
- 
