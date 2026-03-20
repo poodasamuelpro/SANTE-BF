@@ -20,7 +20,7 @@
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
-import { pageSkeleton, statsGrid, actionCard, alertHTML } from './dashboard'
+import { pageSkeleton, statsGrid, actionCard } from './dashboard'
 
 export const infirmerieRoutes = new Hono<{ Bindings: Bindings }>()
 
@@ -92,7 +92,7 @@ infirmerieRoutes.get('/', async (c) => {
 
   } catch (err) {
     console.error('Erreur dashboard infirmerie:', err)
-    return c.html(pageSkeleton(profil, 'Erreur', '#0288D1', alertHTML('error', 'Erreur lors du chargement')))
+    return c.html(pageSkeleton(profil, 'Erreur', '#0288D1', '<div style="background:#FFF5F5;border-left:4px solid #B71C1C;border-radius:10px;padding:16px;font-size:14px;font-weight:600;color:#B71C1C;">⚠️ Erreur lors du chargement</div>'))
   }
 })
 
