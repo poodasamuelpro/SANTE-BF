@@ -303,3 +303,4 @@ vaccinationRoutes.post('/patient/:patient_id/nouvelle', async (c) => {
 
   return c.redirect(`/vaccinations/patient/${patientId}`, 303)
 })
+ 
