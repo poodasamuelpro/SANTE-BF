@@ -418,3 +418,4 @@ hospitalisationRoutes.post('/:id/sortir', async (c) => {
   if (error) return c.text('Erreur: ' + error.message, 500)
   return c.redirect('/hospitalisations/' + id, 303)
 })
+ 
