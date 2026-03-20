@@ -24,6 +24,7 @@ import { getSupabase } from '../lib/supabase'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 // genererMdpTemporaire inline (évite dépendance externe)
 import { sendEmail, templateBienvenue } from '../utils/email'
+import { envoyerConfirmationRDV } from '../utils/notifications'
 
 
 // Génère un MDP temporaire sécurisé (12 chars, 1 maj + 1 chiffre + 1 spécial)
@@ -391,7 +392,7 @@ accueilRoutes.post('/nouveau-patient', async (c) => {
   const rdvMedecinId = String(body.rdv_medecin_id ?? '').trim()
   const rdvDate      = String(body.rdv_date_heure ?? '').trim()
   if (rdvMedecinId && rdvDate) {
-    await supabase.from('medical_rendez_vous').insert({
+    const { data: rdvData } = await supabase.from('medical_rendez_vous').insert({
       patient_id:    patient.id,
       medecin_id:    rdvMedecinId,
       structure_id:  profil.structure_id,
@@ -399,7 +400,11 @@ accueilRoutes.post('/nouveau-patient', async (c) => {
       motif:         String(body.rdv_motif ?? 'Première consultation'),
       duree_minutes: 30,
       statut:        'planifie',
-    })
+    }).select('id').single()
+    // Email confirmation RDV au patient
+    if (rdvData?.id && c.env.RESEND_API_KEY) {
+      envoyerConfirmationRDV(supabase, rdvData.id, c.env.RESEND_API_KEY).catch(() => {})
+    }
   }
 
   // ── Création compte Supabase si email fourni ─────────────────
@@ -993,4 +998,3 @@ accueilRoutes.post('/rdv/:id/statut', async (c) => {
   const ref = c.req.header('referer') || '/accueil/rdv'
   return c.redirect(ref, 303)
 })
- 
