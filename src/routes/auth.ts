@@ -97,6 +97,16 @@ authRoutes.post('/login', async (c) => {
       setCookie(c, 'sb_refresh', data.session.refresh_token, COOKIE_OPTS)
     }
 
+    // Sauvegarder le token FCM (notifications push app mobile)
+    // Envoyé par l'app Capacitor dans le header X-FCM-Token
+    const fcmToken    = c.req.header('X-FCM-Token')    || ''
+    const fcmPlatform = c.req.header('X-FCM-Platform') || 'android'
+    if (fcmToken) {
+      await sb.from('auth_profiles')
+        .update({ fcm_token: fcmToken, fcm_platform: fcmPlatform })
+        .eq('id', data.user.id)
+    }
+
     return c.redirect(
       profil.doit_changer_mdp ? '/auth/changer-mdp' : redirectionParRole(profil.role),
       302
@@ -345,4 +355,3 @@ authRoutes.get('/logout', async (c) => {
   }
   return c.redirect('/auth/login')
 })
- 
