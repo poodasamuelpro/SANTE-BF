@@ -1,256 +1,338 @@
 /**
  * src/pages/accueil-patient-app.ts
- * SantéBF — Page d'accueil de l'application patient (Capacitor)
+ * SantéBF — Page d'accueil de l'application patient
  *
- * Affichée quand l'app s'ouvre :
+ * Affichée quand l'app mobile s'ouvre :
  *   → "J'ai déjà un compte" → /auth/login
- *   → "Créer mon compte"    → /auth/inscription
+ *   → "Créer mon compte"   → /auth/inscription
  *
- * Design adapté mobile-first avec tutoriel en 3 étapes
- * Route : GET /patient/welcome (accessible sans auth)
+ * Route : GET /public/patient/welcome (public, sans auth)
+ *         GET /auth/welcome (alias)
+ *
+ * Aucune mention état / ministère / gouvernement
  */
+
 export function accueilPatientAppPage(): string {
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>SantéBF — Votre santé numérique</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
-<style>
-:root {
-  --vert:#1A6B3C;--vert-f:#0d4a2a;--vert-c:#e8f5ee;
-  --bleu:#1565C0;--bleu-c:#e3f2fd;
-  --texte:#0f1923;--soft:#5a6a78;
-  --blanc:#fff;--bg:#f4f9f6;
-  --r:18px;--rs:12px;
-}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;height:100%;overflow-x:hidden;}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:100vh;
-  display:flex;flex-direction:column;color:var(--texte);}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1A6B3C">
+  <title>SantéBF — Votre santé numérique</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --v: #1A6B3C;
+      --vf: #0d4a2a;
+      --vc: #e8f5ee;
+      --b: #1565C0;
+      --bc: #e3f2fd;
+      --tx: #0f1923;
+      --soft: #5a6a78;
+      --bg: #f4f7f4;
+      --w: #fff;
+      --bd: #e0e8e0;
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-/* ── HERO ──────────────────────────────────────────────────── */
-.hero{
-  background:linear-gradient(160deg, var(--vert-f) 0%, var(--vert) 60%, #2E8B57 100%);
-  padding:env(safe-area-inset-top, 24px) 24px 0;
-  display:flex;flex-direction:column;align-items:center;
-  text-align:center;position:relative;overflow:hidden;
-}
-.hero::before{
-  content:'';position:absolute;width:300px;height:300px;border-radius:50%;
-  background:rgba(255,255,255,.04);top:-80px;right:-80px;
-}
-.hero::after{
-  content:'';position:absolute;width:200px;height:200px;border-radius:50%;
-  background:rgba(255,255,255,.04);bottom:-60px;left:-60px;
-}
-.hero-logo{
-  width:80px;height:80px;background:white;border-radius:22px;
-  display:flex;align-items:center;justify-content:center;font-size:38px;
-  box-shadow:0 8px 32px rgba(0,0,0,.2);margin-bottom:18px;
-  position:relative;z-index:1;margin-top:20px;
-}
-.hero-brand{font-family:'Fraunces',serif;font-size:32px;font-weight:700;color:white;
-  position:relative;z-index:1;margin-bottom:4px;}
-.hero-tagline{font-size:14px;color:rgba(255,255,255,.75);margin-bottom:24px;
-  position:relative;z-index:1;line-height:1.5;max-width:280px;}
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      color: var(--tx);
+      overflow-x: hidden;
+    }
 
-/* ── CAROUSEL ÉTAPES ──────────────────────────────────────── */
-.carousel-wrap{position:relative;z-index:1;width:100%;overflow:hidden;padding-bottom:20px;}
-.carousel{display:flex;transition:transform .35s cubic-bezier(.4,0,.2,1);width:100%;}
-.slide{min-width:100%;padding:0 28px;display:flex;flex-direction:column;align-items:center;}
-.slide-ico{width:80px;height:80px;border-radius:20px;background:rgba(255,255,255,.15);
-  backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;
-  font-size:36px;margin-bottom:14px;}
-.slide-title{font-family:'Fraunces',serif;font-size:20px;color:white;margin-bottom:6px;}
-.slide-desc{font-size:13px;color:rgba(255,255,255,.75);line-height:1.6;text-align:center;max-width:260px;}
+    /* HEADER HERO */
+    .hero {
+      background: linear-gradient(160deg, var(--vf) 0%, var(--v) 60%, #2d8a52 100%);
+      padding: env(safe-area-inset-top, 20px) 24px 60px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0; right: 0;
+      height: 48px;
+      background: var(--bg);
+      clip-path: ellipse(55% 100% at 50% 100%);
+    }
+    .hero-logo {
+      width: 72px; height: 72px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 22px;
+      border: 2px solid rgba(255,255,255,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+      margin: 32px auto 20px;
+      backdrop-filter: blur(10px);
+    }
+    .hero h1 {
+      font-family: 'Fraunces', serif;
+      font-size: 30px;
+      color: #fff;
+      margin-bottom: 10px;
+      line-height: 1.2;
+    }
+    .hero-sub {
+      font-size: 15px;
+      color: rgba(255,255,255,0.75);
+      max-width: 320px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
 
-/* Dots */
-.dots{display:flex;gap:8px;margin:12px 0 6px;position:relative;z-index:1;}
-.dot{width:8px;height:8px;border-radius:4px;background:rgba(255,255,255,.3);
-  transition:all .3s;cursor:pointer;}
-.dot.active{width:22px;background:white;}
+    /* CONTENU PRINCIPAL */
+    .content {
+      flex: 1;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 440px;
+      margin: 0 auto;
+      width: 100%;
+    }
 
-/* ── CARTE PRINCIPALE ─────────────────────────────────────── */
-.main-card{
-  background:var(--blanc);border-radius:28px 28px 0 0;
-  padding:28px 24px env(safe-area-inset-bottom, 24px);
-  flex:1;box-shadow:0 -4px 24px rgba(0,0,0,.08);
-  display:flex;flex-direction:column;gap:14px;
-}
-.card-title{font-family:'Fraunces',serif;font-size:20px;color:var(--texte);
-  margin-bottom:4px;text-align:center;}
-.card-sub{font-size:13px;color:var(--soft);text-align:center;margin-bottom:8px;line-height:1.5;}
+    /* BOUTONS PRINCIPAUX */
+    .btn-main {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--w);
+      border: 2px solid var(--bd);
+      border-radius: 16px;
+      padding: 20px 22px;
+      text-decoration: none;
+      color: var(--tx);
+      transition: all 0.2s;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .btn-main:hover, .btn-main:active {
+      border-color: var(--v);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(26,107,60,0.12);
+    }
+    .btn-main.primary {
+      background: var(--v);
+      border-color: var(--v);
+      color: #fff;
+    }
+    .btn-main.primary:hover {
+      background: var(--vf);
+      border-color: var(--vf);
+    }
+    .btn-ico {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .btn-main.primary .btn-ico { background: rgba(255,255,255,0.2); }
+    .btn-main:not(.primary) .btn-ico { background: var(--vc); }
+    .btn-text { flex: 1; }
+    .btn-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+    .btn-desc {
+      font-size: 12.5px;
+      opacity: 0.7;
+      line-height: 1.4;
+    }
+    .btn-arrow {
+      font-size: 18px;
+      opacity: 0.5;
+    }
+    .btn-main.primary .btn-arrow { opacity: 0.7; }
 
-/* Boutons principaux */
-.btn-login{
-  display:flex;align-items:center;justify-content:center;gap:10px;
-  background:var(--vert);color:white;padding:17px 20px;
-  border-radius:var(--r);font-size:16px;font-weight:700;
-  text-decoration:none;border:none;cursor:pointer;
-  box-shadow:0 4px 16px rgba(26,107,60,.3);
-  transition:background .2s,transform .1s;font-family:inherit;
-  width:100%;
-}
-.btn-login:hover{background:var(--vert-f);transform:translateY(-1px);}
-.btn-login:active{transform:translateY(0);}
+    /* SÉPARATEUR */
+    .sep {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--soft);
+      font-size: 13px;
+    }
+    .sep::before, .sep::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--bd);
+    }
 
-.btn-register{
-  display:flex;align-items:center;justify-content:center;gap:10px;
-  background:var(--blanc);color:var(--vert);padding:17px 20px;
-  border-radius:var(--r);font-size:16px;font-weight:700;
-  text-decoration:none;border:2px solid var(--vert);
-  transition:background .2s,transform .1s;font-family:inherit;
-  width:100%;cursor:pointer;
-}
-.btn-register:hover{background:var(--vert-c);}
+    /* TUTORIEL */
+    .tuto {
+      background: var(--w);
+      border-radius: 16px;
+      padding: 22px;
+      border: 1.5px solid var(--bd);
+      margin-top: 8px;
+    }
+    .tuto-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--tx);
+    }
+    .tuto-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .tuto-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .step-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--v);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-text { flex: 1; }
+    .step-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .step-desc {
+      font-size: 12px;
+      color: var(--soft);
+      line-height: 1.5;
+    }
+    .step-done .step-num {
+      background: var(--vc);
+      color: var(--v);
+    }
 
-/* Séparateur */
-.sep{display:flex;align-items:center;gap:10px;color:var(--soft);font-size:12px;}
-.sep::before,.sep::after{content:'';flex:1;height:1px;background:#E5E7EB;}
+    /* INFO BOX */
+    .info-box {
+      background: var(--bc);
+      border-left: 3px solid var(--b);
+      border-radius: 10px;
+      padding: 13px 15px;
+      font-size: 13px;
+      color: #1a3a6b;
+      line-height: 1.6;
+    }
+    .info-box strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13.5px;
+    }
 
-/* Features rapides */
-.features{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
-.feature{background:var(--bg);border-radius:var(--rs);padding:14px;display:flex;
-  flex-direction:column;align-items:center;gap:6px;text-align:center;}
-.feature-ico{font-size:22px;}
-.feature-lbl{font-size:11.5px;font-weight:600;color:var(--texte);}
-.feature-desc{font-size:10.5px;color:var(--soft);}
+    /* FOOTER */
+    .footer-note {
+      text-align: center;
+      font-size: 12px;
+      color: var(--soft);
+      padding: 16px 24px env(safe-area-inset-bottom, 16px);
+    }
+    .footer-note a {
+      color: var(--v);
+      text-decoration: none;
+      font-weight: 600;
+    }
 
-/* Footer note */
-.footer-note{text-align:center;font-size:11px;color:#BDBDBD;margin-top:8px;padding-top:8px;
-  border-top:1px solid #F0F0F0;}
-</style>
+    @media (min-width: 480px) {
+      .hero { padding-top: 40px; }
+      .hero h1 { font-size: 34px; }
+    }
+  </style>
 </head>
 <body>
 
-<!-- HERO avec carousel -->
-<div class="hero">
-  <div class="hero-logo">🏥</div>
-  <div class="hero-brand">SantéBF</div>
-  <div class="hero-tagline">Votre dossier médical, accessible partout au Burkina Faso</div>
-
-  <div class="carousel-wrap">
-    <div class="carousel" id="carousel">
-      <div class="slide">
-        <div class="slide-ico">📋</div>
-        <div class="slide-title">Votre dossier partout</div>
-        <div class="slide-desc">Accédez à vos consultations, ordonnances et examens depuis n'importe quelle structure SantéBF du pays.</div>
-      </div>
-      <div class="slide">
-        <div class="slide-ico">💊</div>
-        <div class="slide-title">Ordonnances numériques</div>
-        <div class="slide-desc">Téléchargez vos ordonnances en PDF, vérifiables par QR code dans toute pharmacie partenaire.</div>
-      </div>
-      <div class="slide">
-        <div class="slide-ico">🔒</div>
-        <div class="slide-title">Données sécurisées</div>
-        <div class="slide-desc">Vous choisissez qui accède à votre dossier. Révoquez l'accès à tout moment.</div>
-      </div>
-    </div>
-    <div class="dots">
-      <div class="dot active" onclick="goTo(0)"></div>
-      <div class="dot" onclick="goTo(1)"></div>
-      <div class="dot" onclick="goTo(2)"></div>
-    </div>
-  </div>
-</div>
-
-<!-- CARTE PRINCIPALE -->
-<div class="main-card">
-  <div>
-    <div class="card-title">Bienvenue 👋</div>
-    <div class="card-sub">Accédez à votre espace santé numérique</div>
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-logo">🏥</div>
+    <h1>SantéBF</h1>
+    <p class="hero-sub">Votre dossier médical numérique — accessible partout, à tout moment.</p>
   </div>
 
-  <a href="/auth/login" class="btn-login">
-    <span>🔑</span>
-    <span>J'ai déjà un compte</span>
-  </a>
+  <!-- CONTENU -->
+  <div class="content">
 
-  <div class="sep">ou</div>
+    <!-- BOUTON : J'ai un compte -->
+    <a href="/auth/login" class="btn-main primary">
+      <div class="btn-ico">🔑</div>
+      <div class="btn-text">
+        <div class="btn-title">J'ai déjà un compte</div>
+        <div class="btn-desc">Connexion à mon espace patient</div>
+      </div>
+      <span class="btn-arrow">→</span>
+    </a>
 
-  <a href="/auth/inscription" class="btn-register">
-    <span>✨</span>
-    <span>Créer mon compte</span>
-  </a>
+    <div class="sep">ou</div>
 
-  <div class="features">
-    <div class="feature">
-      <div class="feature-ico">📅</div>
-      <div class="feature-lbl">Rendez-vous</div>
-      <div class="feature-desc">Voir mes RDV</div>
+    <!-- BOUTON : Créer un compte -->
+    <a href="/auth/inscription" class="btn-main">
+      <div class="btn-ico">✨</div>
+      <div class="btn-text">
+        <div class="btn-title">Créer mon compte</div>
+        <div class="btn-desc">Nouveau sur SantéBF ? Inscrivez-vous gratuitement</div>
+      </div>
+      <span class="btn-arrow" style="color:var(--v)">→</span>
+    </a>
+
+    <!-- INFO BOX -->
+    <div class="info-box">
+      <strong>ℹ️ Comment ça fonctionne ?</strong>
+      Créez votre compte, puis présentez-vous à l'accueil d'une structure partenaire SantéBF avec votre email. Votre dossier médical sera lié à votre compte.
     </div>
-    <div class="feature">
-      <div class="feature-ico">🧪</div>
-      <div class="feature-lbl">Examens</div>
-      <div class="feature-desc">Résultats en ligne</div>
+
+    <!-- TUTORIEL -->
+    <div class="tuto">
+      <div class="tuto-title">📋 En 3 étapes simples</div>
+      <div class="tuto-steps">
+        <div class="tuto-step step-done">
+          <div class="step-num">1</div>
+          <div class="step-text">
+            <div class="step-title">Créez votre compte</div>
+            <div class="step-desc">Inscription gratuite avec votre email et un mot de passe sécurisé.</div>
+          </div>
+        </div>
+        <div class="tuto-step">
+          <div class="step-num">2</div>
+          <div class="step-text">
+            <div class="step-title">Liez votre dossier médical</div>
+            <div class="step-desc">Rendez-vous à l'accueil d'une structure SantéBF et donnez votre email. L'agent liera votre dossier à votre compte.</div>
+          </div>
+        </div>
+        <div class="tuto-step">
+          <div class="step-num">3</div>
+          <div class="step-text">
+            <div class="step-title">Accédez à vos données</div>
+            <div class="step-desc">Consultez vos ordonnances, résultats d'examens, rendez-vous et historique médical depuis cette application.</div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="feature">
-      <div class="feature-ico">💉</div>
-      <div class="feature-lbl">Vaccinations</div>
-      <div class="feature-desc">Carnet numérique</div>
-    </div>
-    <div class="feature">
-      <div class="feature-ico">🚨</div>
-      <div class="feature-lbl">Urgence</div>
-      <div class="feature-desc">Code d'urgence</div>
-    </div>
+
   </div>
 
-  <div class="footer-note">🇧🇫 SantéBF — Ministère de la Santé · Burkina Faso</div>
-</div>
+  <!-- FOOTER -->
+  <div class="footer-note">
+    🔒 Connexion sécurisée — <a href="/public/">En savoir plus sur SantéBF</a>
+  </div>
 
-<script>
-let current = 0;
-const total  = 3;
-let timer    = null;
-
-function goTo(n) {
-  current = Math.max(0, Math.min(n, total - 1));
-  document.getElementById('carousel').style.transform = 'translateX(-' + (current * 100) + '%)';
-  document.querySelectorAll('.dot').forEach((d, i) => {
-    d.classList.toggle('active', i === current);
-  });
-}
-
-function next() {
-  goTo((current + 1) % total);
-}
-
-// Auto-défilement
-function startTimer() {
-  timer = setInterval(next, 3500);
-}
-
-// Arrêter si on tape
-document.getElementById('carousel').addEventListener('touchstart', () => {
-  clearInterval(timer);
-}, { passive: true });
-
-document.getElementById('carousel').addEventListener('touchend', () => {
-  startTimer();
-}, { passive: true });
-
-// Swipe mobile
-let startX = 0;
-document.getElementById('carousel').addEventListener('touchstart', e => {
-  startX = e.touches[0].clientX;
-}, { passive: true });
-
-document.getElementById('carousel').addEventListener('touchend', e => {
-  const diff = startX - e.changedTouches[0].clientX;
-  if (Math.abs(diff) > 50) {
-    diff > 0 ? goTo(current + 1) : goTo(current - 1);
-  }
-  startTimer();
-}, { passive: true });
-
-startTimer();
-</script>
 </body>
 </html>`
 }
