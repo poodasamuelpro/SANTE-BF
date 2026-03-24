@@ -66,17 +66,56 @@ dashboardRoutes.get('/admin',
     try {
       const profil   = c.get('profil')
       const supabase = c.get('supabase')
+      const env      = c.env as any
 
-      const [structures, comptes, patients] = await Promise.all([
+      const [structures, comptes, patients, consultations, ordonnances, donneurs,
+             expirantRes, activiteRes] = await Promise.all([
         supabase.from('struct_structures').select('*', { count: 'exact', head: true }),
         supabase.from('auth_profiles').select('*', { count: 'exact', head: true }),
         supabase.from('patient_dossiers').select('*', { count: 'exact', head: true }),
+        supabase.from('medical_consultations').select('*', { count: 'exact', head: true }),
+        supabase.from('medical_ordonnances').select('*', { count: 'exact', head: true }),
+        supabase.from('sang_donneurs').select('*', { count: 'exact', head: true }).catch(() => ({ count: 0 })),
+        // Structures expirant dans 30 jours
+        supabase.from('struct_structures')
+          .select('id, nom, plan_actif, abonnement_expire_at')
+          .gte('abonnement_expire_at', new Date().toISOString())
+          .lte('abonnement_expire_at', new Date(Date.now() + 30*24*60*60*1000).toISOString())
+          .eq('est_actif', true)
+          .order('abonnement_expire_at'),
+        // Activité récente — dernières consultations
+        supabase.from('medical_consultations')
+          .select('id, motif, created_at, struct_structures(nom)')
+          .order('created_at', { ascending: false })
+          .limit(5),
       ])
 
+      // Détecter IA active
+      const iaActif  = !!(env.ANTHROPIC_API_KEY || env.GEMINI_API_KEY || env.HUGGINGFACE_API_KEY)
+      const iaModele = env.ANTHROPIC_API_KEY ? 'Claude Haiku'
+        : env.GEMINI_API_KEY ? 'Gemini Flash-Lite'
+        : env.HUGGINGFACE_API_KEY ? 'HuggingFace' : ''
+      const emailActif   = !!(env.RESEND_API_KEY || env.BREVO_API_KEY)
+      const fcmActif     = !!(env.FCM_PROJECT_ID && env.FCM_PRIVATE_KEY)
+      const paiementActif = !!(env.CINETPAY_SITE_ID && env.CINETPAY_API_KEY)
+
+      // Construire le feed d'activité
+      const activiteRecente = (activiteRes.data ?? []).map((a: any) => ({
+        ico:   '🩺',
+        texte: `Consultation : ${a.motif || 'sans motif'} — ${(a.struct_structures as any)?.nom || ''}`,
+        temps: a.created_at ? new Date(a.created_at).toLocaleDateString('fr-FR') : '',
+      }))
+
       return c.html(dashboardAdminPage(profil, {
-        nbStructures: structures.count ?? 0,
-        nbComptes:    comptes.count    ?? 0,
-        nbPatients:   patients.count   ?? 0,
+        nbStructures:    structures.count    ?? 0,
+        nbComptes:       comptes.count       ?? 0,
+        nbPatients:      patients.count      ?? 0,
+        nbConsultations: consultations.count ?? 0,
+        nbOrdonnances:   ordonnances.count   ?? 0,
+        nbDonneurs:      donneurs.count      ?? 0,
+        expirantBientot: expirantRes.data    ?? [],
+        activiteRecente,
+        iaActif, iaModele, emailActif, fcmActif, paiementActif,
       }))
     } catch (err) {
       console.error('dashboard/admin:', err)
@@ -610,7 +649,7 @@ export function dataTable(headers: string[], rows: string[][]): string {
     ? `<tr><td colspan="${headers.length}" class="empty">Aucune donn&#xe9;e disponible</td></tr>`
     : rows.map(row => '<tr>' + row.map(cell => '<td>' + cell + '</td>').join('') + '</tr>').join('')
   return '<div class="table-wrap"><table><thead><tr>' + ths + '</tr></thead><tbody>' + trs + '</tbody></table></div>'
-}
+}\
 export function alertHTML(type: 'error' | 'success' | 'warning', message: string): string {
   const styles: Record<string, string> = {
     error:   'background:#FFF5F5;border-left:4px solid #B71C1C;color:#B71C1C;',
