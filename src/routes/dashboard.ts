@@ -1,6 +1,6 @@
 /**
  * src/routes/dashboard.ts
- * SantéBF — Routes des tableaux de bord par rôle
+ * SanteBF - Routes des tableaux de bord par role
  */
 
 import { Hono } from 'hono'
@@ -21,34 +21,28 @@ export const dashboardRoutes = new Hono<{
 
 dashboardRoutes.use('/*', requireAuth)
 
-// \u2500\u2500\u2500 Helper page d'erreur inline \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
+// Helper page erreur
 function erreurPage(titre: string, detail?: string): string {
   return `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${titre} | Sant&#xe9;BF</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'DM Sans',sans-serif;background:#F7F8FA;min-height:100vh;
-    display:flex;align-items:center;justify-content:center;padding:20px}
-  .box{background:white;border-radius:16px;padding:48px 40px;max-width:460px;
-    width:100%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.08)}
-  h1{font-family:'DM Serif Display',serif;font-size:26px;color:#B71C1C;margin:16px 0 10px}
-  p{color:#6B7280;font-size:14px;line-height:1.6;margin-bottom:8px}
-  code{background:#F3F4F6;padding:2px 6px;border-radius:4px;font-size:12px}
-  .actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:24px}
-  .btn{padding:11px 22px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none}
-  .btn-back{background:#4A148C;color:white}
-  .btn-out{background:#F3F4F6;color:#374151;border:1px solid #E0E0E0}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:#F7F8FA;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.box{background:white;border-radius:16px;padding:48px 40px;max-width:460px;width:100%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+h1{font-family:'DM Serif Display',serif;font-size:26px;color:#B71C1C;margin:16px 0 10px}
+p{color:#6B7280;font-size:14px;line-height:1.6;margin-bottom:8px}
+.actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:24px}
+.btn{padding:11px 22px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none}
+.btn-back{background:#4A148C;color:white}
+.btn-out{background:#F3F4F6;color:#374151;border:1px solid #E0E0E0}
 </style>
-</head>
-<body>
+</head><body>
   <div class="box">
     <div style="font-size:52px">&#x26A0;&#xFE0F;</div>
     <h1>${titre}</h1>
-    ${detail ? `<p><code>${detail}</code></p>` : ''}
+    ${detail ? `<p>${detail}</p>` : ''}
     <p>Veuillez r&#xe9;essayer ou contacter l&#x27;administrateur.</p>
     <div class="actions">
       <a href="javascript:location.reload()" class="btn btn-back">&#x21BA; Recharger</a>
@@ -58,8 +52,7 @@ function erreurPage(titre: string, detail?: string): string {
 </body></html>`
 }
 
-// \u2500\u2500 Super Admin \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
+// -- Super Admin
 dashboardRoutes.get('/admin',
   requireRole('super_admin'),
   async (c) => {
@@ -76,33 +69,29 @@ dashboardRoutes.get('/admin',
         supabase.from('medical_consultations').select('*', { count: 'exact', head: true }),
         supabase.from('medical_ordonnances').select('*', { count: 'exact', head: true }),
         supabase.from('sang_donneurs').select('*', { count: 'exact', head: true }).catch(() => ({ count: 0 })),
-        // Structures expirant dans 30 jours
         supabase.from('struct_structures')
           .select('id, nom, plan_actif, abonnement_expire_at')
           .gte('abonnement_expire_at', new Date().toISOString())
           .lte('abonnement_expire_at', new Date(Date.now() + 30*24*60*60*1000).toISOString())
           .eq('est_actif', true)
           .order('abonnement_expire_at'),
-        // Activité récente — dernières consultations
         supabase.from('medical_consultations')
           .select('id, motif, created_at, struct_structures(nom)')
           .order('created_at', { ascending: false })
           .limit(5),
       ])
 
-      // Détecter IA active
-      const iaActif  = !!(env.ANTHROPIC_API_KEY || env.GEMINI_API_KEY || env.HUGGINGFACE_API_KEY)
-      const iaModele = env.ANTHROPIC_API_KEY ? 'Claude Haiku'
+      const iaActif      = !!(env.ANTHROPIC_API_KEY || env.GEMINI_API_KEY || env.HUGGINGFACE_API_KEY)
+      const iaModele     = env.ANTHROPIC_API_KEY ? 'Claude Haiku'
         : env.GEMINI_API_KEY ? 'Gemini Flash-Lite'
         : env.HUGGINGFACE_API_KEY ? 'HuggingFace' : ''
-      const emailActif   = !!(env.RESEND_API_KEY || env.BREVO_API_KEY)
-      const fcmActif     = !!(env.FCM_PROJECT_ID && env.FCM_PRIVATE_KEY)
+      const emailActif    = !!(env.RESEND_API_KEY || env.BREVO_API_KEY)
+      const fcmActif      = !!(env.FCM_PROJECT_ID && env.FCM_PRIVATE_KEY)
       const paiementActif = !!(env.CINETPAY_SITE_ID && env.CINETPAY_API_KEY)
 
-      // Construire le feed d'activité
       const activiteRecente = (activiteRes.data ?? []).map((a: any) => ({
         ico:   '&#x1F9EA;',
-        texte: `Consultation : ${a.motif || 'sans motif'} - ${(a.struct_structures as any)?.nom || ''}`,
+        texte: 'Consultation : ' + (a.motif || 'sans motif') + ' - ' + ((a.struct_structures as any)?.nom || ''),
         temps: a.created_at ? new Date(a.created_at).toLocaleDateString('fr-FR') : '',
       }))
 
@@ -125,8 +114,7 @@ dashboardRoutes.get('/admin',
   }
 )
 
-// \u2500\u2500 Admin Structure \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
+// -- Admin Structure
 dashboardRoutes.get('/structure',
   requireRole('admin_structure'),
   async (c) => {
@@ -135,8 +123,7 @@ dashboardRoutes.get('/structure',
       const supabase = c.get('supabase')
 
       if (!profil.structure_id) {
-        return c.html(erreurPage('Aucune structure assign\u00e9e',
-          'Votre compte n\'est pas li\u00e9 \u00e0 une structure. Contactez le super admin.'), 400)
+        return c.html(erreurPage('Aucune structure', 'Votre compte n\'est pas lie a une structure.'), 400)
       }
 
       const { data: structure } = await supabase
@@ -145,8 +132,8 @@ dashboardRoutes.get('/structure',
         .eq('id', profil.structure_id)
         .single()
 
-      const today  = new Date().toISOString().split('T')[0]
-      const sid    = profil.structure_id
+      const today = new Date().toISOString().split('T')[0]
+      const sid   = profil.structure_id
 
       const [lits, personnel, consultJour, patientsJour, rdvJour, hospitEnCours, recettesJour] = await Promise.all([
         supabase.from('struct_lits').select('statut').eq('structure_id', sid),
@@ -170,11 +157,7 @@ dashboardRoutes.get('/structure',
       const recettesTotal = (recettesJour.data ?? []).reduce((s: number, f: any) => s + (f.total_ttc || 0), 0)
 
       return c.html(dashboardStructurePage(profil, {
-        structure: {
-          nom:    structure?.nom    ?? 'N/A',
-          type:   structure?.type   ?? 'N/A',
-          niveau: structure?.niveau ?? 1,
-        },
+        structure: { nom: structure?.nom ?? 'N/A', type: structure?.type ?? 'N/A', niveau: structure?.niveau ?? 1 },
         stats: {
           personnel:         personnel.count     ?? 0,
           patientsJour:      patientsUniq,
@@ -194,20 +177,16 @@ dashboardRoutes.get('/structure',
   }
 )
 
-// \u2500\u2500 M\u00e9decin / Infirmier / Sage-femme / Labo / Radio \u2500\u2500\u2500\u2500\u2500\u2500\u2500
-// FIX CRITIQUE : ajout des stats manquantes qui causaient le crash
-
+// -- Medecin
 dashboardRoutes.get('/medecin',
   requireRole('medecin', 'infirmier', 'sage_femme', 'laborantin', 'radiologue'),
   async (c) => {
     try {
       const profil   = c.get('profil')
       const supabase = c.get('supabase')
-
-      const today = new Date().toISOString().split('T')[0]
+      const today    = new Date().toISOString().split('T')[0]
 
       const [rdvRes, consultRes, cntConsultJour, cntOrdActives] = await Promise.all([
-        // RDV du jour
         supabase.from('medical_rendez_vous')
           .select('id, date_heure, motif, statut, duree_minutes, patient_dossiers(nom, prenom)')
           .eq('medecin_id', profil.id)
@@ -215,50 +194,39 @@ dashboardRoutes.get('/medecin',
           .lte('date_heure', today + 'T23:59:59')
           .order('date_heure', { ascending: true })
           .limit(10),
-
-        // Consultations r\u00e9centes
         supabase.from('medical_consultations')
           .select('id, created_at, motif, diagnostic_principal, patient_dossiers(nom, prenom)')
           .eq('medecin_id', profil.id)
           .order('created_at', { ascending: false })
           .limit(5),
-
-        // Stats : nb consultations aujourd'hui
         supabase.from('medical_consultations')
           .select('*', { count: 'exact', head: true })
           .eq('medecin_id', profil.id)
           .gte('created_at', today + 'T00:00:00'),
-
-        // Stats : ordonnances actives \u00e9mises par ce m\u00e9decin
         supabase.from('medical_ordonnances')
           .select('*', { count: 'exact', head: true })
           .eq('medecin_id', profil.id)
           .eq('statut', 'active'),
       ])
 
-      const rdvJour      = rdvRes.data      ?? []
-      const consultations = consultRes.data ?? []
-
       return c.html(dashboardMedecinPage(profil, {
-        rdvJour,
-        consultations,
-        // \u2190 stats OBLIGATOIRES \u2014 c'\u00e9tait la cause du crash
+        rdvJour:     rdvRes.data      ?? [],
+        consultations: consultRes.data ?? [],
         stats: {
           consultationsJour:  cntConsultJour.count  ?? 0,
-          rdvAVenir:          rdvJour.length,
+          rdvAVenir:          (rdvRes.data ?? []).length,
           ordonnancesActives: cntOrdActives.count   ?? 0,
         },
       }))
     } catch (err) {
       console.error('dashboard/medecin:', err)
-      return c.html(erreurPage('Erreur tableau de bord m&#xe9;decin',
+      return c.html(erreurPage('Erreur tableau de bord medecin',
         err instanceof Error ? err.message : String(err)), 500)
     }
   }
 )
 
-// \u2500\u2500 Pharmacien \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
+// -- Pharmacien
 dashboardRoutes.get('/pharmacien',
   requireRole('pharmacien'),
   async (c) => {
@@ -267,12 +235,9 @@ dashboardRoutes.get('/pharmacien',
       const supabase = c.get('supabase')
       const today    = new Date().toISOString().split('T')[0]
 
-      const [ordsRes, delivreesRes, partiellesRes] = await Promise.all([
-        supabase
-          .from('medical_ordonnances')
-          .select(`id, numero_ordonnance, created_at, statut,
-            patient_dossiers(nom, prenom),
-            auth_medecins!medical_ordonnances_medecin_id_fkey(auth_profiles(nom, prenom))`)
+      const [ordsRes, delivreesRes] = await Promise.all([
+        supabase.from('medical_ordonnances')
+          .select('id, numero_ordonnance, created_at, statut, patient_dossiers(nom, prenom), auth_medecins!medical_ordonnances_medecin_id_fkey(auth_profiles(nom, prenom))')
           .eq('structure_id', profil.structure_id)
           .in('statut', ['active', 'partiellement_delivree'])
           .order('created_at', { ascending: false })
@@ -282,29 +247,21 @@ dashboardRoutes.get('/pharmacien',
           .eq('structure_id', profil.structure_id)
           .eq('statut', 'delivree')
           .gte('created_at', today + 'T00:00:00'),
-        supabase.from('medical_ordonnances')
-          .select('id', { count: 'exact', head: true })
-          .eq('structure_id', profil.structure_id)
-          .eq('statut', 'partiellement_delivree'),
       ])
 
-      const ordonnances  = ordsRes.data ?? []
-      const totalJour    = ordonnances.length + (delivreesRes.count ?? 0)
-
+      const ordonnances = ordsRes.data ?? []
       return c.html(dashboardPharmacienPage(profil, {
         ordonnances: ordonnances.map((o: any) => ({
-          id:               o.id,
-          numero_ordonnance: o.numero_ordonnance,
-          patient:          { nom: o.patient_dossiers?.nom ?? '', prenom: o.patient_dossiers?.prenom ?? '' },
-          medecin:          { nom: o.auth_medecins?.auth_profiles?.nom ?? '', prenom: o.auth_medecins?.auth_profiles?.prenom ?? '' },
-          statut:           o.statut,
-          created_at:       o.created_at,
+          id: o.id, numero_ordonnance: o.numero_ordonnance,
+          patient: { nom: o.patient_dossiers?.nom ?? '', prenom: o.patient_dossiers?.prenom ?? '' },
+          medecin: { nom: o.auth_medecins?.auth_profiles?.nom ?? '', prenom: o.auth_medecins?.auth_profiles?.prenom ?? '' },
+          statut: o.statut, created_at: o.created_at,
         })),
         stats: {
-          ordonnancesJour: totalJour,
+          ordonnancesJour: ordonnances.length + (delivreesRes.count ?? 0),
           enAttente:       ordonnances.filter((o: any) => o.statut === 'active').length,
           delivrees:       delivreesRes.count ?? 0,
-          stockAlertes:    0,  // pas de gestion de stock v1
+          stockAlertes:    0,
         },
       }))
     } catch (err) {
@@ -315,16 +272,15 @@ dashboardRoutes.get('/pharmacien',
   }
 )
 
-// \u2500\u2500 Caissier \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
+// -- Caissier
 dashboardRoutes.get('/caissier',
   requireRole('caissier'),
   async (c) => {
     try {
       const profil   = c.get('profil')
       const supabase = c.get('supabase')
+      const today    = new Date().toISOString().split('T')[0]
 
-      const today = new Date().toISOString().split('T')[0]
       const { data: factures } = await supabase
         .from('finance_factures')
         .select('id, numero_facture, total_ttc, statut, created_at, patient_dossiers(nom, prenom)')
@@ -340,13 +296,10 @@ dashboardRoutes.get('/caissier',
 
       return c.html(dashboardCaissierPage(profil, {
         factures: facturesArr.map((f: any) => ({
-          id:              f.id,
-          numero_facture:  f.numero_facture,
-          patient:         { nom: f.patient_dossiers?.nom ?? '', prenom: f.patient_dossiers?.prenom ?? '' },
-          montant_patient: f.total_ttc ?? 0,
-          total_ttc:       f.total_ttc ?? 0,
-          statut:          f.statut,
-          created_at:      f.created_at,
+          id: f.id, numero_facture: f.numero_facture,
+          patient: { nom: f.patient_dossiers?.nom ?? '', prenom: f.patient_dossiers?.prenom ?? '' },
+          montant_patient: f.total_ttc ?? 0, total_ttc: f.total_ttc ?? 0,
+          statut: f.statut, created_at: f.created_at,
         })),
         stats: {
           facturesJour: facturesArr.length,
@@ -363,23 +316,18 @@ dashboardRoutes.get('/caissier',
   }
 )
 
-// \u2500\u2500 Agent Accueil \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
+// -- Agent Accueil
 dashboardRoutes.get('/accueil',
   requireRole('agent_accueil'),
   async (c) => {
     try {
       const profil   = c.get('profil')
       const supabase = c.get('supabase')
+      const today    = new Date().toISOString().split('T')[0]
 
-      const today = new Date().toISOString().split('T')[0]
       const { data: rdvJour } = await supabase
         .from('medical_rendez_vous')
-        .select(`
-          id, date_heure, motif, statut,
-          patient_dossiers(nom, prenom),
-          auth_profiles!medical_rendez_vous_medecin_id_fkey(nom, prenom)
-        `)
+        .select('id, date_heure, motif, statut, patient_dossiers(nom, prenom), auth_profiles!medical_rendez_vous_medecin_id_fkey(nom, prenom)')
         .eq('structure_id', profil.structure_id)
         .gte('date_heure', today + 'T00:00:00')
         .lte('date_heure', today + 'T23:59:59')
@@ -394,8 +342,7 @@ dashboardRoutes.get('/accueil',
   }
 )
 
-// \u2500\u2500 Patient \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
+// -- Patient
 dashboardRoutes.get('/patient',
   requireRole('patient'),
   async (c) => {
@@ -426,11 +373,7 @@ dashboardRoutes.get('/patient',
           .select('*', { count: 'exact', head: true })
           .eq('patient_id', dossier.id),
         supabase.from('patient_consentements')
-          .select(`auth_profiles!patient_consentements_medecin_id_fkey(
-            id, nom, prenom, avatar_url,
-            auth_medecins(specialite_principale),
-            struct_structures!auth_profiles_structure_id_fkey(nom)
-          )`)
+          .select('auth_profiles!patient_consentements_medecin_id_fkey(id, nom, prenom, avatar_url, auth_medecins(specialite_principale), struct_structures!auth_profiles_structure_id_fkey(nom))')
           .eq('patient_id', dossier.id).eq('est_actif', true).limit(10),
         supabase.from('medical_examens')
           .select('id, type_examen, nom_examen, statut, created_at')
@@ -438,7 +381,7 @@ dashboardRoutes.get('/patient',
           .order('created_at', { ascending: false }).limit(3),
       ])
 
-      const rdv0       = rdvRes.data?.[0]
+      const rdv0        = rdvRes.data?.[0]
       const prochainRdv = rdv0 ? { ...rdv0, medecin: (rdv0 as any).auth_profiles } : null
 
       const medecins = (consentRes.data ?? [])
@@ -446,23 +389,18 @@ dashboardRoutes.get('/patient',
           const p = ct.auth_profiles
           if (!p) return null
           return {
-            id:         p.id,
-            nom:        p.nom,
-            prenom:     p.prenom,
-            avatar_url: p.avatar_url,
-            specialite: p.auth_medecins?.[0]?.specialite_principale ?? 'M\u00e9decin g\u00e9n\u00e9raliste',
+            id: p.id, nom: p.nom, prenom: p.prenom, avatar_url: p.avatar_url,
+            specialite: p.auth_medecins?.[0]?.specialite_principale ?? 'Medecin generaliste',
             structure:  (p.struct_structures as any)?.nom ?? '',
           }
         })
         .filter(Boolean)
 
       return c.html(dashboardPatientPage(profil, {
-        dossier,
-        prochainRdv,
+        dossier, prochainRdv,
         ordonnancesActives: ordRes.count  ?? 0,
         consultationsTotal: consRes.count ?? 0,
-        medecins,
-        examens: examenRes.data ?? [],
+        medecins, examens: examenRes.data ?? [],
       }))
     } catch (err) {
       console.error('dashboard/patient:', err)
@@ -472,14 +410,7 @@ dashboardRoutes.get('/patient',
   }
 )
 
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-// HELPERS PARTAG\u00c9S
-// Export\u00e9s ici pour les modules qui les importent depuis './dashboard'
-// Les modules grossesse/infirmerie/radiologie utilisent './module-helpers'
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-
-// ── CNTS ───────────────────────────────────────────────────
-
+// -- CNTS
 dashboardRoutes.get('/cnts',
   requireRole('cnts_agent', 'super_admin'),
   async (c) => {
@@ -498,7 +429,7 @@ dashboardRoutes.get('/cnts',
 
       const compteur: Record<string, number> = {}
       for (const d of groupesRes.data ?? []) {
-        const key = `${d.groupe_sanguin}|${d.rhesus}`
+        const key = d.groupe_sanguin + '|' + d.rhesus
         compteur[key] = (compteur[key] ?? 0) + 1
       }
       const parGroupe = Object.entries(compteur)
@@ -526,16 +457,14 @@ dashboardRoutes.get('/cnts',
   }
 )
 
-
 export function pageSkeleton(
   profil:  AuthProfile,
   titre:   string,
   couleur: string,
   contenu: string
 ): string {
-  const heure = new Date().toLocaleTimeString('fr-FR',  { hour: '2-digit', minute: '2-digit' })
-  const date  = new Date().toLocaleDateString('fr-FR',  { weekday: 'long', day: 'numeric', month: 'long' })
-
+  const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  const date  = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -547,8 +476,7 @@ export function pageSkeleton(
     :root{--c:${couleur};--bg:#F7F8FA;--brd:#E5E7EB;--tx:#1A1A2E;--soft:#6B7280}
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
     body{font-family:'DM Sans',sans-serif;background:var(--bg);min-height:100vh}
-    header{background:var(--c);padding:0 24px;height:60px;display:flex;align-items:center;
-      justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.15);position:sticky;top:0;z-index:100}
+    header{background:var(--c);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.15);position:sticky;top:0;z-index:100}
     .hl{display:flex;align-items:center;gap:12px}
     .logo{width:34px;height:34px;background:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
     .ht{font-family:'DM Serif Display',serif;font-size:18px;color:white}
@@ -650,6 +578,7 @@ export function dataTable(headers: string[], rows: string[][]): string {
     : rows.map(row => '<tr>' + row.map(cell => '<td>' + cell + '</td>').join('') + '</tr>').join('')
   return '<div class="table-wrap"><table><thead><tr>' + ths + '</tr></thead><tbody>' + trs + '</tbody></table></div>'
 }
+
 export function alertHTML(type: 'error' | 'success' | 'warning', message: string): string {
   const styles: Record<string, string> = {
     error:   'background:#FFF5F5;border-left:4px solid #B71C1C;color:#B71C1C;',
