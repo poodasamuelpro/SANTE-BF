@@ -405,7 +405,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <h2 class="stitle">Vos données sont protégées</h2>
     <p class="ssub">La confidentialité des données médicales est au cœur de SantéBF. Chaque accès est contrôlé, tracé et soumis au consentement du patient.</p>
     <div class="sec-grid">
-      <div class="sec-card"><div class="sec-icon">🔒</div><h3>Chiffrement de bout en bout</h3><p>Toutes les données transitent via HTTPS. Les données au repos sont chiffrées dans la base de données Supabase hébergée sur des serveurs sécurisés.</p></div>
+      <div class="sec-card"><div class="sec-icon">🔒</div><h3>Chiffrement de bout en bout</h3><p>Toutes les données transitent via HTTPS. Les données au repos sont chiffrées sur nos serveurs sécurisés. Aucune donnée médicale ne circule en clair.</p></div>
       <div class="sec-card"><div class="sec-icon">✅</div><h3>Consentement patient obligatoire</h3><p>Un médecin ne peut accéder au dossier complet d'un patient que si celui-ci a explicitement accordé son consentement depuis son espace personnel. Révocable à tout moment.</p></div>
       <div class="sec-card"><div class="sec-icon">👁️</div><h3>Traçabilité totale</h3><p>Chaque consultation, modification ou accès au dossier est enregistré avec la date, l'heure et l'identité du membre du personnel concerné.</p></div>
       <div class="sec-card"><div class="sec-icon">🔑</div><h3>Authentification sécurisée</h3><p>Connexion par email et mot de passe fort obligatoire. À la première connexion, chaque nouveau compte est forcé de changer son mot de passe temporaire.</p></div>
@@ -422,74 +422,92 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <h2 class="stitle">Des plans adaptés à chaque structure</h2>
     <p class="ssub">Démarrez gratuitement pendant 6 mois. Aucune carte de crédit requise pour l'essai gratuit.</p>
     <div class="plans-grid">
+      <!-- GRATUIT -->
       <div class="plan">
         <div class="plan-name">Gratuit</div>
         <div class="plan-price">0 FCFA</div>
-        <div class="plan-period">6 mois — essai complet</div>
+        <div class="plan-period">6 premiers mois offerts</div>
         <div class="plan-list">
-          <div class="pl">Dossiers patients</div>
-          <div class="pl">Consultations</div>
-          <div class="pl">RDV & Agenda</div>
-          <div class="pl">Dashboard basique</div>
+          <div class="pl">Dossiers patients illimit&#xe9;s</div>
+          <div class="pl">Consultations &amp; ordonnances</div>
+          <div class="pl">Agenda &amp; rendez-vous</div>
+          <div class="pl">Tableau de bord</div>
+          <div class="pl">Acc&#xe8;s web &amp; mobile</div>
         </div>
-        <a href="/auth/inscription" class="plan-btn">Commencer gratuitement</a>
+        <a href="/auth/inscription" class="plan-btn">D&#xe9;marrer gratuitement</a>
+        <p class="plan-note">Sans carte bancaire</p>
       </div>
+
+      <!-- STARTER -->
       <div class="plan">
         <div class="plan-name">Starter</div>
         <div class="plan-price">15 000 FCFA</div>
         <div class="plan-period">par mois</div>
         <div class="plan-list">
           <div class="pl">Tout du plan Gratuit</div>
-          <div class="pl">Ordonnances PDF</div>
+          <div class="pl">Ordonnances num&#xe9;riques PDF</div>
           <div class="pl">Module pharmacien</div>
-          <div class="pl">Facturation & caisse</div>
-          <div class="pl">3 utilisateurs max</div>
+          <div class="pl">Facturation &amp; caisse</div>
+          <div class="pl">Notifications email patients</div>
+          <div class="pl">Jusqu&#x27;&#xe0; 5 utilisateurs</div>
         </div>
         <a href="#contact" class="plan-btn">Nous contacter</a>
+        <p class="plan-note">Id&#xe9;al cabinet ou dispensaire</p>
       </div>
+
+      <!-- STANDARD -->
       <div class="plan pop">
-        <div class="pop-badge">⭐ Le plus populaire</div>
+        <div class="pop-badge">&#x2B50; Le plus choisi</div>
         <div class="plan-name">Standard</div>
         <div class="plan-price">40 000 FCFA</div>
         <div class="plan-period">par mois</div>
         <div class="plan-list">
           <div class="pl">Tout du Starter</div>
-          <div class="pl">Labo & Radiologie</div>
-          <div class="pl">Hospitalisations</div>
-          <div class="pl">Grossesses & CPN</div>
-          <div class="pl">IA médicale (100 req/mois)</div>
-          <div class="pl">SMS rappels (200/mois)</div>
+          <div class="pl">Laboratoire &amp; Radiologie</div>
+          <div class="pl">Hospitalisations &amp; lits</div>
+          <div class="pl">Grossesses &amp; CPN</div>
+          <div class="pl">Assistant IA m&#xe9;dical</div>
+          <div class="pl">Rappels SMS patients</div>
+          <div class="pl">Utilisateurs illimit&#xe9;s</div>
         </div>
         <a href="#contact" class="plan-btn">Nous contacter</a>
+        <p class="plan-note">Id&#xe9;al centre de sant&#xe9; ou clinique</p>
       </div>
+
+      <!-- PRO -->
       <div class="plan">
         <div class="plan-name">Pro</div>
         <div class="plan-price">80 000 FCFA</div>
         <div class="plan-period">par mois</div>
         <div class="plan-list">
           <div class="pl">Tout du Standard</div>
-          <div class="pl">IA illimitée</div>
-          <div class="pl">SMS illimités</div>
-          <div class="pl">Support prioritaire</div>
-          <div class="pl">Utilisateurs illimités</div>
+          <div class="pl">IA m&#xe9;dicale avanc&#xe9;e illimit&#xe9;e</div>
+          <div class="pl">SMS illimit&#xe9;s</div>
+          <div class="pl">Don de sang CNTS</div>
+          <div class="pl">Statistiques avanc&#xe9;es</div>
+          <div class="pl">Support prioritaire d&#xe9;di&#xe9;</div>
         </div>
         <a href="#contact" class="plan-btn">Nous contacter</a>
+        <p class="plan-note">Id&#xe9;al h&#xf4;pital r&#xe9;gional</p>
       </div>
+
+      <!-- ENTERPRISE -->
       <div class="plan">
-        <div class="plan-name">Enterprise</div>
+        <div class="plan-name">Entreprise</div>
         <div class="plan-price">Sur devis</div>
-        <div class="plan-period">infrastructure dédiée</div>
+        <div class="plan-period">tarif personnalis&#xe9;</div>
         <div class="plan-list">
           <div class="pl">Tout du Pro</div>
-          <div class="pl">Serveur dédié</div>
-          <div class="pl">SLA 99,9%</div>
-          <div class="pl">API publique</div>
-          <div class="pl">Onboarding sur site</div>
+          <div class="pl">Multi-structures en r&#xe9;seau</div>
+          <div class="pl">Onboarding &amp; formation sur site</div>
+          <div class="pl">Int&#xe9;gration syst&#xe8;mes existants</div>
+          <div class="pl">Accompagnement d&#xe9;di&#xe9;</div>
         </div>
         <a href="#contact" class="plan-btn">Demander un devis</a>
+        <p class="plan-note">CHR, CHU, r&#xe9;seaux hospitaliers</p>
       </div>
     </div>
-    <p style="text-align:center;margin-top:20px;font-size:13px;color:var(--soft);">Tous les prix sont HT. Remise de 20% pour un engagement annuel. Remise multi-structures disponible.</p>
+    <p style="text-align:center;margin-top:20px;font-size:13px;color:var(--soft);">Remise de 20% pour un engagement annuel. Remise disponible pour plusieurs structures d'un m&#xea;me groupe. Contactez-nous pour un devis personnalis&#xe9;.</p>
   </div>
 </section>
 
@@ -507,7 +525,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
         <div class="app-btns">
           <a href="/public/patient/welcome" class="app-btn">🌐 <span><span class="app-btn-label">Accéder via</span>Application Web</span></a>
         </div>
-        <div class="app-url">santebf.izicardouaga.com/public/patient/welcome</div>
+        <div class="app-url">santebf.bf / espace patient</div>
       </div>
       <div class="app-card">
         <div class="app-ico">🏥</div>
@@ -516,7 +534,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
         <div class="app-btns">
           <a href="/auth/login" class="app-btn">🔑 <span><span class="app-btn-label">Accéder via</span>Connexion Médecin</span></a>
         </div>
-        <div class="app-url">santebf.izicardouaga.com/auth/login</div>
+        <div class="app-url">santebf.bf / connexion</div>
       </div>
     </div>
   </div>
@@ -539,11 +557,11 @@ footer{background:var(--tx);padding:56px 5% 28px}
 
     <!-- SÉCURITÉ -->
     <div id="faq-securite" class="faq-group active">
-      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Où sont hébergées les données de SantéBF ?<span class="faq-ico">+</span></div><div class="faq-a">Les données sont hébergées sur <strong>Supabase</strong> (base de données PostgreSQL chiffrée) et <strong>Cloudflare Pages</strong> (edge computing mondial). Les deux services utilisent un chiffrement AES-256 au repos et TLS 1.3 en transit. Les serveurs sont localisés dans des datacenters certifiés ISO 27001.</div></div>
-      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Est-ce que les données médicales sont chiffrées ?<span class="faq-ico">+</span></div><div class="faq-a">Oui. Toutes les communications entre votre navigateur et nos serveurs sont chiffrées via <strong>HTTPS/TLS</strong>. Les données stockées dans la base de données sont chiffrées au repos. Les mots de passe sont hashés avec bcrypt et ne sont jamais stockés en clair.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Où sont hébergées les données de SantéBF ?<span class="faq-ico">+</span></div><div class="faq-a">Les données sont hébergées sur des serveurs sécurisés avec chiffrement complet au repos et en transit. L'infrastructure utilise des datacenters certifiés aux normes internationales de sécurité. Toutes les communications sont chiffrées et les sauvegardes sont automatiques.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Est-ce que les données médicales sont chiffrées ?<span class="faq-ico">+</span></div><div class="faq-a">Oui. Toutes les communications sont chiffrées via <strong>HTTPS</strong>. Les données stockées sont chiffrées au repos. Les mots de passe ne sont jamais stockés en clair — ils sont transformés de façon irréversible avant stockage.</div></div>
       <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Que se passe-t-il si un membre du personnel perd son téléphone ?<span class="faq-ico">+</span></div><div class="faq-a">L'accès est protégé par email et mot de passe. Si un appareil est perdu, l'administrateur de la structure peut <strong>immédiatement désactiver le compte</strong> depuis le tableau de bord administrateur. La session active est alors invalidée. Aucune donnée n'est stockée localement sur l'appareil.</div></div>
-      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Peut-on accéder à SantéBF depuis l'extérieur de la structure ?<span class="faq-ico">+</span></div><div class="faq-a">Oui, SantéBF est accessible depuis n'importe où via internet. L'accès est sécurisé par authentification obligatoire. Chaque connexion est enregistrée avec la date, l'heure et l'adresse IP. Un administrateur peut voir l'historique des connexions de son équipe.</div></div>
-      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Comment SantéBF est-il protégé contre les attaques informatiques ?<span class="faq-ico">+</span></div><div class="faq-a">SantéBF bénéficie de la protection <strong>Cloudflare</strong> qui inclut : protection DDoS, pare-feu applicatif web (WAF), limitation de débit des requêtes. En plus, les comptes sont automatiquement bloqués après plusieurs tentatives de connexion échouées.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Peut-on accéder à SantéBF depuis l'extérieur de la structure ?<span class="faq-ico">+</span></div><div class="faq-a">Oui, SantéBF est accessible depuis n'importe où via internet. L'accès est sécurisé par authentification obligatoire. Chaque connexion est enregistrée avec la date et l'heure. Un administrateur peut voir l'historique des connexions de son équipe.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Comment SantéBF est-il protégé contre les attaques informatiques ?<span class="faq-ico">+</span></div><div class="faq-a">SantéBF bénéficie d'une protection infrastructure qui inclut : protection contre les attaques, pare-feu applicatif, limitation de débit des requêtes. Les comptes sont automatiquement bloqués après plusieurs tentatives de connexion échouées.</div></div>
     </div>
 
     <!-- CONFIDENTIALITÉ -->
@@ -576,7 +594,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
       <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Faut-il une connexion internet en permanence ?<span class="faq-ico">+</span></div><div class="faq-a">Oui, SantéBF est une application web qui nécessite une connexion internet. Elle est cependant <strong>optimisée pour les connexions lentes</strong> (3G/4G). Les pages sont légères et les requêtes minimisées. Une connexion WiFi basique ou une 3G stable suffit pour utiliser toutes les fonctionnalités.</div></div>
       <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Peut-on utiliser SantéBF sur n'importe quel téléphone ?<span class="faq-ico">+</span></div><div class="faq-a">Oui. SantéBF fonctionne sur tout smartphone avec un navigateur web récent (Chrome, Firefox, Safari). Pas besoin de télécharger une application depuis un store. Il suffit d'ouvrir le navigateur et d'aller sur l'URL de la plateforme.</div></div>
       <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Comment se passe l'intégration pour une nouvelle structure ?<span class="faq-ico">+</span></div><div class="faq-a">C'est simple : <ul><li>1. Contact avec notre équipe</li><li>2. Création de votre structure dans le système</li><li>3. Création des comptes de votre équipe par votre administrateur</li><li>4. Formation rapide (1 à 2 heures) — la prise en main est intuitive</li><li>5. Début d'utilisation immédiat</li></ul>Aucune installation informatique requise de votre côté.</div></div>
-      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Que se passe-t-il si le service est temporairement indisponible ?<span class="faq-ico">+</span></div><div class="faq-a">SantéBF est hébergé sur Cloudflare, l'une des infrastructures les plus fiables au monde avec un SLA de 99,9%. En cas de maintenance planifiée, les utilisateurs sont prévenus à l'avance. L'historique des incidents et la disponibilité en temps réel sont consultables.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Que se passe-t-il si le service est temporairement indisponible ?<span class="faq-ico">+</span></div><div class="faq-a">SantéBF est hébergé sur une infrastructure fiable avec un taux de disponibilité élevé. En cas de maintenance planifiée, les utilisateurs sont prévenus à l'avance par notification.</div></div>
     </div>
 
     <!-- TARIFS -->
@@ -584,7 +602,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
       <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">L'essai gratuit inclut-il toutes les fonctionnalités ?<span class="faq-ico">+</span></div><div class="faq-a">L'essai gratuit de 6 mois inclut les fonctionnalités de base : dossiers patients, consultations, RDV, dashboard. Les modules avancés (pharmacie, laboratoire, facturation, IA) nécessitent un abonnement payant. Vous pouvez passer à un plan payant à tout moment.</div></div>
       <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Comment fonctionne le paiement de l'abonnement ?<span class="faq-ico">+</span></div><div class="faq-a">Le paiement de l'abonnement est actuellement géré manuellement pendant notre phase de lancement. Contactez-nous pour convenir des modalités (virement, Mobile Money). Un système de paiement en ligne automatisé est en cours d'intégration.</div></div>
       <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Peut-on changer de plan en cours d'abonnement ?<span class="faq-ico">+</span></div><div class="faq-a"><strong>Oui.</strong> Vous pouvez passer à un plan supérieur à tout moment. Le montant est calculé au prorata de la période restante. Contactez-nous pour toute modification de plan.</div></div>
-      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Y a-t-il une remise pour plusieurs structures du même groupe ?<span class="faq-ico">+</span></div><div class="faq-a">Oui. Une remise de <strong>15%</strong> est appliquée à partir de 3 structures d'un même groupe (cliniques, hôpitaux, cabinets). Une remise de 20% est accordée pour un engagement annuel. Contactez-nous pour un devis personnalisé.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Y a-t-il une remise pour plusieurs structures du même groupe ?<span class="faq-ico">+</span></div><div class="faq-a">Oui. Des remises sont disponibles pour les groupes de structures et les engagements annuels. Contactez-nous pour obtenir un devis personnalis&#xe9; selon votre situation.</div></div>
     </div>
   </div>
 </section>
@@ -596,7 +614,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <p>Contactez-nous pour une démonstration gratuite ou pour toute question sur SantéBF.</p>
     <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
       <a href="/auth/inscription" class="btn1" style="background:white;color:var(--vf)">🚀 Essai gratuit 6 mois</a>
-      <a href="mailto:contact@santebf.izicardouaga.com" class="btn2" style="background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3)">✉️ Nous contacter</a>
+      <a href="mailto:contact@santebf.bf" class="btn2" style="background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3)">&#x2709;&#xFE0F; Nous contacter</a>
     </div>
   </div>
 </section>
@@ -624,7 +642,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <div class="fc">
       <h4>Support</h4>
       <a href="#faq">FAQ</a>
-      <a href="mailto:contact@santebf.izicardouaga.com">Nous contacter</a>
+      <a href="mailto:contact@santebf.bf">Nous contacter</a>
     </div>
   </div>
   <div class="fbot">
