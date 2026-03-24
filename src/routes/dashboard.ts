@@ -101,8 +101,8 @@ dashboardRoutes.get('/admin',
 
       // Construire le feed d'activité
       const activiteRecente = (activiteRes.data ?? []).map((a: any) => ({
-        ico:   '🩺',
-        texte: `Consultation : ${a.motif || 'sans motif'} — ${(a.struct_structures as any)?.nom || ''}`,
+        ico:   '&#x1F9EA;',
+        texte: `Consultation : ${a.motif || 'sans motif'} - ${(a.struct_structures as any)?.nom || ''}`,
         temps: a.created_at ? new Date(a.created_at).toLocaleDateString('fr-FR') : '',
       }))
 
@@ -656,7 +656,6 @@ export function alertHTML(type: 'error' | 'success' | 'warning', message: string
     success: 'background:#E8F5E9;border-left:4px solid #1A6B3C;color:#1A6B3C;',
     warning: 'background:#FFF8E1;border-left:4px solid #F9A825;color:#E65100;',
   }
-  const icons: Record<string, string> = { error: '⚠️', success: '✓', warning: '⚠️' }
+  const icons: Record<string, string> = { error: '&#x26A0;', success: '&#x2713;', warning: '&#x26A0;' }
   return `<div style="${styles[type]}border-radius:10px;padding:16px 18px;font-size:14px;font-weight:600;margin:12px 0;">${icons[type]} ${message}</div>`
 }
- 
