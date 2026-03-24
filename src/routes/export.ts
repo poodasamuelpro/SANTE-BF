@@ -1,312 +1,249 @@
 /**
- * src/utils/export.ts
- * SantéBF — Fonctions d'export CSV
- * Utilisé par src/routes/export.ts
+ * src/routes/export.ts
+ * Sant&#xe9;BF &#x2014; Export CSV des donn&#xe9;es
  *
- * Toutes les fonctions retournent une string CSV UTF-8
- * Compatible Cloudflare Workers (pas de fs, pas de Node streams)
+ * CORRECTIONS :
+ *  - Supprim&#xe9; import pageSkeleton (n'existe pas dans dashboard.ts)
+ *  - Supprim&#xe9; import alertHTML (composant inexistant)
+ *  - exportRoutes.use('/*') au lieu de '*'
+ *  - Page HTML inline (plus de d&#xe9;pendance externe)
  */
+import { Hono } from 'hono'
+import { requireAuth, requireRole } from '../middleware/auth'
+import type { AuthProfile, Bindings } from '../lib/supabase'
+import {
+  exporterPatients,
+  exporterConsultations,
+  exporterFactures,
+  exporterOrdonnances,
+  exporterExamensLabo,
+  exporterStatistiquesStructure,
+} from '../utils/export'
 
-// ── Helper CSV ────────────────────────────────────────────────
-function escapeCsv(val: any): string {
-  if (val === null || val === undefined) return ''
-  const str = String(val)
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-    return '"' + str.replace(/"/g, '""') + '"'
+export const exportRoutes = new Hono<{ Bindings: Bindings }>()
+
+exportRoutes.use('/*', requireAuth)
+
+// GET /export/patients
+exportRoutes.get('/patients',
+  requireRole('admin_structure', 'medecin', 'agent_accueil', 'super_admin'),
+  async (c) => {
+    const profil   = c.get('profil' as never) as AuthProfile
+    const supabase = c.get('supabase' as never) as any
+    try {
+      const csv = await exporterPatients(supabase, profil.structure_id!)
+      return new Response(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="patients-${new Date().toISOString().split('T')[0]}.csv"`,
+        },
+      })
+    } catch (err) {
+      console.error('Erreur export patients:', err)
+      return c.json({ error: 'Erreur export' }, 500)
+    }
   }
-  return str
-}
+)
 
-function toCsv(headers: string[], rows: any[][]): string {
-  const bom = '\uFEFF' // BOM UTF-8 pour Excel
-  const header = headers.map(escapeCsv).join(',')
-  const body   = rows.map(row => row.map(escapeCsv).join(',')).join('\n')
-  return bom + header + '\n' + body
-}
+// GET /export/consultations
+exportRoutes.get('/consultations',
+  requireRole('admin_structure', 'medecin', 'super_admin'),
+  async (c) => {
+    const profil   = c.get('profil' as never) as AuthProfile
+    const supabase = c.get('supabase' as never) as any
+    try {
+      const csv = await exporterConsultations(supabase, profil.structure_id!, c.req.query('debut'), c.req.query('fin'))
+      return new Response(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="consultations-${new Date().toISOString().split('T')[0]}.csv"`,
+        },
+      })
+    } catch (err) { return c.json({ error: 'Erreur export' }, 500) }
+  }
+)
 
-function fmtDate(d: string | null): string {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('fr-FR')
-}
+// GET /export/factures
+exportRoutes.get('/factures',
+  requireRole('admin_structure', 'caissier', 'super_admin'),
+  async (c) => {
+    const profil   = c.get('profil' as never) as AuthProfile
+    const supabase = c.get('supabase' as never) as any
+    try {
+      const csv = await exporterFactures(supabase, profil.structure_id!, c.req.query('debut'), c.req.query('fin'))
+      return new Response(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="factures-${new Date().toISOString().split('T')[0]}.csv"`,
+        },
+      })
+    } catch (err) { return c.json({ error: 'Erreur export' }, 500) }
+  }
+)
 
-function fmtDateTime(d: string | null): string {
-  if (!d) return ''
-  const dt = new Date(d)
-  return dt.toLocaleDateString('fr-FR') + ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-}
+// GET /export/ordonnances
+exportRoutes.get('/ordonnances',
+  requireRole('admin_structure', 'medecin', 'pharmacien', 'super_admin'),
+  async (c) => {
+    const profil   = c.get('profil' as never) as AuthProfile
+    const supabase = c.get('supabase' as never) as any
+    try {
+      const csv = await exporterOrdonnances(supabase, profil.structure_id!, c.req.query('debut'), c.req.query('fin'))
+      return new Response(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="ordonnances-${new Date().toISOString().split('T')[0]}.csv"`,
+        },
+      })
+    } catch (err) { return c.json({ error: 'Erreur export' }, 500) }
+  }
+)
 
-function addDateFilter(query: any, dateDebut?: string, dateFin?: string, col = 'created_at') {
-  if (dateDebut) query = query.gte(col, dateDebut + 'T00:00:00')
-  if (dateFin)   query = query.lte(col, dateFin   + 'T23:59:59')
-  return query
-}
+// GET /export/examens-labo
+exportRoutes.get('/examens-labo',
+  requireRole('admin_structure', 'laborantin', 'super_admin'),
+  async (c) => {
+    const profil   = c.get('profil' as never) as AuthProfile
+    const supabase = c.get('supabase' as never) as any
+    try {
+      const csv = await exporterExamensLabo(supabase, profil.structure_id!, c.req.query('debut'), c.req.query('fin'))
+      return new Response(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="examens-laboratoire-${new Date().toISOString().split('T')[0]}.csv"`,
+        },
+      })
+    } catch (err) { return c.json({ error: 'Erreur export' }, 500) }
+  }
+)
 
-// ═══════════════════════════════════════════════════════════════
-// EXPORT PATIENTS
-// ═══════════════════════════════════════════════════════════════
-export async function exporterPatients(
-  supabase: any,
-  structureId: string,
-  format: 'csv' = 'csv'
-): Promise<string> {
-  const { data, error } = await supabase
-    .from('patient_dossiers')
-    .select('numero_national, nom, prenom, date_naissance, sexe, groupe_sanguin, rhesus, telephone, email, created_at')
-    .eq('structure_enregistrement_id', structureId)
-    .order('nom')
-    .limit(5000)
+// GET /export/statistiques
+exportRoutes.get('/statistiques',
+  requireRole('admin_structure', 'super_admin'),
+  async (c) => {
+    const profil   = c.get('profil' as never) as AuthProfile
+    const supabase = c.get('supabase' as never) as any
+    const mois  = parseInt(c.req.query('mois')  || String(new Date().getMonth() + 1))
+    const annee = parseInt(c.req.query('annee') || String(new Date().getFullYear()))
+    try {
+      const csv = await exporterStatistiquesStructure(supabase, profil.structure_id!, mois, annee)
+      return new Response(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="statistiques-${mois}-${annee}.csv"`,
+        },
+      })
+    } catch (err) { return c.json({ error: 'Erreur export' }, 500) }
+  }
+)
 
-  if (error) throw new Error('Erreur export patients : ' + error.message)
+// GET /export &#x2014; Page d'accueil exports
+exportRoutes.get('/',
+  requireRole('admin_structure', 'medecin', 'caissier', 'laborantin', 'super_admin'),
+  async (c) => {
+    const profil = c.get('profil' as never) as AuthProfile
+    const today  = new Date().toISOString().split('T')[0]
+    const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+    const dashHref = profil.role === 'admin_structure' ? '/dashboard/structure' : `/dashboard/${profil.role}`
 
-  const headers = [
-    'N° National', 'Nom', 'Prénom', 'Date naissance',
-    'Sexe', 'Groupe sanguin', 'Rhésus', 'Téléphone', 'Email', 'Date enregistrement'
-  ]
-  const rows = (data ?? []).map((p: any) => [
-    p.numero_national, p.nom, p.prenom, fmtDate(p.date_naissance),
-    p.sexe === 'M' ? 'Masculin' : 'Féminin',
-    p.groupe_sanguin || '', p.rhesus || '',
-    p.telephone || '', p.email || '',
-    fmtDate(p.created_at),
-  ])
-
-  return toCsv(headers, rows)
-}
-
-// ═══════════════════════════════════════════════════════════════
-// EXPORT CONSULTATIONS
-// ═══════════════════════════════════════════════════════════════
-export async function exporterConsultations(
-  supabase: any,
-  structureId: string,
-  dateDebut?: string,
-  dateFin?: string,
-  format: 'csv' = 'csv'
-): Promise<string> {
-  let query = supabase
-    .from('medical_consultations')
-    .select(`
-      id, motif, diagnostic_principal, type_consultation, statut, created_at,
-      patient:patient_dossiers(numero_national, nom, prenom),
-      medecin:auth_profiles!medical_consultations_medecin_id_fkey(nom, prenom)
-    `)
-    .eq('structure_id', structureId)
-    .order('created_at', { ascending: false })
-    .limit(10000)
-
-  query = addDateFilter(query, dateDebut, dateFin)
-  const { data, error } = await query
-
-  if (error) throw new Error('Erreur export consultations : ' + error.message)
-
-  const headers = [
-    'Date', 'N° Patient', 'Nom patient', 'Prénom patient',
-    'Médecin', 'Motif', 'Diagnostic', 'Type', 'Statut'
-  ]
-  const rows = (data ?? []).map((c: any) => [
-    fmtDateTime(c.created_at),
-    c.patient?.numero_national || '',
-    c.patient?.nom || '', c.patient?.prenom || '',
-    `Dr. ${c.medecin?.prenom || ''} ${c.medecin?.nom || ''}`.trim(),
-    c.motif || '', c.diagnostic_principal || '',
-    c.type_consultation || '', c.statut || '',
-  ])
-
-  return toCsv(headers, rows)
-}
-
-// ═══════════════════════════════════════════════════════════════
-// EXPORT FACTURES
-// ═══════════════════════════════════════════════════════════════
-export async function exporterFactures(
-  supabase: any,
-  structureId: string,
-  dateDebut?: string,
-  dateFin?: string,
-  format: 'csv' = 'csv'
-): Promise<string> {
-  let query = supabase
-    .from('finance_factures')
-    .select(`
-      numero_facture, statut, sous_total, montant_assurance, total_ttc, montant_patient, created_at,
-      patient:patient_dossiers(numero_national, nom, prenom)
-    `)
-    .eq('structure_id', structureId)
-    .order('created_at', { ascending: false })
-    .limit(10000)
-
-  query = addDateFilter(query, dateDebut, dateFin)
-  const { data, error } = await query
-
-  if (error) throw new Error('Erreur export factures : ' + error.message)
-
-  const headers = [
-    'Date', 'N° Facture', 'N° Patient', 'Nom patient', 'Prénom patient',
-    'Sous-total (FCFA)', 'Part assurance (FCFA)', 'Total TTC (FCFA)',
-    'Part patient (FCFA)', 'Statut'
-  ]
-  const rows = (data ?? []).map((f: any) => [
-    fmtDate(f.created_at),
-    f.numero_facture,
-    f.patient?.numero_national || '',
-    f.patient?.nom || '', f.patient?.prenom || '',
-    f.sous_total || 0, f.montant_assurance || 0,
-    f.total_ttc || 0, f.montant_patient || 0,
-    f.statut || '',
-  ])
-
-  return toCsv(headers, rows)
-}
-
-// ═══════════════════════════════════════════════════════════════
-// EXPORT ORDONNANCES
-// ═══════════════════════════════════════════════════════════════
-export async function exporterOrdonnances(
-  supabase: any,
-  structureId: string,
-  dateDebut?: string,
-  dateFin?: string,
-  format: 'csv' = 'csv'
-): Promise<string> {
-  let query = supabase
-    .from('medical_ordonnances')
-    .select(`
-      numero_ordonnance, statut, date_expiration, created_at,
-      patient:patient_dossiers(numero_national, nom, prenom),
-      medecin:auth_profiles!medical_ordonnances_medecin_id_fkey(nom, prenom),
-      lignes:medical_ordonnance_lignes(medicament_nom, dosage, frequence, duree)
-    `)
-    .eq('structure_id', structureId)
-    .order('created_at', { ascending: false })
-    .limit(10000)
-
-  query = addDateFilter(query, dateDebut, dateFin)
-  const { data, error } = await query
-
-  if (error) throw new Error('Erreur export ordonnances : ' + error.message)
-
-  const headers = [
-    'Date', 'N° Ordonnance', 'N° Patient', 'Nom patient', 'Prénom patient',
-    'Médecin', 'Statut', 'Date expiration',
-    'Médicaments (liste)'
-  ]
-  const rows = (data ?? []).map((o: any) => {
-    const meds = (o.lignes || [])
-      .map((l: any) => `${l.medicament_nom} ${l.dosage} ${l.frequence} ${l.duree}`.trim())
-      .join(' | ')
-    return [
-      fmtDate(o.created_at),
-      o.numero_ordonnance,
-      o.patient?.numero_national || '',
-      o.patient?.nom || '', o.patient?.prenom || '',
-      `Dr. ${o.medecin?.prenom || ''} ${o.medecin?.nom || ''}`.trim(),
-      o.statut || '', fmtDate(o.date_expiration),
-      meds,
-    ]
-  })
-
-  return toCsv(headers, rows)
-}
-
-// ═══════════════════════════════════════════════════════════════
-// EXPORT EXAMENS LABORATOIRE
-// ═══════════════════════════════════════════════════════════════
-export async function exporterExamensLabo(
-  supabase: any,
-  structureId: string,
-  dateDebut?: string,
-  dateFin?: string,
-  format: 'csv' = 'csv'
-): Promise<string> {
-  let query = supabase
-    .from('medical_examens')
-    .select(`
-      nom_examen, type_examen, statut, est_urgent, est_anormal,
-      resultat_texte, interpretation, created_at, valide_at,
-      patient:patient_dossiers(numero_national, nom, prenom),
-      prescripteur:auth_profiles!medical_examens_prescripteur_id_fkey(nom, prenom)
-    `)
-    .eq('structure_id', structureId)
-    .order('created_at', { ascending: false })
-    .limit(10000)
-
-  query = addDateFilter(query, dateDebut, dateFin)
-  const { data, error } = await query
-
-  if (error) throw new Error('Erreur export examens labo : ' + error.message)
-
-  const headers = [
-    'Date prescription', 'N° Patient', 'Nom patient', 'Prénom patient',
-    'Prescripteur', 'Examen', 'Type', 'Statut',
-    'Urgent', 'Anormal', 'Date résultat', 'Interprétation'
-  ]
-  const rows = (data ?? []).map((e: any) => [
-    fmtDate(e.created_at),
-    e.patient?.numero_national || '',
-    e.patient?.nom || '', e.patient?.prenom || '',
-    `Dr. ${e.prescripteur?.prenom || ''} ${e.prescripteur?.nom || ''}`.trim(),
-    e.nom_examen || '', e.type_examen || '', e.statut || '',
-    e.est_urgent ? 'Oui' : 'Non',
-    e.est_anormal ? 'Oui' : 'Non',
-    fmtDate(e.valide_at),
-    e.interpretation || '',
-  ])
-
-  return toCsv(headers, rows)
-}
-
-// ═══════════════════════════════════════════════════════════════
-// EXPORT STATISTIQUES STRUCTURE
-// ═══════════════════════════════════════════════════════════════
-export async function exporterStatistiquesStructure(
-  supabase: any,
-  structureId: string,
-  mois: number,
-  annee: number,
-  format: 'csv' = 'csv'
-): Promise<string> {
-  const debut = new Date(annee, mois - 1, 1).toISOString()
-  const fin   = new Date(annee, mois, 0, 23, 59, 59).toISOString()
-
-  const [consRes, factRes, ordRes, examRes, patRes] = await Promise.all([
-    supabase.from('medical_consultations')
-      .select('id', { count: 'exact', head: true })
-      .eq('structure_id', structureId)
-      .gte('created_at', debut).lte('created_at', fin),
-    supabase.from('finance_factures')
-      .select('total_ttc, statut')
-      .eq('structure_id', structureId)
-      .gte('created_at', debut).lte('created_at', fin),
-    supabase.from('medical_ordonnances')
-      .select('id', { count: 'exact', head: true })
-      .eq('structure_id', structureId)
-      .gte('created_at', debut).lte('created_at', fin),
-    supabase.from('medical_examens')
-      .select('id', { count: 'exact', head: true })
-      .eq('structure_id', structureId)
-      .gte('created_at', debut).lte('created_at', fin),
-    supabase.from('patient_dossiers')
-      .select('id', { count: 'exact', head: true })
-      .eq('structure_enregistrement_id', structureId)
-      .gte('created_at', debut).lte('created_at', fin),
-  ])
-
-  const factures = factRes.data ?? []
-  const recette  = factures.filter((f: any) => f.statut === 'payee')
-    .reduce((s: number, f: any) => s + (f.total_ttc || 0), 0)
-  const impayees = factures.filter((f: any) => f.statut === 'impayee').length
-
-  const headers = ['Indicateur', 'Valeur', 'Période']
-  const periode = `${mois.toString().padStart(2,'0')}/${annee}`
-  const rows = [
-    ['Consultations totales',              consRes.count ?? 0,  periode],
-    ['Nouveaux patients enregistrés',       patRes.count  ?? 0,  periode],
-    ['Ordonnances émises',                  ordRes.count  ?? 0,  periode],
-    ['Examens prescrits',                   examRes.count ?? 0,  periode],
-    ['Factures totales',                    factures.length,     periode],
-    ['Factures impayées',                   impayees,            periode],
-    ['Recette encaissée (FCFA)',             recette,             periode],
-  ]
-
-  return toCsv(headers, rows)
-}
+    return c.html(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exports CSV &#x2014; Sant&#xe9;BF</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
+  <style>
+    :root{--vert:#1A6B3C;--vert-c:#e8f5ee;--texte:#0f1923;--soft:#5a6a78;--bg:#f4f6f4;--blanc:#fff;--bordure:#e2e8e4;--r:14px;--rs:10px;}
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);padding:24px;color:var(--texte);}
+    .topbar{background:linear-gradient(135deg,#0d4a2a,var(--vert));height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;margin:-24px -24px 24px;position:sticky;top:-24px;z-index:100;}
+    .tb-brand{font-family:'Fraunces',serif;font-size:17px;color:white;}
+    .tb-btn{background:rgba(255,255,255,.15);color:white;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;}
+    .container{max-width:1200px;margin:0 auto;}
+    h1{font-family:'Fraunces',serif;font-size:26px;margin-bottom:6px;}
+    .sub{font-size:14px;color:var(--soft);margin-bottom:24px;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;}
+    .card{background:var(--blanc);border-radius:var(--r);padding:20px;border:1px solid var(--bordure);}
+    .card h3{font-size:15px;font-weight:700;margin-bottom:8px;}
+    .card p{font-size:13px;color:var(--soft);margin-bottom:14px;}
+    .form-group{margin-bottom:10px;}
+    label{display:block;font-size:12px;font-weight:600;color:var(--soft);margin-bottom:4px;}
+    input{width:100%;padding:9px 12px;border:1.5px solid var(--bordure);border-radius:var(--rs);font-size:13px;font-family:inherit;outline:none;}
+    input:focus{border-color:var(--vert);}
+    .btn-export{width:100%;background:var(--vert);color:white;border:none;padding:11px;border-radius:var(--rs);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+    .btn-export:hover{background:#15593a;}
+    .tip-box{background:var(--blanc);border-radius:var(--r);padding:20px;border:1px solid var(--bordure);margin-top:16px;}
+    .tip-box ul{color:var(--soft);line-height:2;font-size:13px;padding-left:18px;margin-top:8px;}
+    @media(max-width:640px){.grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="tb-brand">&#x1F4CA; Sant&#xe9;BF &#x2014; Exports CSV</span>
+    <a href="${dashHref}" class="tb-btn">&#x2190; Dashboard</a>
+  </div>
+  <div class="container">
+    <h1>&#x1F4CA; Exports CSV</h1>
+    <p class="sub">T&#xe9;l&#xe9;chargez vos donn&#xe9;es au format CSV pour Excel ou LibreOffice</p>
+    <div class="grid">
+      <div class="card">
+        <h3>&#128101; Patients</h3>
+        <p>Tous les patients enregistr&#xe9;s dans votre structure</p>
+        <button class="btn-export" onclick="window.location.href='/export/patients'">&#128229; T&#xe9;l&#xe9;charger</button>
+      </div>
+      <div class="card">
+        <h3>&#129658; Consultations</h3>
+        <form action="/export/consultations" method="GET">
+          <div class="form-group"><label>Date d&#xe9;but</label><input type="date" name="debut" value="${firstDay}"></div>
+          <div class="form-group"><label>Date fin</label><input type="date" name="fin" value="${today}"></div>
+          <button type="submit" class="btn-export">&#128229; T&#xe9;l&#xe9;charger</button>
+        </form>
+      </div>
+      <div class="card">
+        <h3>&#128176; Factures</h3>
+        <form action="/export/factures" method="GET">
+          <div class="form-group"><label>Date d&#xe9;but</label><input type="date" name="debut" value="${firstDay}"></div>
+          <div class="form-group"><label>Date fin</label><input type="date" name="fin" value="${today}"></div>
+          <button type="submit" class="btn-export">&#128229; T&#xe9;l&#xe9;charger</button>
+        </form>
+      </div>
+      <div class="card">
+        <h3>&#128138; Ordonnances</h3>
+        <form action="/export/ordonnances" method="GET">
+          <div class="form-group"><label>Date d&#xe9;but</label><input type="date" name="debut" value="${firstDay}"></div>
+          <div class="form-group"><label>Date fin</label><input type="date" name="fin" value="${today}"></div>
+          <button type="submit" class="btn-export">&#128229; T&#xe9;l&#xe9;charger</button>
+        </form>
+      </div>
+      <div class="card">
+        <h3>&#129514; Examens laboratoire</h3>
+        <form action="/export/examens-labo" method="GET">
+          <div class="form-group"><label>Date d&#xe9;but</label><input type="date" name="debut" value="${firstDay}"></div>
+          <div class="form-group"><label>Date fin</label><input type="date" name="fin" value="${today}"></div>
+          <button type="submit" class="btn-export">&#128229; T&#xe9;l&#xe9;charger</button>
+        </form>
+      </div>
+      <div class="card">
+        <h3>&#128200; Statistiques</h3>
+        <form action="/export/statistiques" method="GET">
+          <div class="form-group"><label>Mois</label><input type="number" name="mois" min="1" max="12" value="${new Date().getMonth()+1}"></div>
+          <div class="form-group"><label>Ann&#xe9;e</label><input type="number" name="annee" min="2020" max="2030" value="${new Date().getFullYear()}"></div>
+          <button type="submit" class="btn-export">&#128229; T&#xe9;l&#xe9;charger</button>
+        </form>
+      </div>
+    </div>
+    <div class="tip-box">
+      <strong>&#128161; Comment utiliser les exports CSV</strong>
+      <ul>
+        <li>Fichiers compatibles Excel, LibreOffice, Google Sheets</li>
+        <li>Dates au format fran&#xe7;ais (JJ/MM/AAAA)</li>
+        <li>Montants en FCFA</li>
+        <li>Les exports respectent vos permissions de r&#xf4;le</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>`)
+  }
+)
