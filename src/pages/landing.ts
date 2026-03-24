@@ -1,6 +1,6 @@
 /**
  * src/pages/landing.ts
- * SantéBF — Page d'accueil publique 
+ * SantéBF — Page d'accueil publique
  * Route : GET /public/ via src/routes/public.ts
  */
 
