@@ -659,3 +659,4 @@ export function alertHTML(type: 'error' | 'success' | 'warning', message: string
   const icons: Record<string, string> = { error: '⚠️', success: '✓', warning: '⚠️' }
   return `<div style="${styles[type]}border-radius:10px;padding:16px 18px;font-size:14px;font-weight:600;margin:12px 0;">${icons[type]} ${message}</div>`
 }
+ 
