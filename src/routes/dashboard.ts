@@ -649,7 +649,7 @@ export function dataTable(headers: string[], rows: string[][]): string {
     ? `<tr><td colspan="${headers.length}" class="empty">Aucune donn&#xe9;e disponible</td></tr>`
     : rows.map(row => '<tr>' + row.map(cell => '<td>' + cell + '</td>').join('') + '</tr>').join('')
   return '<div class="table-wrap"><table><thead><tr>' + ths + '</tr></thead><tbody>' + trs + '</tbody></table></div>'
-}\
+}
 export function alertHTML(type: 'error' | 'success' | 'warning', message: string): string {
   const styles: Record<string, string> = {
     error:   'background:#FFF5F5;border-left:4px solid #B71C1C;color:#B71C1C;',
