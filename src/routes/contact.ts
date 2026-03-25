@@ -1,13 +1,13 @@
 /**
- * src/routes/contact.ts 
- * Sant&#xe9;BF &#x2014; Page de contact publique
+ * src/routes/contact.ts
+ * SantéBF — Page de contact publique
  *
  * Routes :
- *   GET  /contact      &#x2192; Formulaire de contact
- *   POST /contact      &#x2192; Envoyer le message par email
+ *   GET  /contact      → Formulaire de contact
+ *   POST /contact      → Envoyer le message par email
  *
  * Email destination : contact@santebf.bf
- * Utilise Resend ou Brevo si configur&#xe9; dans Cloudflare Variables
+ * Utilise Resend ou Brevo si configuré dans Cloudflare Variables
  */
 
 import { Hono } from 'hono'
@@ -23,7 +23,7 @@ export const contactRoutes = new Hono<{ Bindings: ContactBindings }>()
 
 const DEST_EMAIL = 'poodasamuel@gmail.com'
 const FROM_EMAIL = 'noreply@santebf.bf'
-const FROM_NAME  = 'Sant&#xe9;BF Contact'
+const FROM_NAME  = 'SantéBF Contact'
 
 // ── Envoi email ───────────────────────────────────────────
 
@@ -54,12 +54,12 @@ function contactPage(opts: { succes?: boolean; erreur?: string } = {}): string {
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Contactez l'equipe SanteBF pour toute question sur la plateforme.">
-<title>Contact &#x2014; Sant&#xe9;BF</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<title>Contact — SantéBF</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
 <style>
-:root{--v:#1A6B3C;--vf:#0d4a2a;--vc:#e8f5ee;--b:#1565C0;--bc:#e3f2fd;--or:#C9A84C;--r:#b71c1c;--rc:#fff5f5;--tx:#0f1923;--soft:#5a6a78;--bg:#f8faf8;--w:#fff;--bd:#e2e8e4}
+:root{--v:#1A6B3C;--vf:#0d4a2a;--vc:#e8f5ee;--vm:#2E8B57;--b:#1565C0;--bc:#e3f2fd;--or:#C9A84C;--oc:#fdf6e3;--r:#b71c1c;--rc:#fff5f5;--tx:#0f1923;--soft:#5a6a78;--bg:#f8faf8;--w:#fff;--bd:#e2e8e4}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{font-family:'Plus Jakarta Sans',sans-serif;color:var(--tx);background:var(--bg);min-height:100vh}
@@ -68,13 +68,15 @@ body{font-family:'Plus Jakarta Sans',sans-serif;color:var(--tx);background:var(-
 nav{background:var(--w);border-bottom:1px solid var(--bd);padding:0 5%;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .nb{display:flex;align-items:center;gap:10px;font-family:'Fraunces',serif;font-size:22px;color:var(--tx);text-decoration:none}
 .ni{width:38px;height:38px;background:var(--v);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px}
-.nl{display:flex;align-items:center;gap:20px}
+.nl{display:flex;align-items:center;gap:24px}
 .nl a{font-size:14px;color:var(--soft);text-decoration:none;font-weight:500;transition:color .2s}
 .nl a:hover{color:var(--v)}
 .nc{background:var(--v);color:#fff!important;padding:10px 20px;border-radius:9px;font-weight:700!important}
+.nc:hover{background:var(--vf)!important}
+.mb{display:none;background:none;border:none;font-size:24px;cursor:pointer;color:var(--tx)}
 
 /* HERO CONTACT */
-.hero-c{background:linear-gradient(135deg,var(--vf),var(--v));padding:70px 5% 80px;text-align:center;position:relative;overflow:hidden}
+.hero-c{background:linear-gradient(135deg,var(--vf) 0%,var(--v) 60%,#2a7d4f 100%);padding:70px 5% 80px;text-align:center;position:relative;overflow:hidden}
 .hero-c::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:60px;background:var(--bg);clip-path:ellipse(55% 100% at 50% 100%)}
 .hero-c h1{font-family:'Fraunces',serif;font-size:clamp(30px,5vw,50px);color:white;margin-bottom:14px;line-height:1.2}
 .hero-c p{font-size:17px;color:rgba(255,255,255,.8);max-width:520px;margin:0 auto}
@@ -141,32 +143,59 @@ textarea{resize:vertical;min-height:130px;line-height:1.6}
 .faq-item.open .faq-a{display:block}
 
 /* FOOTER */
-footer{background:var(--tx);padding:40px 5% 24px}
-.fbot{max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.3);flex-wrap:wrap;gap:8px;align-items:center}
-.fbot a{color:rgba(255,255,255,.4);text-decoration:none;font-family:'Fraunces',serif;font-size:16px}
-.fbot a:hover{color:white}
+footer{background:var(--tx);padding:56px 5% 28px}
+.fg{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;max-width:1100px;margin:0 auto 36px}
+.fb h2{font-family:'Fraunces',serif;font-size:20px;color:#fff;margin-bottom:10px}
+.fb p{font-size:13px;color:rgba(255,255,255,.45);line-height:1.7;max-width:260px}
+.fc h4{font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px}
+.fc a{display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px;transition:color .2s}
+.fc a:hover{color:#fff}
+.fbot{max-width:1100px;margin:0 auto;border-top:1px solid rgba(255,255,255,.08);padding-top:24px;display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.3);flex-wrap:wrap;gap:8px}
+.fbot a{color:rgba(255,255,255,.4);text-decoration:none;transition:color .2s}
+.fbot a:hover{color:#fff}
 
-@media(max-width:800px){.grid{grid-template-columns:1fr}.info-box{position:static}.fg2{grid-template-columns:1fr}.faq-grid{grid-template-columns:1fr}.sujets-grid{grid-template-columns:1fr}}
-@media(max-width:480px){.wrap{padding:40px 5%}.form-box{padding:24px}.hero-c{padding:50px 5% 70px}}
+/* RESPONSIVE */
+@media(max-width:900px){
+  .grid{grid-template-columns:1fr}
+  .info-box{position:static}
+  .fg2{grid-template-columns:1fr}
+  .faq-grid{grid-template-columns:1fr}
+  .sujets-grid{grid-template-columns:1fr}
+  .fg{grid-template-columns:1fr 1fr}
+}
+@media(max-width:640px){
+  .nl{display:none}
+  .mb{display:block}
+  .wrap{padding:40px 5%}
+  .form-box{padding:24px}
+  .hero-c{padding:50px 5% 70px}
+  .fg{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
 
+<!-- NAV (identique à la landing page) -->
 <nav>
-  <a href="/" class="nb"><div class="ni">&#x1F3E5;</div>Sant&#xe9;BF</a>
+  <a href="/" class="nb"><div class="ni">🏥</div>SantéBF</a>
   <div class="nl">
     <a href="/#modules">Modules</a>
-    <a href="/#plans">Tarifs</a>
+    <a href="/#securite">Sécurité</a>
     <a href="/abonnement/plans">Abonnement</a>
-    <a href="/auth/login" class="nc">Connexion &#x2192;</a>
+    <a href="/#plans">Tarifs</a>
+    <a href="/#faq">FAQ</a>
+    <a href="/contact">Contact</a>
+    <a href="/auth/login" class="nc">Connexion →</a>
   </div>
+  <button class="mb" onclick="toggleMenu()">☰</button>
 </nav>
 
+<!-- HERO CONTACT -->
 <div class="hero-c">
   <div style="position:relative;z-index:1">
-    <div style="display:inline-block;background:rgba(255,255,255,.15);color:white;padding:8px 20px;border-radius:30px;font-size:13px;font-weight:600;margin-bottom:20px;border:1px solid rgba(255,255,255,.2)">&#x1F4AC; Nous sommes &#xe0; votre &#xe9;coute</div>
-    <h1>Contactez l&#x27;&#xe9;quipe SantéBF</h1>
-    <p>Une question sur nos plans, une d&#xe9;monstration, un besoin sp&#xe9;cifique ? Notre &#xe9;quipe vous r&#xe9;pond.</p>
+    <div style="display:inline-block;background:rgba(255,255,255,.15);color:white;padding:8px 20px;border-radius:30px;font-size:13px;font-weight:600;margin-bottom:20px;border:1px solid rgba(255,255,255,.2)">💬 Nous sommes à votre écoute</div>
+    <h1>Contactez l'équipe SantéBF</h1>
+    <p>Une question sur nos plans, une démonstration, un besoin spécifique ? Notre équipe vous répond.</p>
   </div>
 </div>
 
@@ -177,41 +206,41 @@ footer{background:var(--tx);padding:40px 5% 24px}
     <div>
       <div class="info-box">
         <h2>Parlons de votre projet</h2>
-        <p>Que vous soyez une clinique priv&#xe9;e, un h&#xf4;pital r&#xe9;gional ou un cabinet m&#xe9;dical, nous adaptons notre accompagnement &#xe0; vos besoins.</p>
+        <p>Que vous soyez une clinique privée, un hôpital régional ou un cabinet médical, nous adaptons notre accompagnement à vos besoins.</p>
 
         <div class="contact-item">
-          <div class="ci-ico">&#x2709;&#xFE0F;</div>
+          <div class="ci-ico">✉️</div>
           <div>
             <div class="ci-label">Email</div>
             <div class="ci-val">contact@santebf.bf</div>
-            <div class="ci-sub">R&#xe9;ponse sous 24h ouvr&#xe9;es</div>
+            <div class="ci-sub">Réponse sous 24h ouvrées</div>
           </div>
         </div>
 
         <div class="contact-item">
-          <div class="ci-ico">&#x1F4CD;</div>
+          <div class="ci-ico">📍</div>
           <div>
             <div class="ci-label">Localisation</div>
             <div class="ci-val">Ouagadougou, Burkina Faso</div>
-            <div class="ci-sub">D&#xe9;monstrations disponibles sur site</div>
+            <div class="ci-sub">Démonstrations disponibles sur site</div>
           </div>
         </div>
 
         <div class="contact-item">
-          <div class="ci-ico">&#x1F553;</div>
+          <div class="ci-ico">🕒</div>
           <div>
             <div class="ci-label">Horaires</div>
-            <div class="ci-val">Lundi &#x2014; Vendredi</div>
-            <div class="ci-sub">8h00 &#x2014; 18h00 (heure locale)</div>
+            <div class="ci-val">Lundi — Vendredi</div>
+            <div class="ci-sub">8h00 — 18h00 (heure locale)</div>
           </div>
         </div>
 
-        <div class="badge-disp">Disponible pour d&#xe9;monstration</div>
+        <div class="badge-disp">Disponible pour démonstration</div>
 
         <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--bd)">
-          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--soft);margin-bottom:14px">Acc&#xe8;s direct</div>
-          <a href="/auth/inscription" style="display:block;background:var(--vc);color:var(--v);padding:12px 16px;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;margin-bottom:8px;text-align:center">&#x1F680; Essai gratuit 6 mois</a>
-          <a href="/abonnement/plans" style="display:block;background:#f3f4f6;color:#374151;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;text-align:center">&#x1F4B3; Voir les tarifs</a>
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--soft);margin-bottom:14px">Accès direct</div>
+          <a href="/auth/inscription" style="display:block;background:var(--vc);color:var(--v);padding:12px 16px;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;margin-bottom:8px;text-align:center">🚀 Essai gratuit 6 mois</a>
+          <a href="/abonnement/plans" style="display:block;background:#f3f4f6;color:#374151;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;text-align:center">💰 Voir les tarifs</a>
         </div>
       </div>
     </div>
@@ -220,35 +249,35 @@ footer{background:var(--tx);padding:40px 5% 24px}
     <div>
       <div class="form-box">
         <h2>Envoyer un message</h2>
-        <p>Remplissez ce formulaire et nous vous r&#xe9;pondrons dans les plus brefs d&#xe9;lais.</p>
+        <p>Remplissez ce formulaire et nous vous répondrons dans les plus brefs délais.</p>
 
         ${opts.succes ? `
         <div class="msg-ok">
-          <div class="msg-ok-ico">&#x2705;</div>
+          <div class="msg-ok-ico">✅</div>
           <div>
-            <h3>Message envoy&#xe9; avec succ&#xe8;s !</h3>
-            <p>Merci pour votre message. Notre &#xe9;quipe vous r&#xe9;pondra sous 24h ouvr&#xe9;es &#xe0; l&#x27;adresse indiqu&#xe9;e.</p>
+            <h3>Message envoyé avec succès !</h3>
+            <p>Merci pour votre message. Notre équipe vous répondra sous 24h ouvrées à l'adresse indiquée.</p>
           </div>
         </div>` : ''}
 
-        ${opts.erreur ? `<div class="msg-err">&#x26A0;&#xFE0F; ${opts.erreur}</div>` : ''}
+        ${opts.erreur ? `<div class="msg-err">⚠️ ${opts.erreur}</div>` : ''}
 
         <form method="POST" action="/contact" id="contactForm" onsubmit="handleSubmit(this)">
 
           <div style="margin-bottom:20px">
             <label>Sujet de votre demande <span class="req">*</span></label>
             <div class="sujets-grid">
-              <button type="button" class="sujet-btn" onclick="selectSujet('demonstration',this)">&#x1F4BB; Demande de d&#xe9;monstration</button>
-              <button type="button" class="sujet-btn" onclick="selectSujet('abonnement',this)">&#x1F4B3; Question abonnement</button>
-              <button type="button" class="sujet-btn" onclick="selectSujet('technique',this)">&#x2699;&#xFE0F; Support technique</button>
-              <button type="button" class="sujet-btn" onclick="selectSujet('autre',this)">&#x1F4AC; Autre question</button>
+              <button type="button" class="sujet-btn" onclick="selectSujet('demonstration',this)">💻 Demande de démonstration</button>
+              <button type="button" class="sujet-btn" onclick="selectSujet('abonnement',this)">💰 Question abonnement</button>
+              <button type="button" class="sujet-btn" onclick="selectSujet('technique',this)">⚙️ Support technique</button>
+              <button type="button" class="sujet-btn" onclick="selectSujet('autre',this)">💬 Autre question</button>
             </div>
             <input type="hidden" name="sujet" id="sujet" required>
           </div>
 
           <div class="fg2">
             <div class="fg" style="margin-bottom:0">
-              <label>Pr&#xe9;nom <span class="req">*</span></label>
+              <label>Prénom <span class="req">*</span></label>
               <input type="text" name="prenom" placeholder="Aminata" required>
             </div>
             <div class="fg" style="margin-bottom:0">
@@ -264,17 +293,17 @@ footer{background:var(--tx);padding:40px 5% 24px}
 
           <div class="fg2" style="margin-top:0">
             <div class="fg" style="margin-bottom:0">
-              <label>T&#xe9;l&#xe9;phone</label>
+              <label>Téléphone</label>
               <input type="tel" name="telephone" placeholder="+226 XX XX XX XX">
             </div>
             <div class="fg" style="margin-bottom:0">
               <label>Type de structure</label>
               <select name="type_structure">
-                <option value="">S&#xe9;lectionner...</option>
+                <option value="">Sélectionner...</option>
                 <option value="chu">CHU / CHR</option>
-                <option value="clinique">Clinique priv&#xe9;e</option>
-                <option value="cabinet">Cabinet m&#xe9;dical</option>
-                <option value="csps">CSPS / Centre de sant&#xe9;</option>
+                <option value="clinique">Clinique privée</option>
+                <option value="cabinet">Cabinet médical</option>
+                <option value="csps">CSPS / Centre de santé</option>
                 <option value="pharmacie">Pharmacie</option>
                 <option value="labo">Laboratoire</option>
                 <option value="autre">Autre</option>
@@ -289,14 +318,14 @@ footer{background:var(--tx);padding:40px 5% 24px}
 
           <div class="fg">
             <label>Votre message <span class="req">*</span></label>
-            <textarea name="message" placeholder="D&#xe9;crivez votre besoin, vos questions ou la taille de votre &#xe9;quipe..." required maxlength="2000" oninput="updateCount(this)"></textarea>
+            <textarea name="message" placeholder="Décrivez votre besoin, vos questions ou la taille de votre équipe..." required maxlength="2000" oninput="updateCount(this)"></textarea>
             <div class="char-count"><span id="charCount">0</span> / 2000</div>
           </div>
 
           <button type="submit" class="submit-btn" id="submitBtn">
-            <span id="btnText">&#x2709;&#xFE0F; Envoyer le message</span>
+            <span id="btnText">✉️ Envoyer le message</span>
           </button>
-          <p class="note">En envoyant ce formulaire, vous acceptez que nous vous contactions &#xe0; l&#x27;adresse indiqu&#xe9;e. Aucune donn&#xe9;e n&#x27;est partag&#xe9;e avec des tiers.</p>
+          <p class="note">En envoyant ce formulaire, vous acceptez que nous vous contactions à l'adresse indiquée. Aucune donnée n'est partagée avec des tiers.</p>
         </form>
       </div>
     </div>
@@ -305,43 +334,68 @@ footer{background:var(--tx);padding:40px 5% 24px}
 
   <!-- FAQ RAPIDE -->
   <div class="faq-rapide">
-    <h2>Questions fr&#xe9;quentes</h2>
-    <p>Les r&#xe9;ponses aux questions les plus courantes sur SantéBF.</p>
+    <h2>Questions fréquentes</h2>
+    <p>Les réponses aux questions les plus courantes sur SantéBF.</p>
     <div class="faq-grid">
       <div class="faq-item" onclick="toggleFaq(this)">
-        <div class="faq-q">Combien de temps dure l&#x27;essai gratuit ?<span class="faq-ico">+</span></div>
-        <div class="faq-a">L&#x27;essai gratuit dure <strong>6 mois</strong> complets. Toutes les fonctionnalit&#xe9;s de base sont incluses sans limitation pendant cette p&#xe9;riode. Aucune carte bancaire n&#x27;est requise pour commencer.</div>
+        <div class="faq-q">Combien de temps dure l'essai gratuit ?<span class="faq-ico">+</span></div>
+        <div class="faq-a">L'essai gratuit dure <strong>6 mois</strong> complets. Toutes les fonctionnalités de base sont incluses sans limitation pendant cette période. Aucune carte bancaire n'est requise pour commencer.</div>
       </div>
       <div class="faq-item" onclick="toggleFaq(this)">
-        <div class="faq-q">Puis-je avoir une d&#xe9;monstration en direct ?<span class="faq-ico">+</span></div>
-        <div class="faq-a">Oui. Remplissez le formulaire en s&#xe9;lectionnant <strong>&#x201C;Demande de d&#xe9;monstration&#x201D;</strong> et notre &#xe9;quipe vous contactera pour planifier une session adapt&#xe9;e &#xe0; votre structure.</div>
+        <div class="faq-q">Puis-je avoir une démonstration en direct ?<span class="faq-ico">+</span></div>
+        <div class="faq-a">Oui. Remplissez le formulaire en sélectionnant <strong>"Demande de démonstration"</strong> et notre équipe vous contactera pour planifier une session adaptée à votre structure.</div>
       </div>
       <div class="faq-item" onclick="toggleFaq(this)">
-        <div class="faq-q">Combien coute l&#x27;abonnement mensuel ?<span class="faq-ico">+</span></div>
-        <div class="faq-a">Les plans vont de <strong>40 000 FCFA/mois</strong> (Starter) &#xe0; <strong>120 000 FCFA/mois</strong> (Pro). Des remises de 20% sont disponibles pour les engagements annuels et les groupes de structures.</div>
+        <div class="faq-q">Combien coûte l'abonnement mensuel ?<span class="faq-ico">+</span></div>
+        <div class="faq-a">Les plans vont de <strong>40 000 FCFA/mois</strong> (Starter) à <strong>120 000 FCFA/mois</strong> (Pro). Des remises de 20% sont disponibles pour les engagements annuels et les groupes de structures.</div>
       </div>
       <div class="faq-item" onclick="toggleFaq(this)">
         <div class="faq-q">Est-ce que SantéBF fonctionne sans internet ?<span class="faq-ico">+</span></div>
-        <div class="faq-a">SantéBF n&#xe9;cessite une connexion internet, mais est <strong>optimis&#xe9; pour les connexions lentes</strong> (3G/4G). Les pages sont l&#xe9;g&#xe8;res et rapides m&#xea;me avec un r&#xe9;seau limit&#xe9;.</div>
+        <div class="faq-a">SantéBF nécessite une connexion internet, mais est <strong>optimisé pour les connexions lentes</strong> (3G/4G). Les pages sont légères et rapides même avec un réseau limité.</div>
       </div>
       <div class="faq-item" onclick="toggleFaq(this)">
-        <div class="faq-q">Peut-on migrer nos donn&#xe9;es existantes ?<span class="faq-ico">+</span></div>
-        <div class="faq-a">Oui, nous accompagnons la migration de vos donn&#xe9;es existantes (depuis Excel, papier ou autre logiciel). Contactez-nous pour discuter de votre situation sp&#xe9;cifique.</div>
+        <div class="faq-q">Peut-on migrer nos données existantes ?<span class="faq-ico">+</span></div>
+        <div class="faq-a">Oui, nous accompagnons la migration de vos données existantes (depuis Excel, papier ou autre logiciel). Contactez-nous pour discuter de votre situation spécifique.</div>
       </div>
       <div class="faq-item" onclick="toggleFaq(this)">
         <div class="faq-q">Y a-t-il une formation incluse ?<span class="faq-ico">+</span></div>
-        <div class="faq-a">La prise en main est intuitive et conc&#xe7;ue pour &#xea;tre rapide (1 &#xe0; 2 heures). Pour les plans Entreprise, une <strong>formation sur site</strong> est incluse. Des ressources en ligne sont disponibles pour tous les plans.</div>
+        <div class="faq-a">La prise en main est intuitive et conçue pour être rapide (1 à 2 heures). Pour les plans Entreprise, une <strong>formation sur site</strong> est incluse. Des ressources en ligne sont disponibles pour tous les plans.</div>
       </div>
     </div>
   </div>
 
 </div><!-- /wrap -->
 
+<!-- FOOTER (identique à la landing page) -->
 <footer>
+  <div class="fg">
+    <div class="fb">
+      <h2>🏥 SantéBF</h2>
+      <p>Plateforme numérique de gestion de santé pour les structures sanitaires du Burkina Faso.</p>
+    </div>
+    <div class="fc">
+      <h4>Plateforme</h4>
+      <a href="/#modules">Modules</a>
+      <a href="/abonnement/plans">Abonnement</a>
+      <a href="/#plans">Tarifs</a>
+      <a href="/#securite">Sécurité</a>
+      <a href="/#apps">Applications</a>
+    </div>
+    <div class="fc">
+      <h4>Accès</h4>
+      <a href="/auth/login">Connexion</a>
+      <a href="/auth/inscription">Créer un compte</a>
+      <a href="/public/patient/welcome">App Patient</a>
+    </div>
+    <div class="fc">
+      <h4>Support</h4>
+      <a href="/#faq">FAQ</a>
+      <a href="/contact">Nous contacter</a>
+    </div>
+  </div>
   <div class="fbot">
-    <a href="/">&#x1F3E5; SantéBF</a>
-    <span>&#xa9; 2026 SantéBF &#x2014; Tous droits r&#xe9;serv&#xe9;s</span>
-    <a href="/" style="font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;color:rgba(255,255,255,.4)">&#x2190; Retour &#xe0; l&#x27;accueil</a>
+    <span>© 2026 SantéBF — Tous droits réservés</span>
+    <span>Fait avec ❤️ au Burkina Faso</span>
   </div>
 </footer>
 
@@ -368,6 +422,15 @@ function toggleFaq(item) {
   const wasOpen = item.classList.contains('open')
   document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'))
   if (!wasOpen) item.classList.add('open')
+}
+
+function toggleMenu() {
+  const nl = document.querySelector('.nl')
+  if (nl.style.display === 'flex') {
+    nl.style.display = ''
+  } else {
+    nl.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:64px;left:0;right:0;background:white;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:199;gap:16px;'
+  }
 }
 </script>
 </body>
@@ -410,7 +473,7 @@ contactRoutes.post('/', async (c) => {
 
     const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px">
 <div style="background:#1A6B3C;color:white;padding:20px;border-radius:8px 8px 0 0">
-  <h2 style="margin:0">&#x1F3E5; SanteBF &#x2014; Nouveau message de contact</h2>
+  <h2 style="margin:0">🏥 SanteBF — Nouveau message de contact</h2>
 </div>
 <div style="background:#f9f9f9;border:1px solid #e0e0e0;border-top:none;padding:20px;border-radius:0 0 8px 8px">
   <table style="width:100%;border-collapse:collapse">
