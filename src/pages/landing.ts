@@ -187,11 +187,10 @@ footer{background:var(--tx);padding:56px 5% 28px}
   <a href="/" class="nb"><div class="ni">🏥</div>SantéBF</a>
   <div class="nl">
     <a href="#modules">Modules</a>
-    <a href="#securite">Sécurité</a>
+    <a href="#securite">S&#xe9;curit&#xe9;</a>
+    <a href="#plans">Tarifs</a>
     <a href="/abonnement/plans">Abonnement</a>
-      <a href="#plans">Tarifs</a>
     <a href="#faq">FAQ</a>
-    <a href="/abonnement/plans">Abonnement</a>
     <a href="/contact">Contact</a>
     <a href="/auth/login" class="nc">Connexion &#x2192;</a>
   </div>
