@@ -113,27 +113,26 @@ p{color:#5a6a78;font-size:14px;line-height:1.6;margin-bottom:6px;}
 
 export function requirePlan(...plans: string[]) {
   return async (c: Context, next: Next) => {
-    // ═══════════════════════════════════════════════════
-    // ACTUELLEMENT : DÉSACTIVÉ — tout le monde passe
-    // Pour activer : décommenter le bloc ci-dessous
-    // ═══════════════════════════════════════════════════
-    await next()
-    return
-
-    /*
-    // ── ACTIVER ICI QUAND PRÊT ──────────────────────
     const profil = c.get('profil') as any
     if (!profil?.structure_id) { await next(); return }
+
+    // super_admin passe toujours
+    if (profil?.role === 'super_admin') { await next(); return }
 
     const supabase = c.get('supabase') as any
     const { data: struct } = await supabase
       .from('struct_structures')
-      .select('plan_actif, abonnement_expire_at')
+      .select('plan_actif, abonnement_expire_at, est_pilote')
       .eq('id', profil.structure_id)
       .single()
 
+    if (!struct) { await next(); return }
+
+    // Structures pilotes : accès complet
+    if (struct.est_pilote) { await next(); return }
+
     // Vérifier expiration
-    if (struct?.abonnement_expire_at && new Date(struct.abonnement_expire_at) < new Date()) {
+    if (struct.abonnement_expire_at && new Date(struct.abonnement_expire_at) < new Date()) {
       await supabase.from('struct_structures')
         .update({ plan_actif: 'suspendu' })
         .eq('id', profil.structure_id)
@@ -142,17 +141,14 @@ export function requirePlan(...plans: string[]) {
 
     const planActif = struct?.plan_actif ?? 'gratuit'
 
-    // pilote et super_admin passent toujours
+    // Plan pilote : accès complet
     if (planActif === 'pilote') { await next(); return }
-    if ((c.get('profil') as any)?.role === 'super_admin') { await next(); return }
 
     if (!plans.includes(planActif)) {
       return c.html(pagePlanRequis(plans[0]), 402)
     }
 
     await next()
-    // ── FIN BLOC À ACTIVER ───────────────────────────
-    */
   }
 }
 
@@ -194,55 +190,71 @@ p{color:#5a6a78;font-size:14px;line-height:1.6;margin-bottom:6px;}
 
 export function requireIA(fonctionnalite: string) {
   return async (c: Context, next: Next) => {
-    // ═══════════════════════════════════════════════════
-    // ACTUELLEMENT : DÉSACTIVÉ — tout le monde passe
-    // Pour activer : décommenter le bloc ci-dessous
-    // ═══════════════════════════════════════════════════
-    await next()
-    return
-
-    /*
-    // ── ACTIVER ICI QUAND PRÊT ──────────────────────
     const profil   = c.get('profil') as any
     const supabase = c.get('supabase') as any
 
+    // super_admin passe toujours
+    if (profil?.role === 'super_admin') { await next(); return }
+
     if (!profil?.structure_id) { await next(); return }
 
-    const { data: licence } = await supabase
-      .from('struct_licences_ia')
-      .select('est_active, quota_mensuel, quota_utilise')
-      .eq('structure_id', profil.structure_id)
-      .eq('fonctionnalite', fonctionnalite)
+    // Vérifier le plan de la structure pour l'IA
+    const { data: struct } = await supabase
+      .from('struct_structures')
+      .select('plan_actif, est_pilote, abonnement_expire_at')
+      .eq('id', profil.structure_id)
       .single()
 
-    if (!licence?.est_active) {
-      // Retourner JSON si c'est une route API, HTML sinon
+    if (!struct) { await next(); return }
+    if (struct.est_pilote) { await next(); return }
+
+    // Vérifier expiration
+    if (struct.abonnement_expire_at && new Date(struct.abonnement_expire_at) < new Date()) {
+      return c.json({ error: 'Abonnement expire', upgrade: true }, 402)
+    }
+
+    const planActif = struct?.plan_actif ?? 'gratuit'
+
+    // Plans avec IA : standard (limité) et pro (illimité)
+    if (!['standard', 'pro', 'pilote'].includes(planActif)) {
       const accept = c.req.header('Accept') || ''
       if (accept.includes('application/json')) {
-        return c.json({ error: 'Module IA non activé', upgrade: true }, 402)
+        return c.json({ error: 'Module IA non disponible sur votre plan', code: 'PLAN_REQUIRED', upgrade: true }, 402)
       }
       return c.html(pageIANonActivee(fonctionnalite), 402)
     }
 
-    if (licence.quota_mensuel > 0 && licence.quota_utilise >= licence.quota_mensuel) {
-      return c.json({ error: 'Quota IA mensuel atteint', upgrade: true }, 402)
+    // Standard : quota mensuel limité (50 requêtes/mois)
+    if (planActif === 'standard') {
+      const debut_mois = new Date()
+      debut_mois.setDate(1)
+      debut_mois.setHours(0, 0, 0, 0)
+
+      const { count } = await supabase
+        .from('usage_ia_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('structure_id', profil.structure_id)
+        .gte('created_at', debut_mois.toISOString())
+
+      if ((count ?? 0) >= 50) {
+        const accept = c.req.header('Accept') || ''
+        if (accept.includes('application/json')) {
+          return c.json({ error: 'Quota IA mensuel atteint (50 req/mois sur Standard). Passez au plan Pro pour un accès illimité.', upgrade: true }, 402)
+        }
+        return c.html(pageIANonActivee('quota_depasse'), 402)
+      }
     }
 
     // Logger l'utilisation
-    await supabase.from('struct_licences_ia')
-      .update({ quota_utilise: (licence.quota_utilise ?? 0) + 1 })
-      .eq('structure_id', profil.structure_id)
-      .eq('fonctionnalite', fonctionnalite)
-
     await supabase.from('usage_ia_logs').insert({
       structure_id:   profil.structure_id,
       user_id:        profil.id,
       fonctionnalite,
+      modele:         '',
       succes:         true,
-    })
+      tokens_approx:  0,
+    }).catch(() => {})
 
     await next()
-    // ── FIN BLOC À ACTIVER ───────────────────────────
-    */
   }
 }
