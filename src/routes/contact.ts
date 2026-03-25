@@ -5,9 +5,6 @@
  * Routes :
  *   GET  /contact      → Formulaire de contact
  *   POST /contact      → Envoyer le message par email
- *
- * Email destination : contact@santebf.bf
- * Utilise Resend ou Brevo si configuré dans Cloudflare Variables
  */
 
 import { Hono } from 'hono'
@@ -64,7 +61,7 @@ function contactPage(opts: { succes?: boolean; erreur?: string } = {}): string {
 html{scroll-behavior:smooth}
 body{font-family:'Plus Jakarta Sans',sans-serif;color:var(--tx);background:var(--bg);min-height:100vh}
 
-/* NAV */
+/* NAV (copié de landing.ts) */
 nav{background:var(--w);border-bottom:1px solid var(--bd);padding:0 5%;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .nb{display:flex;align-items:center;gap:10px;font-family:'Fraunces',serif;font-size:22px;color:var(--tx);text-decoration:none}
 .ni{width:38px;height:38px;background:var(--v);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px}
@@ -142,7 +139,7 @@ textarea{resize:vertical;min-height:130px;line-height:1.6}
 .faq-a{display:none;margin-top:12px;font-size:14px;color:var(--soft);line-height:1.7}
 .faq-item.open .faq-a{display:block}
 
-/* FOOTER */
+/* FOOTER (copié de landing.ts) */
 footer{background:var(--tx);padding:56px 5% 28px}
 .fg{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;max-width:1100px;margin:0 auto 36px}
 .fb h2{font-family:'Fraunces',serif;font-size:20px;color:#fff;margin-bottom:10px}
@@ -175,7 +172,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
 </head>
 <body>
 
-<!-- NAV (identique à la landing page) -->
+<!-- NAV (copié de landing.ts) -->
 <nav>
   <a href="/" class="nb"><div class="ni">🏥</div>SantéBF</a>
   <div class="nl">
@@ -366,7 +363,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
 
 </div><!-- /wrap -->
 
-<!-- FOOTER (identique à la landing page) -->
+<!-- FOOTER (copié de landing.ts) -->
 <footer>
   <div class="fg">
     <div class="fb">
@@ -482,7 +479,7 @@ contactRoutes.post('/', async (c) => {
     <tr><td style="padding:8px 0;font-weight:bold;color:#374151">Email :</td><td style="padding:8px 0"><a href="mailto:${email}">${email}</a></td></tr>
     <tr><td style="padding:8px 0;font-weight:bold;color:#374151">Telephone :</td><td style="padding:8px 0">${telephone || 'Non renseigne'}</td></tr>
     <tr><td style="padding:8px 0;font-weight:bold;color:#374151">Structure :</td><td style="padding:8px 0">${structure || 'Non renseignee'} ${type_structure ? '(' + type_structure + ')' : ''}</td></tr>
-  </table>
+   </table>
   <hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0">
   <h3 style="color:#374151;margin-bottom:10px">Message :</h3>
   <p style="background:white;border:1px solid #e0e0e0;border-radius:8px;padding:16px;line-height:1.6;white-space:pre-wrap">${message}</p>
