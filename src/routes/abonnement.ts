@@ -47,27 +47,27 @@ const PLANS = [
   {
     id:       'starter',
     nom:      'Starter',
-    prix:     15000,
+    prix:     40000,
     devise:   'XOF',
     periode:  'mois',
-    features: ['Dossiers patients', 'Consultations', 'Ordonnances PDF', 'Pharmacien', 'Caissier', '3 utilisateurs max'],
+    features: ['Dossiers patients illimites', 'Consultations & ordonnances PDF', 'Module pharmacien', 'Notifications email patients & medecins', 'Acces urgence QR code', 'Jusqu'a 7 personnels medicaux'],
   },
   {
     id:       'standard',
     nom:      'Standard',
-    prix:     40000,
+    prix:     90000,
     devise:   'XOF',
     periode:  'mois',
-    features: ['Tout Starter', 'Laboratoire', 'Radiologie', 'Hospitalisations', 'Grossesses', 'IA 100 req/mois', 'SMS 200/mois'],
+    features: ['Tout du Starter', 'Laboratoire & Radiologie', 'Grossesses & CPN', 'Facturation & caisse', 'Assistant IA medical (acces limite)', 'Statistiques avancees', 'Jusqu'a 35 personnels medicaux'],
     populaire: true,
   },
   {
     id:       'pro',
     nom:      'Pro',
-    prix:     80000,
+    prix:     120000,
     devise:   'XOF',
     periode:  'mois',
-    features: ['Tout Standard', 'IA illimitée', 'SMS illimités', 'Support prioritaire', 'Utilisateurs illimités'],
+    features: ['Tout du Standard & Starter', 'Hospitalisations & gestion des lits', 'Facturation avancee & rapports', 'IA medicale illimitee', 'SMS illimites patients & medecins', 'Personnels medicaux illimites', 'Support prioritaire dedie'],
   },
 ]
 
