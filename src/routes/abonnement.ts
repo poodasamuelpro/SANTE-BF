@@ -50,7 +50,7 @@ const PLANS = [
     prix:     40000,
     devise:   'XOF',
     periode:  'mois',
-    features: ['Dossiers patients illimites', 'Consultations & ordonnances PDF', 'Module pharmacien', 'Notifications email patients & medecins', 'Acces urgence QR code', 'Jusqu\'a 7 personnels medicaux'],
+    features: ['Dossiers patients illimites', 'Consultations & ordonnances PDF', 'Module pharmacien', 'Notifications email patients & medecins', 'Acces urgence QR code', 'Jusqu\'a 7 personnels medicaux'], 
   },
   {
     id:       'standard',
