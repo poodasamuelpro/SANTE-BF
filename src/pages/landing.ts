@@ -188,10 +188,12 @@ footer{background:var(--tx);padding:56px 5% 28px}
   <div class="nl">
     <a href="#modules">Modules</a>
     <a href="#securite">Sécurité</a>
-    <a href="#plans">Tarifs</a>
+    <a href="/abonnement/plans">Abonnement</a>
+      <a href="#plans">Tarifs</a>
     <a href="#faq">FAQ</a>
-    <a href="#contact">Contact</a>
-    <a href="/auth/login" class="nc">Connexion →</a>
+    <a href="/abonnement/plans">Abonnement</a>
+    <a href="/contact">Contact</a>
+    <a href="/auth/login" class="nc">Connexion &#x2192;</a>
   </div>
   <button class="mb" onclick="toggleMenu()">☰</button>
 </nav>
@@ -222,13 +224,13 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <h2 class="stitle">Adapté à chaque acteur de santé</h2>
     <p class="ssub">Que vous soyez une clinique privée, un cabinet médical ou un grand hôpital, SantéBF s'adapte à votre structure et à votre équipe.</p>
     <div class="pq-grid">
-      <div class="pq-card"><div class="pq-ico">🏥</div><h3>Hôpitaux & Cliniques</h3><p>Gérez hospitalisations, personnel, lits, finances et statistiques depuis un seul outil accessible partout.</p></div>
-      <div class="pq-card"><div class="pq-ico">👨‍⚕️</div><h3>Médecins & Spécialistes</h3><p>Accédez à l'historique complet de vos patients, rédigez ordonnances et examens, suivez vos consultations.</p></div>
-      <div class="pq-card"><div class="pq-ico">💊</div><h3>Pharmaciens</h3><p>Vérifiez et délivrez les ordonnances par QR code, contrôlez les interactions médicamenteuses en temps réel.</p></div>
-      <div class="pq-card"><div class="pq-ico">🔬</div><h3>Laborantins & Radiologues</h3><p>Recevez les prescriptions, saisissez les résultats et notifiez automatiquement le médecin prescripteur.</p></div>
-      <div class="pq-card"><div class="pq-ico">🤰</div><h3>Sages-femmes</h3><p>Suivez grossesses, CPN et accouchements avec un module entièrement dédié à la santé maternelle.</p></div>
-      <div class="pq-card"><div class="pq-ico">📱</div><h3>Patients</h3><p>Consultez votre dossier, ordonnances et résultats depuis votre téléphone via l'application mobile SantéBF.</p></div>
-    </div>
+      <div class="pq-card"><div class="pq-ico">&#x1F3E5;</div><h3>H&#xf4;pitaux &amp; Cliniques</h3><p>G&#xe9;rez hospitalisations, personnel, lits, finances et statistiques depuis un seul outil accessible partout.</p></div>
+      <div class="pq-card"><div class="pq-ico">&#x1F468;&#x200D;&#x2695;&#xFE0F;</div><h3>M&#xe9;decins &amp; Sp&#xe9;cialistes</h3><p>Acc&#xe9;dez &#xe0; l&#x27;historique complet de vos patients, r&#xe9;digez ordonnances et examens, suivez vos consultations.</p></div>
+      <div class="pq-card"><div class="pq-ico">&#x1F4F1;</div><h3>Patients</h3><p>Consultez votre dossier, ordonnances et r&#xe9;sultats depuis votre t&#xe9;l&#xe9;phone. G&#xe9;rez vos acc&#xe8;s m&#xe9;decins et rendez-vous.</p></div>
+      <div class="pq-card"><div class="pq-ico">&#x1F48A;</div><h3>Pharmaciens</h3><p>V&#xe9;rifiez et d&#xe9;livrez les ordonnances par QR code, contr&#xf4;lez les interactions m&#xe9;dicamenteuses en temps r&#xe9;el.</p></div>
+      <div class="pq-card"><div class="pq-ico">&#x1F52C;</div><h3>Laborantins &amp; Radiologues</h3><p>Recevez les prescriptions, saisissez les r&#xe9;sultats et notifiez automatiquement le m&#xe9;decin prescripteur.</p></div>
+      <div class="pq-card"><div class="pq-ico">&#x1F9EA;</div><h3>CNTS &#x2014; Don de Sang</h3><p>G&#xe9;rez les donneurs volontaires, recherchez des compatibilit&#xe9;s et traitez les demandes urgentes de transfusion.</p></div>
+      <div class="pq-card"><div class="pq-ico">&#x1F930;</div><h3>Sages-femmes &amp; Maternit&#xe9;</h3><p>Suivez grossesses, CPN et accouchements avec un module enti&#xe8;rement d&#xe9;di&#xe9; &#xe0; la sant&#xe9; maternelle et n&#xe9;onatale.</p></div>
   </div>
 </section>
 
@@ -372,12 +374,12 @@ footer{background:var(--tx);padding:56px 5% 28px}
           <div class="mf">Vérification des interactions médicamenteuses</div>
           <div class="mf">Résumé automatique du dossier patient</div>
           <div class="mf">Assistant médical conversationnel</div>
-          <div class="mf">Génération automatique de rapports</div>
-          <div class="mf" style="color:#6b7280;">Disponible selon le plan d'abonnement</div>
-        </div>
-      </div>
-      <div class="mod-visual">🤖</div>
-    </div>
+          <div class="mf">Aide au diagnostic diff&#xe9;rentiel</div>
+          <div class="mf">V&#xe9;rification des interactions m&#xe9;dicamenteuses</div>
+          <div class="mf">R&#xe9;sum&#xe9; automatique du dossier patient</div>
+          <div class="mf">V&#xe9;rification de coh&#xe9;rence des ordonnances</div>
+          <div class="mf">Plusieurs moteurs IA : Claude, Gemini, Grok (xAI)</div>
+          <div class="mf" style="color:#6b7280;">Disponible selon le plan d&#x27;abonnement</div>
   </div>
 </section>
 
@@ -394,6 +396,8 @@ footer{background:var(--tx);padding:56px 5% 28px}
       <div class="av-card"><h3>👥 Multi-rôles</h3><p>Chaque membre de votre équipe a accès uniquement à ce qui le concerne. Médecin, infirmier, pharmacien, caissier — chacun son espace.</p></div>
       <div class="av-card"><h3>🔗 Dossier partagé</h3><p>Un patient vu dans plusieurs structures garde un dossier unique. Plus de duplication, plus de perte d'information entre établissements.</p></div>
       <div class="av-card"><h3>📊 Statistiques temps réel</h3><p>Tableaux de bord avec nombre de consultations, recettes du jour, lits occupés, RDV à venir — toujours à jour.</p></div>
+      <div class="av-card"><h3>&#x1F510; S&#xe9;curit&#xe9; des donn&#xe9;es</h3><p>Acc&#xe8;s strictement contr&#xf4;l&#xe9; par r&#xf4;le et par consentement patient. Aucune donn&#xe9;e m&#xe9;dicale n&#x27;est accessible sans autorisation explicite.</p></div>
+      <div class="av-card"><h3>&#x1F4C4; Dossier unique national</h3><p>Un patient, un dossier. Peu importe la structure visit&#xe9;e, l&#x27;historique m&#xe9;dical complet est disponible &#x2014; avec le consentement du patient.</p></div>
     </div>
   </div>
 </section>
@@ -411,6 +415,8 @@ footer{background:var(--tx);padding:56px 5% 28px}
       <div class="sec-card"><div class="sec-icon">🔑</div><h3>Authentification sécurisée</h3><p>Connexion par email et mot de passe fort obligatoire. À la première connexion, chaque nouveau compte est forcé de changer son mot de passe temporaire.</p></div>
       <div class="sec-card"><div class="sec-icon">🏥</div><h3>Accès par structure</h3><p>Le personnel n'accède qu'aux dossiers des patients de sa structure. Aucun croisement de données entre structures sans consentement explicite.</p></div>
       <div class="sec-card"><div class="sec-icon">🆘</div><h3>Accès d'urgence QR</h3><p>En cas d'urgence médicale, un code QR permet un accès temporaire (24h) aux données vitales du patient — groupe sanguin, allergies, contacts — sans connexion.</p></div>
+      <div class="sec-card"><div class="sec-icon">&#x1F512;</div><h3>Sessions s&#xe9;curis&#xe9;es</h3><p>Chaque session est valid&#xe9;e &#xe0; chaque requ&#xea;te. D&#xe8;s qu&#x27;un compte est d&#xe9;sactiv&#xe9;, l&#x27;acc&#xe8;s est imm&#xe9;diatement coup&#xe9; &#x2014; m&#xea;me en cours de session.</p></div>
+      <div class="sec-card"><div class="sec-icon">&#x1F4CB;</div><h3>Donn&#xe9;es propri&#xe9;t&#xe9; de la structure</h3><p>Les donn&#xe9;es saisies vous appartiennent. Elles ne sont jamais analys&#xe9;es, revendues ou utilis&#xe9;es &#xe0; d&#x27;autres fins que le fonctionnement du service.</p></div>
     </div>
   </div>
 </section>
@@ -433,25 +439,26 @@ footer{background:var(--tx);padding:56px 5% 28px}
           <div class="pl">Agenda &amp; rendez-vous</div>
           <div class="pl">Tableau de bord</div>
           <div class="pl">Acc&#xe8;s web &amp; mobile</div>
+          <div class="pl">Personnel m&#xe9;dical : acc&#xe8;s illimit&#xe9;</div>
         </div>
         <a href="/auth/inscription" class="plan-btn">D&#xe9;marrer gratuitement</a>
-        <p class="plan-note">Sans carte bancaire</p>
+        <p class="plan-note">Sans carte bancaire requise</p>
       </div>
 
       <!-- STARTER -->
       <div class="plan">
         <div class="plan-name">Starter</div>
-        <div class="plan-price">15 000 FCFA</div>
+        <div class="plan-price">40 000 FCFA</div>
         <div class="plan-period">par mois</div>
         <div class="plan-list">
           <div class="pl">Tout du plan Gratuit</div>
-          <div class="pl">Ordonnances num&#xe9;riques PDF</div>
-          <div class="pl">Module pharmacien</div>
-          <div class="pl">Facturation &amp; caisse</div>
-          <div class="pl">Notifications email patients</div>
-          <div class="pl">Jusqu&#x27;&#xe0; 5 utilisateurs</div>
+          <div class="pl">Ordonnances num&#xe9;riques PDF + QR code</div>
+          <div class="pl">Module pharmacien complet</div>
+          <div class="pl">Notifications email patients &amp; m&#xe9;decins</div>
+          <div class="pl">Acc&#xe8;s urgence QR code</div>
+          <div class="pl">Jusqu&#x27;&#xe0; 7 personnels m&#xe9;dicaux</div>
         </div>
-        <a href="#contact" class="plan-btn">Nous contacter</a>
+        <a href="/abonnement/plans" class="plan-btn">S&#x27;abonner</a>
         <p class="plan-note">Id&#xe9;al cabinet ou dispensaire</p>
       </div>
 
@@ -459,36 +466,37 @@ footer{background:var(--tx);padding:56px 5% 28px}
       <div class="plan pop">
         <div class="pop-badge">&#x2B50; Le plus choisi</div>
         <div class="plan-name">Standard</div>
-        <div class="plan-price">40 000 FCFA</div>
+        <div class="plan-price">90 000 FCFA</div>
         <div class="plan-period">par mois</div>
         <div class="plan-list">
           <div class="pl">Tout du Starter</div>
           <div class="pl">Laboratoire &amp; Radiologie</div>
-          <div class="pl">Hospitalisations &amp; lits</div>
           <div class="pl">Grossesses &amp; CPN</div>
-          <div class="pl">Assistant IA m&#xe9;dical</div>
-          <div class="pl">Rappels SMS patients</div>
-          <div class="pl">Utilisateurs illimit&#xe9;s</div>
+          <div class="pl">Facturation &amp; caisse</div>
+          <div class="pl">Assistant IA m&#xe9;dical (acc&#xe8;s limit&#xe9;)</div>
+          <div class="pl">Jusqu&#x27;&#xe0; 35 personnels m&#xe9;dicaux</div>
+          <div class="pl">Statistiques avanc&#xe9;es</div>
         </div>
-        <a href="#contact" class="plan-btn">Nous contacter</a>
-        <p class="plan-note">Id&#xe9;al centre de sant&#xe9; ou clinique</p>
+        <a href="/abonnement/plans" class="plan-btn">S&#x27;abonner</a>
+        <p class="plan-note">Id&#xe9;al pharmacie priv&#xe9;e &amp; centre de sant&#xe9;</p>
       </div>
 
       <!-- PRO -->
       <div class="plan">
         <div class="plan-name">Pro</div>
-        <div class="plan-price">80 000 FCFA</div>
+        <div class="plan-price">120 000 FCFA</div>
         <div class="plan-period">par mois</div>
         <div class="plan-list">
-          <div class="pl">Tout du Standard</div>
-          <div class="pl">IA m&#xe9;dicale avanc&#xe9;e illimit&#xe9;e</div>
-          <div class="pl">SMS illimit&#xe9;s</div>
-          <div class="pl">Don de sang CNTS</div>
-          <div class="pl">Statistiques avanc&#xe9;es</div>
+          <div class="pl">Tout du Standard &amp; Starter</div>
+          <div class="pl">Hospitalisations &amp; gestion des lits</div>
+          <div class="pl">Facturation avanc&#xe9;e &amp; rapports</div>
+          <div class="pl">IA m&#xe9;dicale illimit&#xe9;e</div>
+          <div class="pl">SMS illimit&#xe9;s patients &amp; m&#xe9;decins</div>
+          <div class="pl">Personnels m&#xe9;dicaux illimit&#xe9;s</div>
           <div class="pl">Support prioritaire d&#xe9;di&#xe9;</div>
         </div>
-        <a href="#contact" class="plan-btn">Nous contacter</a>
-        <p class="plan-note">Id&#xe9;al h&#xf4;pital r&#xe9;gional</p>
+        <a href="/abonnement/plans" class="plan-btn">S&#x27;abonner</a>
+        <p class="plan-note">Id&#xe9;al h&#xf4;pital r&#xe9;gional &amp; clinique</p>
       </div>
 
       <!-- ENTERPRISE -->
@@ -503,11 +511,11 @@ footer{background:var(--tx);padding:56px 5% 28px}
           <div class="pl">Int&#xe9;gration syst&#xe8;mes existants</div>
           <div class="pl">Accompagnement d&#xe9;di&#xe9;</div>
         </div>
-        <a href="#contact" class="plan-btn">Demander un devis</a>
+        <a href="/contact" class="plan-btn">Demander un devis</a>
         <p class="plan-note">CHR, CHU, r&#xe9;seaux hospitaliers</p>
       </div>
-    </div>
-    <p style="text-align:center;margin-top:20px;font-size:13px;color:var(--soft);">Remise de 20% pour un engagement annuel. Remise disponible pour plusieurs structures d'un m&#xea;me groupe. Contactez-nous pour un devis personnalis&#xe9;.</p>
+
+    <p style="text-align:center;margin-top:20px;font-size:13px;color:var(--soft);">Remise de 20% pour un engagement annuel. Remise disponible pour plusieurs structures d&#x27;un m&#xea;me groupe.</p>
   </div>
 </section>
 
@@ -525,7 +533,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
         <div class="app-btns">
           <a href="/public/patient/welcome" class="app-btn">🌐 <span><span class="app-btn-label">Accéder via</span>Application Web</span></a>
         </div>
-        <div class="app-url">santebf.bf / espace patient</div>
+        
       </div>
       <div class="app-card">
         <div class="app-ico">🏥</div>
@@ -534,7 +542,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
         <div class="app-btns">
           <a href="/auth/login" class="app-btn">🔑 <span><span class="app-btn-label">Accéder via</span>Connexion Médecin</span></a>
         </div>
-        <div class="app-url">santebf.bf / connexion</div>
+        
       </div>
     </div>
   </div>
@@ -614,7 +622,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <p>Contactez-nous pour une démonstration gratuite ou pour toute question sur SantéBF.</p>
     <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
       <a href="/auth/inscription" class="btn1" style="background:white;color:var(--vf)">🚀 Essai gratuit 6 mois</a>
-      <a href="mailto:contact@santebf.bf" class="btn2" style="background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3)">&#x2709;&#xFE0F; Nous contacter</a>
+      <a href="/contact" class="btn2" style="background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3)">&#x2709;&#xFE0F; Nous contacter</a>
     </div>
   </div>
 </section>
@@ -629,6 +637,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <div class="fc">
       <h4>Plateforme</h4>
       <a href="#modules">Modules</a>
+      <a href="/abonnement/plans">Abonnement</a>
       <a href="#plans">Tarifs</a>
       <a href="#securite">Sécurité</a>
       <a href="#apps">Applications</a>
@@ -642,7 +651,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <div class="fc">
       <h4>Support</h4>
       <a href="#faq">FAQ</a>
-      <a href="mailto:contact@santebf.bf">Nous contacter</a>
+      <a href="/contact">Nous contacter</a>
     </div>
   </div>
   <div class="fbot">
