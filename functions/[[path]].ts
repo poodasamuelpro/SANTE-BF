@@ -1,5 +1,5 @@
 /**
- * functions/[[path]].ts 
+ * functions/[[path]].ts
  * SantéBF — Point d'entrée Cloudflare Pages
  *
  * Corrections :
@@ -40,6 +40,7 @@ import { profilRoutes }                     from '../src/routes/profil'
 import { sangPatientRoutes, cntsRoutes }    from '../src/routes/sang'
 import { iaRoutes }                          from '../src/routes/ia'
 import { contactRoutes }                     from '../src/routes/contact'
+import { politiqueRoutes }                   from '../src/routes/politique-confidentialite'
 
 import { landingPage } from '../src/pages/landing'
 
@@ -120,6 +121,9 @@ app.route('/ia',               iaRoutes)
 
 // Page de contact publique
 app.route('/contact',          contactRoutes)
+
+// Politique de confidentialite
+app.route('/politique-confidentialite', politiqueRoutes)
 
 // Paiements — DÉCOMMENTER quand clé API passerelle prête
 app.route('/webhooks',      webhookRoutes)
