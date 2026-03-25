@@ -1,6 +1,13 @@
 /**
  * src/routes/contact.ts
- * SantéBF — Page de contact publique
+ * Sant&#xe9;BF &#x2014; Page de contact publique
+ *
+ * Routes :
+ *   GET  /contact      &#x2192; Formulaire de contact
+ *   POST /contact      &#x2192; Envoyer le message par email
+ *
+ * Email destination : contact@santebf.bf
+ * Utilise Resend ou Brevo si configur&#xe9; dans Cloudflare Variables
  */
 
 import { Hono } from 'hono'
@@ -14,9 +21,11 @@ type ContactBindings = Bindings & {
 
 export const contactRoutes = new Hono<{ Bindings: ContactBindings }>()
 
-const DEST_EMAIL = 'poodasamuel@gmail.com'
+const DEST_EMAIL = 'sante.bf@gmail.com'
 const FROM_EMAIL = 'noreply@santebf.bf'
-const FROM_NAME  = 'SantéBF Contact'
+const FROM_NAME  = 'Sant&#xe9;BF Contact'
+
+// ── Envoi email ───────────────────────────────────────────
 
 async function sendEmail(env: ContactBindings, to: string, subject: string, html: string): Promise<boolean> {
   if (env.RESEND_API_KEY) {
@@ -37,6 +46,8 @@ async function sendEmail(env: ContactBindings, to: string, subject: string, html
   }
   return false
 }
+
+// ── Page HTML ─────────────────────────────────────────────
 
 function contactPage(opts: { succes?: boolean; erreur?: string } = {}): string {
   return `<!DOCTYPE html>
@@ -61,7 +72,6 @@ nav{background:var(--w);border-bottom:1px solid var(--bd);padding:0 5%;height:64
 .nl a{font-size:14px;color:var(--soft);text-decoration:none;font-weight:500;transition:color .2s}
 .nl a:hover{color:var(--v)}
 .nc{background:var(--v);color:#fff!important;padding:10px 20px;border-radius:9px;font-weight:700!important}
-.mb{display:none;background:none;border:none;font-size:24px;cursor:pointer;color:var(--tx)}
 
 /* HERO CONTACT */
 .hero-c{background:linear-gradient(135deg,var(--vf),var(--v));padding:70px 5% 80px;text-align:center;position:relative;overflow:hidden}
@@ -136,12 +146,9 @@ footer{background:var(--tx);padding:40px 5% 24px}
 .fbot a{color:rgba(255,255,255,.4);text-decoration:none;font-family:'Fraunces',serif;font-size:16px}
 .fbot a:hover{color:white}
 
+.mb{display:none;background:none;border:none;font-size:24px;cursor:pointer;color:var(--tx)}
 @media(max-width:800px){.grid{grid-template-columns:1fr}.info-box{position:static}.fg2{grid-template-columns:1fr}.faq-grid{grid-template-columns:1fr}.sujets-grid{grid-template-columns:1fr}}
 @media(max-width:480px){.wrap{padding:40px 5%}.form-box{padding:24px}.hero-c{padding:50px 5% 70px}}
-@media(max-width:640px){
-  .nl{display:none}
-  .mb{display:block}
-}
 </style>
 </head>
 <body>
@@ -149,13 +156,15 @@ footer{background:var(--tx);padding:40px 5% 24px}
 <nav>
   <a href="/" class="nb"><div class="ni">&#x1F3E5;</div>Sant&#xe9;BF</a>
   <div class="nl">
-    <a href="/">Accueil</a>
     <a href="/#modules">Modules</a>
+    <a href="/#securite">S&#xe9;curit&#xe9;</a>
     <a href="/#plans">Tarifs</a>
     <a href="/abonnement/plans">Abonnement</a>
+    <a href="/#faq">FAQ</a>
+    <a href="/contact" style="color:var(--v);font-weight:700;">Contact</a>
     <a href="/auth/login" class="nc">Connexion &#x2192;</a>
   </div>
-  <button class="mb" onclick="toggleMenu()">☰</button>
+  <button class="mb" onclick="toggleMenu()">&#x2630;</button>
 </nav>
 
 <div class="hero-c">
@@ -179,7 +188,7 @@ footer{background:var(--tx);padding:40px 5% 24px}
           <div class="ci-ico">&#x2709;&#xFE0F;</div>
           <div>
             <div class="ci-label">Email</div>
-            <div class="ci-val">Sante.bf@Gmail.com</div>
+            <div class="ci-val">sante.bf@gmail.com</div>
             <div class="ci-sub">R&#xe9;ponse sous 24h ouvr&#xe9;es</div>
           </div>
         </div>
@@ -212,7 +221,7 @@ footer{background:var(--tx);padding:40px 5% 24px}
       </div>
     </div>
 
-    <!-- COLONNE DROITE — FORMULAIRE (inchangé) -->
+    <!-- COLONNE DROITE — FORMULAIRE -->
     <div>
       <div class="form-box">
         <h2>Envoyer un message</h2>
@@ -334,10 +343,34 @@ footer{background:var(--tx);padding:40px 5% 24px}
 </div><!-- /wrap -->
 
 <footer>
+  <div style="max-width:1100px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:36px;padding-bottom:36px;border-bottom:1px solid rgba(255,255,255,.08)">
+    <div>
+      <div style="font-family:'Fraunces',serif;font-size:20px;color:white;margin-bottom:10px">&#x1F3E5; Sant&#xe9;BF</div>
+      <p style="font-size:13px;color:rgba(255,255,255,.45);line-height:1.7;max-width:260px">Plateforme num&#xe9;rique de gestion de sant&#xe9; pour les structures sanitaires du Burkina Faso.</p>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Plateforme</div>
+      <a href="/#modules" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Modules</a>
+      <a href="/abonnement/plans" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Abonnement</a>
+      <a href="/#plans" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Tarifs</a>
+      <a href="/#securite" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">S&#xe9;curit&#xe9;</a>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Acc&#xe8;s</div>
+      <a href="/auth/login" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Connexion</a>
+      <a href="/auth/inscription" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Cr&#xe9;er un compte</a>
+      <a href="/public/patient/welcome" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">App Patient</a>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Support</div>
+      <a href="/#faq" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">FAQ</a>
+      <a href="/contact" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Nous contacter</a>
+      <a href="/politique-confidentialite" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Confidentialit&#xe9;</a>
+    </div>
+  </div>
   <div class="fbot">
-    <a href="/">&#x1F3E5; SantéBF</a>
-    <span>&#xa9; 2026 SantéBF &#x2014; Tous droits r&#xe9;serv&#xe9;s</span>
-    <a href="/" style="font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;color:rgba(255,255,255,.4)">&#x2190; Retour &#xe0; l&#x27;accueil</a>
+    <span>&#xa9; 2026 Sant&#xe9;BF &#x2014; Tous droits r&#xe9;serv&#xe9;s</span>
+    <span>Fait avec &#x2764;&#xFE0F; au Burkina Faso</span>
   </div>
 </footer>
 
@@ -365,19 +398,12 @@ function toggleFaq(item) {
   document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'))
   if (!wasOpen) item.classList.add('open')
 }
-
-function toggleMenu() {
-  const nl = document.querySelector('.nl')
-  if (nl.style.display === 'flex') {
-    nl.style.display = ''
-  } else {
-    nl.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:64px;left:0;right:0;background:white;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:199;gap:16px;'
-  }
-}
 </script>
 </body>
 </html>`
 }
+
+// ── Routes ────────────────────────────────────────────────
 
 contactRoutes.get('/', (c) => c.html(contactPage()))
 
@@ -422,7 +448,7 @@ contactRoutes.post('/', async (c) => {
     <tr><td style="padding:8px 0;font-weight:bold;color:#374151">Email :</td><td style="padding:8px 0"><a href="mailto:${email}">${email}</a></td></tr>
     <tr><td style="padding:8px 0;font-weight:bold;color:#374151">Telephone :</td><td style="padding:8px 0">${telephone || 'Non renseigne'}</td></tr>
     <tr><td style="padding:8px 0;font-weight:bold;color:#374151">Structure :</td><td style="padding:8px 0">${structure || 'Non renseignee'} ${type_structure ? '(' + type_structure + ')' : ''}</td></tr>
-   </table>
+  </table>
   <hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0">
   <h3 style="color:#374151;margin-bottom:10px">Message :</h3>
   <p style="background:white;border:1px solid #e0e0e0;border-radius:8px;padding:16px;line-height:1.6;white-space:pre-wrap">${message}</p>
