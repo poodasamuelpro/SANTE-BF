@@ -4,7 +4,7 @@
  *
  * 3 modèles supportés — le système utilise automatiquement
  * le premier modèle disponible selon les clés configurées,
- * OU celui choisi par l'admin dans les paramètres. 
+ * OU celui choisi par l'admin dans les paramètres.
  *
  * ┌─────────────────────────────────────────────────────────┐
  * │  MODÈLE 1 — Anthropic Claude Haiku                      │
@@ -51,10 +51,11 @@ import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 
 type IABindings = Bindings & {
-  ANTHROPIC_API_KEY?:  string
-  GEMINI_API_KEY?:     string
+  ANTHROPIC_API_KEY?:   string
+  GROK_API_KEY?:        string   // Grok (xAI) — xai.com/api
+  GEMINI_API_KEY?:      string
   HUGGINGFACE_API_KEY?: string
-  IA_MODEL?:           string   // 'anthropic' | 'gemini' | 'biomistral' | 'auto'
+  IA_MODEL?:            string
 }
 
 export const iaRoutes = new Hono<{ Bindings: IABindings }>()
@@ -66,21 +67,23 @@ iaRoutes.use('/*', requireRole('medecin', 'infirmier', 'sage_femme', 'laborantin
 // SÉLECTION AUTOMATIQUE DU MODÈLE
 // ══════════════════════════════════════════════════════════
 
-type ModeleIA = 'anthropic' | 'gemini' | 'biomistral' | null
+type ModeleIA = 'anthropic' | 'grok' | 'gemini' | 'biomistral' | null
 
 function choisirModele(env: IABindings): ModeleIA {
   // Si l'admin a forcé un modèle
   const force = env.IA_MODEL?.toLowerCase().trim()
 
   if (force && force !== 'auto') {
-    if (force === 'anthropic'  && env.ANTHROPIC_API_KEY)  return 'anthropic'
-    if (force === 'gemini'     && env.GEMINI_API_KEY)     return 'gemini'
+    if (force === 'anthropic'  && env.ANTHROPIC_API_KEY)   return 'anthropic'
+    if (force === 'grok'       && env.GROK_API_KEY)         return 'grok'
+    if (force === 'gemini'     && env.GEMINI_API_KEY)       return 'gemini'
     if (force === 'biomistral' && env.HUGGINGFACE_API_KEY) return 'biomistral'
     // Modèle forcé mais clé absente → fallback automatique
   }
 
   // Mode automatique : priorité par ordre
   if (env.ANTHROPIC_API_KEY)   return 'anthropic'
+  if (env.GROK_API_KEY)        return 'grok'
   if (env.GEMINI_API_KEY)      return 'gemini'
   if (env.HUGGINGFACE_API_KEY) return 'biomistral'
 
@@ -89,6 +92,7 @@ function choisirModele(env: IABindings): ModeleIA {
 
 function nomModele(m: ModeleIA): string {
   if (m === 'anthropic')  return 'Claude Haiku (Anthropic)'
+  if (m === 'grok')       return 'Grok (xAI)'
   if (m === 'gemini')     return 'Gemini Flash-Lite (Google)'
   if (m === 'biomistral') return 'BioMistral-7B (HuggingFace)'
   return 'Aucun'
@@ -122,6 +126,35 @@ async function appelAnthropic(
   if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`)
   const data = await res.json() as any
   return data.content?.[0]?.text || ''
+}
+
+// ── xAI Grok ─────────────────────────────────────────────────
+// Grok specialise medecine et sciences — performant en francais
+// Variable : GROK_API_KEY — obtenir sur xai.com/api
+async function appelGrok(
+  apiKey:  string,
+  systeme: string,
+  message: string
+): Promise<string> {
+  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + apiKey,
+      'Content-Type':  'application/json',
+    },
+    body: JSON.stringify({
+      model:    'grok-3-mini',
+      messages: [
+        { role: 'system', content: systeme },
+        { role: 'user',   content: message },
+      ],
+      max_tokens:  800,
+      temperature: 0.3,
+    }),
+  })
+  if (!res.ok) throw new Error('Grok ' + res.status + ': ' + await res.text())
+  const data = await res.json() as any
+  return data.choices?.[0]?.message?.content || ''
 }
 
 // ── Google Gemini Flash-Lite ───────────────────────────────
@@ -206,6 +239,9 @@ async function appelIA(
   switch (modele) {
     case 'anthropic':
       reponse = await appelAnthropic(env.ANTHROPIC_API_KEY!, systeme, message, maxTokens)
+      break
+    case 'grok':
+      reponse = await appelGrok(env.GROK_API_KEY!, systeme, message)
       break
     case 'gemini':
       reponse = await appelGemini(env.GEMINI_API_KEY!, systeme, message)
@@ -336,6 +372,7 @@ h1{font-family:'DM Serif Display',serif;font-size:24px;margin-bottom:8px}
     <div style="font-size:13px;font-weight:700;margin-bottom:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px">Variables Cloudflare à configurer</div>
     ${[
       ['ANTHROPIC_API_KEY', 'sk-ant-api03-...', 'console.anthropic.com', !!env.ANTHROPIC_API_KEY],
+      ['GROK_API_KEY', 'xai-...', 'xai.com/api', !!env.GROK_API_KEY],
       ['GEMINI_API_KEY', 'AIzaSy...', 'aistudio.google.com', !!env.GEMINI_API_KEY],
       ['HUGGINGFACE_API_KEY', 'hf_...', 'huggingface.co → Settings → Tokens', !!env.HUGGINGFACE_API_KEY],
     ].map(([nom, ex, url, ok]) => `
