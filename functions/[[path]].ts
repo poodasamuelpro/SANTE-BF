@@ -39,13 +39,14 @@ import { exportRoutes }                     from '../src/routes/export'
 import { profilRoutes }                     from '../src/routes/profil'
 import { sangPatientRoutes, cntsRoutes }    from '../src/routes/sang'
 import { iaRoutes }                          from '../src/routes/ia'
+import { contactRoutes }                     from '../src/routes/contact'
 
 import { landingPage } from '../src/pages/landing'
 
 // Paiements + abonnements — fichiers créés, décommenter quand clé API prête
 // CINETPAY: ajouter CINETPAY_SITE_ID + CINETPAY_API_KEY + CINETPAY_SECRET dans Cloudflare Variables
-// import { webhookRoutes }     from '../src/routes/webhooks'
-// import { abonnementRoutes }  from '../src/routes/abonnement'
+import { webhookRoutes }     from '../src/routes/webhooks'
+import { abonnementRoutes }  from '../src/routes/abonnement'
 
 // ─── Type Env ────────────────────────────────────────────
 type Env = {
@@ -57,6 +58,7 @@ type Env = {
     RESEND_API_KEY:       string   // Envoi emails automatiques
     // ── IA médicale ────────────────────────────────────────
     ANTHROPIC_API_KEY?:   string   // IA Claude Haiku — console.anthropic.com
+    GROK_API_KEY?:        string   // IA Grok (xAI) — xai.com/api
     GEMINI_API_KEY?:      string   // IA Gemini Flash-Lite GRATUIT — aistudio.google.com
     HUGGINGFACE_API_KEY?: string   // IA BioMistral médical GRATUIT — huggingface.co
     IA_MODEL?:            string   // Forcer un modèle : 'anthropic'|'gemini'|'biomistral'|'auto'
@@ -113,12 +115,15 @@ app.route('/profil',           profilRoutes)
 app.route('/sang',             sangPatientRoutes)
 app.route('/cnts',             cntsRoutes)
 
-// Module IA médicale — actif, nécessite ANTHROPIC_API_KEY dans Cloudflare Variables
+// Module IA medicale
 app.route('/ia',               iaRoutes)
 
+// Page de contact publique
+app.route('/contact',          contactRoutes)
+
 // Paiements — DÉCOMMENTER quand clé API passerelle prête
-// app.route('/webhooks',      webhookRoutes)
-// app.route('/abonnement',    abonnementRoutes)
+app.route('/webhooks',      webhookRoutes)
+app.route('/abonnement',    abonnementRoutes)
 
 // Racine → Landing page (servie directement, sans redirect)
 app.get('/',        (c) => c.html(landingPage()))
