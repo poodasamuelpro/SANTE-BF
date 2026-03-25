@@ -569,3 +569,4 @@ Vérifie :
     return c.json({ error: err?.message || 'Erreur IA' }, 500)
   }
 })
+ 
