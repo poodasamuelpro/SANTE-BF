@@ -12,9 +12,9 @@
  *
  * PLANS :
  *   gratuit    → accès de base (dossier patient, consultation, RDV)
- *   starter    → + PDF, pharmacien, caissier (15 000 FCFA/mois)
- *   standard   → + IA limitée, SMS 200/mois, stats (40 000 FCFA/mois)
- *   pro        → tout illimité, export CSV (80 000 FCFA/mois)
+ *   starter    → + PDF, pharmacien, notifications (40 000 FCFA/mois)
+ *   standard   → + Labo, grossesse, facturation, IA limitée (90 000 FCFA/mois)
+ *   pro        → + Hospit, IA illimitée, SMS illimités (120 000 FCFA/mois)
  *   enterprise → API publique, SLA, support (sur devis)
  *   pilote     → accès complet gratuit (structures partenaires)
  */
@@ -24,9 +24,9 @@ import type { Context, Next } from 'hono'
 // ─── Page "fonctionnalité non activée" ───────────────────────
 function pagePlanRequis(planMinimum: string): string {
   const prix: Record<string, string> = {
-    starter:    '15 000 FCFA/mois',
-    standard:   '40 000 FCFA/mois',
-    pro:        '80 000 FCFA/mois',
+    starter:    '40 000 FCFA/mois',
+    standard:   '90 000 FCFA/mois',
+    pro:        '120 000 FCFA/mois',
     enterprise: 'Sur devis',
   }
   return `<!DOCTYPE html>
