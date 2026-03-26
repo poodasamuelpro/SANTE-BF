@@ -1,325 +1,131 @@
 /**
  * src/pages/inscription-patient.ts
- * Page publique d'inscription pour les patients
+ * SantéBF — Page d'inscription patient
+ *
+ * Fonctionnalités :
+ *   - Formulaire création compte patient
+ *   - Validation mot de passe
+ *   - Lien politique de confidentialité (obligatoire)
+ *   - Lien retour login
  */
+
 export function inscriptionPatientPage(erreur?: string): string {
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Créer mon compte — SantéBF</title>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --vert:#1A6B3C; --vert-fonce:#134d2c; --vert-clair:#e8f5ee;
-      --bleu:#1565C0; --bleu-clair:#e3f2fd;
-      --or:#C9A84C;
-      --texte:#0f1923; --soft:#5a6a78; --bg:#f4f6f4;
-      --blanc:#fff; --bordure:#e2e8e4;
-      --radius:16px; --radius-sm:10px;
-      --shadow:0 4px 24px rgba(0,0,0,0.08);
-    }
-    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-    body {
-      font-family:'Plus Jakarta Sans',sans-serif;
-      background:var(--bg);
-      min-height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:20px;
-    }
-
-    .card {
-      background:var(--blanc);
-      border-radius:var(--radius);
-      padding:40px;
-      width:100%;
-      max-width:500px;
-      box-shadow:var(--shadow);
-    }
-
-    /* Logo */
-    .brand {
-      display:flex;
-      align-items:center;
-      gap:12px;
-      margin-bottom:28px;
-      text-decoration:none;
-    }
-    .brand-icon {
-      width:44px;height:44px;
-      background:var(--vert);
-      border-radius:12px;
-      display:flex;align-items:center;justify-content:center;
-      font-size:22px;
-      flex-shrink:0;
-    }
-    .brand-name {
-      font-family:'Fraunces',serif;
-      font-size:22px;
-      color:var(--texte);
-    }
-    .brand-sub {
-      font-size:11px;
-      color:var(--soft);
-      letter-spacing:1px;
-      text-transform:uppercase;
-    }
-
-    h1 {
-      font-family:'Fraunces',serif;
-      font-size:24px;
-      color:var(--texte);
-      margin-bottom:6px;
-    }
-    .subtitle {
-      font-size:13.5px;
-      color:var(--soft);
-      margin-bottom:24px;
-      line-height:1.6;
-    }
-
-    /* Étapes */
-    .steps {
-      display:flex;
-      gap:6px;
-      margin-bottom:22px;
-    }
-    .step {
-      flex:1;
-      text-align:center;
-      padding:10px 6px;
-      border-radius:var(--radius-sm);
-      font-size:11px;
-      font-weight:600;
-      line-height:1.4;
-    }
-    .step-active { background:var(--vert); color:white; }
-    .step-inactive { background:#f0f4f0; color:var(--soft); }
-    .step-num { display:block; font-size:17px; margin-bottom:2px; }
-
-    /* Info box */
-    .info-box {
-      background:var(--bleu-clair);
-      border-left:4px solid var(--bleu);
-      border-radius:var(--radius-sm);
-      padding:13px 15px;
-      margin-bottom:22px;
-      font-size:12.5px;
-      color:#1a3a6b;
-      line-height:1.6;
-    }
-    .info-box strong { display:block; margin-bottom:3px; font-size:13px; }
-
-    /* Erreur */
-    .err-box {
-      background:#fce8e8;
-      border-left:4px solid #b71c1c;
-      border-radius:var(--radius-sm);
-      padding:12px 15px;
-      margin-bottom:18px;
-      font-size:13px;
-      color:#b71c1c;
-    }
-
-    /* Formulaire */
-    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    .form-group { margin-bottom:16px; }
-    label {
-      display:block;
-      font-size:12.5px;
-      font-weight:700;
-      color:var(--texte);
-      margin-bottom:6px;
-    }
-    label .req { color:#b71c1c; }
-    input {
-      width:100%;
-      padding:11px 14px;
-      border:1.5px solid var(--bordure);
-      border-radius:var(--radius-sm);
-      font-size:14px;
-      font-family:inherit;
-      color:var(--texte);
-      background:#fafafa;
-      outline:none;
-      transition:border-color .2s,box-shadow .2s,background .2s;
-    }
-    input:focus {
-      border-color:var(--vert);
-      background:white;
-      box-shadow:0 0 0 3px rgba(26,107,60,0.1);
-    }
-    .hint {
-      font-size:11.5px;
-      color:var(--soft);
-      margin-top:5px;
-      line-height:1.4;
-    }
-
-    /* Bouton */
-    .btn-submit {
-      width:100%;
-      background:var(--vert);
-      color:white;
-      border:none;
-      padding:14px;
-      border-radius:var(--radius-sm);
-      font-size:15px;
-      font-weight:700;
-      font-family:inherit;
-      cursor:pointer;
-      transition:background .2s, transform .1s;
-      margin-top:6px;
-    }
-    .btn-submit:hover { background:var(--vert-fonce); transform:translateY(-1px); }
-    .btn-submit:active { transform:translateY(0); }
-
-    /* Séparateur */
-    .sep {
-      display:flex;
-      align-items:center;
-      gap:12px;
-      margin:20px 0;
-      color:var(--soft);
-      font-size:12.5px;
-    }
-    .sep::before,.sep::after {
-      content:'';
-      flex:1;
-      height:1px;
-      background:var(--bordure);
-    }
-
-    .lien-login {
-      text-align:center;
-      font-size:13.5px;
-      color:var(--soft);
-    }
-    .lien-login a {
-      color:var(--vert);
-      font-weight:700;
-      text-decoration:none;
-    }
-    .lien-login a:hover { text-decoration:underline; }
-
-    /* Responsive */
-    @media(max-width:520px){
-      .card { padding:28px 20px; }
-      .form-row { grid-template-columns:1fr; gap:0; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Créez votre compte patient SantéBF pour accéder à votre dossier médical numérique.">
+<meta name="robots" content="noindex, nofollow">
+<title>Cr&#xe9;er un compte patient — SantéBF</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--v:#1A6B3C;--vf:#0d4a2a;--vc:#e8f5ee;--b:#1565C0;--bc:#e3f2fd;--r:#b71c1c;--rc:#fff5f5;--tx:#0f1923;--soft:#5a6a78;--bg:#f0f7f3;--w:#fff;--bd:#e2e8e4}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.page{width:100%;max-width:480px}
+.logo-wrap{text-align:center;margin-bottom:24px}
+.logo-ico{width:56px;height:56px;background:var(--v);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 10px}
+.logo-name{font-family:'Fraunces',serif;font-size:24px;color:var(--tx)}
+.logo-sub{font-size:13px;color:var(--soft);margin-top:3px}
+.box{background:var(--w);border-radius:20px;padding:32px 28px;box-shadow:0 4px 32px rgba(0,0,0,.08);border:1px solid var(--bd)}
+h2{font-family:'Fraunces',serif;font-size:21px;color:var(--tx);margin-bottom:5px}
+.sub{font-size:13px;color:var(--soft);margin-bottom:22px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fg{margin-bottom:16px}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--tx);margin-bottom:5px}
+.req{color:var(--r)}
+input{width:100%;padding:11px 13px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13.5px;border:1.5px solid var(--bd);border-radius:10px;background:#fafcfa;color:var(--tx);outline:none;transition:border-color .2s}
+input:focus{border-color:var(--v);background:var(--w)}
+.pwd-rules{background:#f8faf8;border-radius:9px;padding:12px 14px;font-size:12px;color:var(--soft);margin-top:8px;line-height:1.7}
+.pwd-rules strong{color:var(--tx)}
+.btn{width:100%;padding:13px;background:var(--v);color:white;border:none;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;margin-top:6px}
+.btn:hover{background:var(--vf)}
+.err{background:var(--rc);border:1px solid #ffb3b3;border-radius:9px;padding:11px 13px;font-size:13px;color:var(--r);margin-bottom:14px;display:flex;align-items:flex-start;gap:8px}
+.consentement{display:flex;align-items:flex-start;gap:10px;margin:16px 0;font-size:13px;color:var(--soft);line-height:1.6}
+.consentement input[type=checkbox]{width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--v)}
+.consentement a{color:var(--v);font-weight:600}
+.footer-links{text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--bd)}
+.footer-links a{font-size:12px;color:var(--soft);text-decoration:none;margin:0 6px}
+.footer-links a:hover{color:var(--v)}
+@media(max-width:480px){.box{padding:24px 18px}.grid2{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-  <div class="card">
-
-    <a href="/auth/login" class="brand">
-      <div class="brand-icon">🏥</div>
-      <div>
-        <div class="brand-name">SantéBF</div>
-        <div class="brand-sub">Santé Numérique Burkina</div>
-      </div>
+<div class="page">
+  <div class="logo-wrap">
+    <a href="/" style="text-decoration:none">
+      <div class="logo-ico">&#x1F3E5;</div>
+      <div class="logo-name">Sant&#xe9;BF</div>
+      <div class="logo-sub">Dossier M&#xe9;dical Num&#xe9;rique</div>
     </a>
-
-    <h1>Créer mon compte patient</h1>
-    <p class="subtitle">Rejoignez SantéBF pour accéder à votre dossier médical depuis n'importe quelle structure sanitaire du pays.</p>
-
-    <div class="steps">
-      <div class="step step-active">
-        <span class="step-num">1️⃣</span>
-        Je crée<br>mon compte
-      </div>
-      <div class="step step-inactive">
-        <span class="step-num">2️⃣</span>
-        L'hôpital<br>lie mon dossier
-      </div>
-      <div class="step step-inactive">
-        <span class="step-num">3️⃣</span>
-        J'accède<br>à mes données
-      </div>
-    </div>
-
-    <div class="info-box">
-      <strong>ℹ️ Comment ça marche ?</strong>
-      Après inscription, votre compte est créé mais votre dossier médical est vide.
-      Pour y accéder, présentez-vous à l'accueil d'une structure SantéBF avec votre email —
-      ils lieront votre dossier à votre compte.
-    </div>
-
-    ${erreur ? `<div class="err-box">⚠️ ${erreur}</div>` : ''}
-
-    <form method="POST" action="/auth/inscription" id="formInscription">
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Prénom <span class="req">*</span></label>
-          <input type="text" name="prenom" placeholder="Ex: Aminata" required autocomplete="given-name">
-        </div>
-        <div class="form-group">
-          <label>Nom <span class="req">*</span></label>
-          <input type="text" name="nom" placeholder="Ex: OUATTARA" required autocomplete="family-name">
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Adresse email <span class="req">*</span></label>
-        <input type="email" name="email" placeholder="votreemail@exemple.com" required autocomplete="email">
-      </div>
-
-      <div class="form-group">
-        <label>Téléphone</label>
-        <input type="tel" name="telephone" placeholder="Ex: 70 12 34 56">
-      </div>
-
-      <div class="form-group">
-        <label>Mot de passe <span class="req">*</span></label>
-        <input type="password" name="password" id="pwd" placeholder="Créez un mot de passe sécurisé" required autocomplete="new-password">
-        <div class="hint">8 caractères min · 1 majuscule · 1 chiffre · 1 caractère spécial (#@!$%)</div>
-      </div>
-
-      <div class="form-group">
-        <label>Confirmer le mot de passe <span class="req">*</span></label>
-        <input type="password" name="password_confirm" id="pwd2" placeholder="Répétez votre mot de passe" required>
-        <div class="hint" id="matchHint" style="display:none;color:#b71c1c;">⚠️ Les mots de passe ne correspondent pas</div>
-      </div>
-
-      <button type="submit" class="btn-submit">✅ Créer mon compte</button>
-    </form>
-
-    <div class="sep">ou</div>
-
-    <p class="lien-login">
-      Vous avez déjà un compte ? <a href="/auth/login">Se connecter →</a>
-    </p>
-
   </div>
 
-  <script>
-    // Vérification temps réel que les mots de passe correspondent
-    const pwd  = document.getElementById('pwd')
-    const pwd2 = document.getElementById('pwd2')
-    const hint = document.getElementById('matchHint')
+  <div class="box">
+    <h2>Cr&#xe9;er mon compte patient</h2>
+    <p class="sub">Acc&#xe9;dez &#xe0; votre dossier m&#xe9;dical, vos ordonnances et rendez-vous</p>
 
-    pwd2.addEventListener('input', () => {
-      if (pwd2.value && pwd.value !== pwd2.value) {
-        hint.style.display = 'block'
-        pwd2.style.borderColor = '#b71c1c'
-      } else {
-        hint.style.display = 'none'
-        pwd2.style.borderColor = ''
-      }
-    })
+    ${erreur ? `<div class="err">&#x26A0;&#xFE0F; ${erreur}</div>` : ''}
 
-    document.getElementById('formInscription').addEventListener('submit', (e) => {
-      if (pwd.value !== pwd2.value) {
-        e.preventDefault()
-        hint.style.display = 'block'
-        pwd2.focus()
-      }
-    })
-  </script>
+    <form method="POST" action="/auth/inscription">
+      <div class="grid2">
+        <div class="fg" style="margin-bottom:0">
+          <label>Pr&#xe9;nom <span class="req">*</span></label>
+          <input type="text" name="prenom" placeholder="Aminata" required autocomplete="given-name">
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Nom <span class="req">*</span></label>
+          <input type="text" name="nom" placeholder="TRAORE" required autocomplete="family-name">
+        </div>
+      </div>
+
+      <div class="fg" style="margin-top:14px">
+        <label>Date de naissance</label>
+        <input type="date" name="date_naissance" autocomplete="bday">
+      </div>
+
+      <div class="fg">
+        <label>Adresse email <span class="req">*</span></label>
+        <input type="email" name="email" placeholder="votre@email.com" required autocomplete="email">
+      </div>
+
+      <div class="fg">
+        <label>T&#xe9;l&#xe9;phone</label>
+        <input type="tel" name="telephone" placeholder="+226 XX XX XX XX" autocomplete="tel">
+      </div>
+
+      <div class="fg">
+        <label>Mot de passe <span class="req">*</span></label>
+        <input type="password" name="password" placeholder="••••••••" required autocomplete="new-password" minlength="8">
+        <div class="pwd-rules">
+          Le mot de passe doit contenir au moins : <strong>8 caract&#xe8;res</strong>, <strong>1 majuscule</strong>, <strong>1 chiffre</strong>, <strong>1 caract&#xe8;re sp&#xe9;cial</strong> (#@!$%)
+        </div>
+      </div>
+
+      <div class="fg">
+        <label>Confirmer le mot de passe <span class="req">*</span></label>
+        <input type="password" name="password_confirm" placeholder="••••••••" required autocomplete="new-password">
+      </div>
+
+      <div class="consentement">
+        <input type="checkbox" name="consentement" id="consent" required>
+        <label for="consent" style="margin-bottom:0;font-weight:400">
+          J&#x27;accepte que mes donn&#xe9;es soient trait&#xe9;es conform&#xe9;ment &#xe0; la
+          <a href="/politique-confidentialite" target="_blank">Politique de Confidentialit&#xe9;</a> de Sant&#xe9;BF.
+          Mon dossier m&#xe9;dical ne sera partag&#xe9; qu&#x27;avec mon consentement explicite.
+        </label>
+      </div>
+
+      <button type="submit" class="btn">Cr&#xe9;er mon compte &#x2192;</button>
+    </form>
+  </div>
+
+  <div class="footer-links">
+    <a href="/auth/login">&#x2190; D&#xe9;j&#xe0; un compte ? Se connecter</a>
+    <a href="/politique-confidentialite">Confidentialit&#xe9;</a>
+    <a href="/contact">Contact</a>
+  </div>
+</div>
 </body>
 </html>`
 }
