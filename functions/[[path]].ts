@@ -41,6 +41,7 @@ import { sangPatientRoutes, cntsRoutes }    from '../src/routes/sang'
 import { iaRoutes }                          from '../src/routes/ia'
 import { contactRoutes }                     from '../src/routes/contact'
 import { politiqueRoutes }                   from '../src/routes/politique-confidentialite'
+import { plansRoutes }                       from '../src/routes/plans'
 
 import { landingPage } from '../src/pages/landing'
 
@@ -124,6 +125,9 @@ app.route('/contact',          contactRoutes)
 
 // Politique de confidentialite
 app.route('/politique-confidentialite', politiqueRoutes)
+
+// Page abonnement publique (tarifs + paiement + inscription structure)
+app.route('/plans',                  plansRoutes)
 
 // Paiements — DÉCOMMENTER quand clé API passerelle prête
 app.route('/webhooks',      webhookRoutes)
@@ -217,4 +221,3 @@ function pageErreur(titre: string, message: string, retourUrl: string): string {
 </body>
 </html>`
 }
- 
