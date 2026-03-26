@@ -25,11 +25,14 @@
  *  dashboard admin structure   → compteur ordonnances du jour
  */
 import { Hono } from 'hono'
+import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 
 export const pharmacienRoutes = new Hono<{ Bindings: Bindings }>()
 pharmacienRoutes.use('/*', requireAuth, requireRole('pharmacien'))
+// Pharmacien — Starter minimum
+pharmacienRoutes.use('/*', requirePlan('starter', 'standard', 'pro', 'pilote'))
 
 // ── CSS + layout ──────────────────────────────────────────────
 const OR_PH = '#E65100'   // Orange pharmacien
