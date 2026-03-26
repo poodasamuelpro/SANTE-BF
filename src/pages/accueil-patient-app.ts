@@ -333,6 +333,10 @@ export function accueilPatientAppPage(): string {
     🔒 Connexion sécurisée — <a href="/public/">En savoir plus sur SantéBF</a>
   </div>
 
+
+  <div style="text-align:center;padding:12px;font-size:11px;color:var(--soft)">
+    <a href="/politique-confidentialite" style="color:var(--soft);text-decoration:none">&#x1F512; Politique de confidentialit&#xe9;</a>
+  </div>
 </body>
 </html>`
 }
