@@ -587,4 +587,4 @@ export function alertHTML(type: 'error' | 'success' | 'warning', message: string
   }
   const icons: Record<string, string> = { error: '&#x26A0;', success: '&#x2713;', warning: '&#x26A0;' }
   return `<div style="${styles[type]}border-radius:10px;padding:16px 18px;font-size:14px;font-weight:600;margin:12px 0;">${icons[type]} ${message}</div>`
-}
+} 
