@@ -1,5 +1,5 @@
 /**
- * src/pages/landing.ts 
+ * src/pages/landing.ts
  * SantéBF — Page d'accueil publique
  * Route : GET /public/ via src/routes/public.ts
  */
@@ -10,8 +10,22 @@ export function landingPage(): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="SantéBF — Plateforme numérique de gestion de santé pour les structures sanitaires. Dossiers patients, consultations, ordonnances, examens, hospitalisations.">
-<title>SantéBF — Plateforme de Santé Numérique</title>
+<meta name="description" content="SantéBF — Plateforme numérique de gestion de santé pour les structures sanitaires du Burkina Faso. Dossiers patients, consultations, ordonnances, examens, hospitalisations.">
+<meta name="keywords" content="santé numérique Burkina Faso, dossier médical électronique, DPI Burkina, gestion hôpital, logiciel médical Afrique, consultation médicale numérique, ordonnance PDF, SantéBF">
+<meta name="author" content="SantéBF">
+<meta name="robots" content="index, follow">
+<meta name="language" content="fr">
+<meta property="og:type" content="website">
+<meta property="og:title" content="SantéBF — Plateforme de Santé Numérique du Burkina Faso">
+<meta property="og:description" content="Gérez votre structure de santé numériquement. Dossiers patients, consultations, ordonnances, pharmacie, laboratoire, hospitalisations. Essai gratuit 6 mois.">
+<meta property="og:url" content="https://santebf.bf">
+<meta property="og:locale" content="fr_BF">
+<meta property="og:site_name" content="SantéBF">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="SantéBF — Santé Numérique Burkina Faso">
+<meta name="twitter:description" content="Plateforme de gestion médicale pour hôpitaux, cliniques et cabinets médicaux au Burkina Faso.">
+<link rel="canonical" href="https://santebf.bf">
+<title>SantéBF — Plateforme de Santé Numérique | Burkina Faso</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
 <style>
 :root{--v:#1A6B3C;--vf:#0d4a2a;--vc:#e8f5ee;--vm:#2E8B57;--b:#1565C0;--bc:#e3f2fd;--or:#C9A84C;--oc:#fdf6e3;--r:#b71c1c;--rc:#fff5f5;--tx:#0f1923;--soft:#5a6a78;--bg:#f8faf8;--w:#fff;--bd:#e2e8e4}
