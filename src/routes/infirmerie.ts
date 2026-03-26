@@ -18,6 +18,7 @@
  */
 
 import { Hono } from 'hono'
+import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 import { pageSkeleton, statsGrid, actionCard } from './dashboard'
@@ -25,6 +26,8 @@ import { pageSkeleton, statsGrid, actionCard } from './dashboard'
 export const infirmerieRoutes = new Hono<{ Bindings: Bindings }>()
 
 infirmerieRoutes.use('/*', requireAuth)
+// Vérification plan — Infirmerie — Standard minimum
+infirmerieRoutes.use('/*', requirePlan('standard', 'pro', 'pilote'))
 infirmerieRoutes.use('/*', requireRole('infirmier', 'sage_femme', 'medecin', 'super_admin'))
 
 /**
