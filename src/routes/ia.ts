@@ -48,6 +48,7 @@
 
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
+import { requireIA } from '../middleware/plan'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 
 type IABindings = Bindings & {
@@ -411,7 +412,7 @@ iaRoutes.post('/config', requireRole('super_admin', 'admin_structure'), async (c
 // ══════════════════════════════════════════════════════════
 // POST /ia/diagnostic
 // ══════════════════════════════════════════════════════════
-iaRoutes.post('/diagnostic', async (c) => {
+iaRoutes.post('/diagnostic', requireIA('diagnostic'), async (c) => {
   try {
     const modele = choisirModele(c.env)
     if (!modele) return c.json({ error: 'IA non configurée', code: 'NO_MODEL' }, 503)
@@ -462,7 +463,7 @@ Propose les 3-5 diagnostics différentiels les plus probables avec :
 // ══════════════════════════════════════════════════════════
 // POST /ia/interactions
 // ══════════════════════════════════════════════════════════
-iaRoutes.post('/interactions', async (c) => {
+iaRoutes.post('/interactions', requireIA('interactions'), async (c) => {
   try {
     const modele = choisirModele(c.env)
     if (!modele) return c.json({ error: 'IA non configurée', code: 'NO_MODEL' }, 503)
@@ -495,7 +496,7 @@ Analyse les interactions potentielles :
 // ══════════════════════════════════════════════════════════
 // POST /ia/resume-patient
 // ══════════════════════════════════════════════════════════
-iaRoutes.post('/resume-patient', async (c) => {
+iaRoutes.post('/resume-patient', requireIA('resume-patient'), async (c) => {
   try {
     const modele = choisirModele(c.env)
     if (!modele) return c.json({ error: 'IA non configurée', code: 'NO_MODEL' }, 503)
@@ -528,7 +529,7 @@ Fais un résumé structuré : état général, points d'attention, historique pe
 // ══════════════════════════════════════════════════════════
 // POST /ia/ordonnance-check
 // ══════════════════════════════════════════════════════════
-iaRoutes.post('/ordonnance-check', async (c) => {
+iaRoutes.post('/ordonnance-check', requireIA('ordonnance-check'), async (c) => {
   try {
     const modele = choisirModele(c.env)
     if (!modele) return c.json({ error: 'IA non configurée', code: 'NO_MODEL' }, 503)
@@ -569,4 +570,3 @@ Vérifie :
     return c.json({ error: err?.message || 'Erreur IA' }, 500)
   }
 })
- 
