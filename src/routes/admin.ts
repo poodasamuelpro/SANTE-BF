@@ -1065,4 +1065,3 @@ adminRoutes.get('/logs', async (c) => {
 adminRoutes.get('/cnts',  (c) => c.redirect('/dashboard/cnts', 302))
 adminRoutes.get('/sang',  (c) => c.redirect('/dashboard/cnts', 302))
 adminRoutes.get('/ia',    (c) => c.redirect('/ia/config', 302))
- 
