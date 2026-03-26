@@ -17,6 +17,7 @@
  */
 
 import { Hono } from 'hono'
+import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 import { formatDate, calculerAge } from '../utils/format'
@@ -24,6 +25,8 @@ import { formatDate, calculerAge } from '../utils/format'
 export const vaccinationRoutes = new Hono<{ Bindings: Bindings }>()
 
 vaccinationRoutes.use('/*', requireAuth, requireRole('medecin', 'infirmier', 'sage_femme'))
+// Vaccinations — Starter minimum
+vaccinationRoutes.use('/*', requirePlan('starter', 'standard', 'pro', 'pilote'))
 
 // ── Carnet de vaccination d'un patient ────────────────────────
 vaccinationRoutes.get('/patient/:patient_id', async (c) => {
@@ -303,4 +306,3 @@ vaccinationRoutes.post('/patient/:patient_id/nouvelle', async (c) => {
 
   return c.redirect(`/vaccinations/patient/${patientId}`, 303)
 })
- 
