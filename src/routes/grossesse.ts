@@ -20,6 +20,7 @@
  */
 
 import { Hono } from 'hono'
+import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 import { pageSkeleton, statsGrid, actionCard } from './dashboard'
@@ -27,6 +28,8 @@ import { pageSkeleton, statsGrid, actionCard } from './dashboard'
 export const grossesseRoutes = new Hono<{ Bindings: Bindings }>()
 
 grossesseRoutes.use('/*', requireAuth)
+// Vérification plan — Grossesse & CPN — Standard minimum
+grossesseRoutes.use('/*', requirePlan('standard', 'pro', 'pilote'))
 grossesseRoutes.use('/*', requireRole('sage_femme', 'medecin', 'super_admin'))
 
 /**
