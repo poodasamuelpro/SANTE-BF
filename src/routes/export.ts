@@ -9,6 +9,7 @@
  *  - Page HTML inline (plus de d&#xe9;pendance externe)
  */
 import { Hono } from 'hono'
+import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 import {
@@ -23,6 +24,8 @@ import {
 export const exportRoutes = new Hono<{ Bindings: Bindings }>()
 
 exportRoutes.use('/*', requireAuth)
+// Vérification plan — Export CSV — Pro minimum
+exportRoutes.use('/*', requirePlan('pro', 'pilote'))
 
 // GET /export/patients
 exportRoutes.get('/patients',
