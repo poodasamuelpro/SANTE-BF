@@ -26,6 +26,7 @@
  */
 
 import { Hono } from 'hono'
+import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 import { pageSkeleton, statsGrid, actionCard } from './dashboard'
@@ -33,6 +34,8 @@ import { pageSkeleton, statsGrid, actionCard } from './dashboard'
 export const radiologieRoutes = new Hono<{ Bindings: Bindings }>()
 
 radiologieRoutes.use('/*', requireAuth)
+// Vérification plan — Radiologie — Standard minimum
+radiologieRoutes.use('/*', requirePlan('standard', 'pro', 'pilote'))
 radiologieRoutes.use('/*', requireRole('radiologue', 'medecin', 'super_admin'))
 
 // Affichage court de l'ID
