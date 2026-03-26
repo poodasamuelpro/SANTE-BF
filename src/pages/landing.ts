@@ -651,6 +651,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
       <h4>Support</h4>
       <a href="#faq">FAQ</a>
       <a href="/contact">Nous contacter</a>
+      <a href="/politique-confidentialite">Confidentialit&#xe9;</a>
     </div>
   </div>
   <div class="fbot">
