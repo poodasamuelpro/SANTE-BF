@@ -485,4 +485,3 @@ export function dashboardAdminPage(profil: any, data: {
 </body>
 </html>`
 }
- 
