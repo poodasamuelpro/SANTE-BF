@@ -35,6 +35,7 @@
  */
 
 import { Hono } from 'hono'
+import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 import { pageSkeleton, statsGrid, actionCard } from './dashboard'
@@ -44,6 +45,8 @@ import { genererBulletinExamenPDF } from '../utils/pdf'
 export const laboratoireRoutes = new Hono<{ Bindings: Bindings }>()
 
 laboratoireRoutes.use('/*', requireAuth)
+// Vérification plan — Laboratoire & Radiologie — Standard minimum
+laboratoireRoutes.use('/*', requirePlan('starter', 'standard', 'pro', 'pilote'))
 // CORRECTION 1 : spread args au lieu de tableau
 laboratoireRoutes.use('/*', requireRole('laborantin', 'super_admin'))
 
