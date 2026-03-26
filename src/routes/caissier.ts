@@ -27,11 +27,14 @@
  *  dashboard patient          → /patient/factures mis à jour
  */
 import { Hono } from 'hono'
+import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 
 export const caissierRoutes = new Hono<{ Bindings: Bindings }>()
 caissierRoutes.use('/*', requireAuth, requireRole('caissier', 'admin_structure'))
+// Caissier & Facturation — Standard minimum
+caissierRoutes.use('/*', requirePlan('standard', 'pro', 'pilote'))
 
 // ── Utilitaires ───────────────────────────────────────────────
 const fcfa = (n: number) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA'
