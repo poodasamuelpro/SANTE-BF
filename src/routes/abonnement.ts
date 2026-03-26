@@ -38,8 +38,16 @@ type AbonnementBindings = Bindings & {
 
 export const abonnementRoutes = new Hono<{ Bindings: AbonnementBindings }>()
 
-abonnementRoutes.use('/*', requireAuth)
-abonnementRoutes.use('/*', requireRole('admin_structure', 'super_admin'))
+// /plans est public — visible sans connexion
+// Autres routes nécessitent connexion admin_structure
+abonnementRoutes.use('/actuel', requireAuth)
+abonnementRoutes.use('/actuel', requireRole('admin_structure', 'super_admin'))
+abonnementRoutes.use('/initier', requireAuth)
+abonnementRoutes.use('/initier', requireRole('admin_structure', 'super_admin'))
+abonnementRoutes.use('/retour', requireAuth)
+abonnementRoutes.use('/retour', requireRole('admin_structure', 'super_admin'))
+abonnementRoutes.use('/historique', requireAuth)
+abonnementRoutes.use('/historique', requireRole('admin_structure', 'super_admin'))
 
 // ── Plans disponibles ────────────────────────────────────────
 
@@ -72,18 +80,26 @@ const PLANS = [
 ]
 
 // ── GET /abonnement/plans ─────────────────────────────────────
+// ROUTE PUBLIQUE — accessible sans connexion (page tarifaire)
 abonnementRoutes.get('/plans', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-
-  const { data: structure } = await supabase
-    .from('struct_structures')
-    .select('id, nom, plan_actif, abonnement_expire_at')
-    .eq('id', profil.structure_id)
-    .single()
+  // Tenter de récupérer le profil si connecté (optionnel)
+  let structure: any = null
+  try {
+    const profil = c.get('profil' as never) as AuthProfile | undefined
+    if (profil?.structure_id) {
+      const supabase = c.get('supabase' as never) as any
+      const { data } = await supabase
+        .from('struct_structures')
+        .select('id, nom, plan_actif, abonnement_expire_at')
+        .eq('id', profil.structure_id)
+        .single()
+      structure = data
+    }
+  } catch (_) {
+    // Pas connecté — afficher la page sans info structure
+  }
 
   const paiementActif = !!(c.env.CINETPAY_SITE_ID || c.env.DUNIAPAY_API_KEY)
-
   return c.html(plansPage(structure, paiementActif))
 })
 
