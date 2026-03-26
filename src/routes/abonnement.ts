@@ -58,7 +58,7 @@ const PLANS = [
     prix:     90000,
     devise:   'XOF',
     periode:  'mois',
-    features: ['Tout du Starter', 'Laboratoire & Radiologie', 'Grossesses & CPN', 'Facturation & caisse', 'Assistant IA medical (acces limite)', 'Statistiques avancees', 'Jusqu'a 35 personnels medicaux'],
+    features: ['Tout du Starter', 'Laboratoire & Radiologie', 'Grossesses & CPN', 'Facturation & caisse', 'Assistant IA medical (acces limite)', 'Statistiques avancees', 'Jusqu\'a 35 personnels medicaux'],
     populaire: true,
   },
   {
