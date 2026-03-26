@@ -18,6 +18,7 @@
  * jusqu'à activation manuelle (commenter/décommenter dans functions/[[path]].ts)
  */
 import { Hono } from 'hono'
+import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 
