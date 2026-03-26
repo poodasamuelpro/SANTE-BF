@@ -258,3 +258,4 @@ export function requireIA(fonctionnalite: string) {
     await next()
   }
 }
+ 
