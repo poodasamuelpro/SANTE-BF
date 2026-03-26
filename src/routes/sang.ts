@@ -186,6 +186,8 @@ sangPatientRoutes.post('/consentement', async (c) => {
 // ─────────────────────────────────────────────────────────────
 export const cntsRoutes = new Hono<{ Bindings: Bindings }>()
 cntsRoutes.use('/*', requireAuth, requireRole('cnts_agent', 'super_admin'))
+// CNTS Don de Sang — Pro minimum
+cntsRoutes.use('/*', requirePlan('pro', 'pilote'))
 
 const CNTS_COLOR = '#B71C1C'
 
