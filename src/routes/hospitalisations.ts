@@ -15,6 +15,7 @@
  */
 
 import { Hono } from 'hono'
+import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 import { formatDate } from '../utils/format'
@@ -22,6 +23,8 @@ import { formatDate } from '../utils/format'
 export const hospitalisationRoutes = new Hono<{ Bindings: Bindings }>()
 
 hospitalisationRoutes.use('/*', requireAuth, requireRole('medecin', 'infirmier', 'sage_femme', 'admin_structure'))
+// Hospitalisations & Lits — Pro minimum
+hospitalisationRoutes.use('/*', requirePlan('pro', 'pilote'))
 
 // ── Déduire le statut d'affichage ─────────────────────────────
 // medical_hospitalisations n'a pas de colonne 'statut'
@@ -418,4 +421,3 @@ hospitalisationRoutes.post('/:id/sortir', async (c) => {
   if (error) return c.text('Erreur: ' + error.message, 500)
   return c.redirect('/hospitalisations/' + id, 303)
 })
- 
