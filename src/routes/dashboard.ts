@@ -68,7 +68,8 @@ dashboardRoutes.get('/admin',
         supabase.from('patient_dossiers').select('*', { count: 'exact', head: true }),
         supabase.from('medical_consultations').select('*', { count: 'exact', head: true }),
         supabase.from('medical_ordonnances').select('*', { count: 'exact', head: true }),
-        supabase.from('sang_donneurs').select('*', { count: 'exact', head: true }).catch(() => ({ count: 0 })),
+        
+(async () => { try { return await supabase.from('sang_donneurs').select('*', { count: 'exact', head: true }); } catch { return { count: 0 }; } })(),
         supabase.from('struct_structures')
           .select('id, nom, plan_actif, abonnement_expire_at')
           .gte('abonnement_expire_at', new Date().toISOString())
@@ -587,4 +588,4 @@ export function alertHTML(type: 'error' | 'success' | 'warning', message: string
   }
   const icons: Record<string, string> = { error: '&#x26A0;', success: '&#x2713;', warning: '&#x26A0;' }
   return `<div style="${styles[type]}border-radius:10px;padding:16px 18px;font-size:14px;font-weight:600;margin:12px 0;">${icons[type]} ${message}</div>`
-}
+} 
