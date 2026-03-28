@@ -1,34 +1,22 @@
 /**
  * src/routes/abonnement.ts
- * SantéBF — Module Abonnement & Paiement
+ * SantéBF — Abonnement PRIVÉ (structures connectées uniquement)
  *
- * ÉTAT : Prêt — en attente de la clé API passerelle de paiement
+ * Accessible uniquement aux admin_structure et super_admin connectés
+ * Pour voir/modifier/renouveler l'abonnement de la structure
  *
- * Pour activer :
- *   1. Choisir la passerelle (CinetPay recommandé au Burkina)
- *   2. Créer un compte sur cinetpay.com (gratuit)
- *   3. Récupérer CINETPAY_SITE_ID et CINETPAY_API_KEY
- *   4. Les ajouter dans Cloudflare Pages → Settings → Variables
- *   5. Décommenter l'import dans functions/[[path]].ts
- *
- * Passerelles supportées (commenter/décommenter selon choix) :
- *   - CinetPay  → cinetpay.com     (Burkina, Côte d'Ivoire, Sénégal...)
- *   - DuniaPay  → duniapay.net     (Burkina Faso spécifique)
- *   - Wave      → wave.com         (Mobile Money)
- *
- * Routes :
- *   GET  /abonnement/plans          → Liste des plans disponibles
- *   GET  /abonnement/actuel         → Plan actuel de la structure
- *   POST /abonnement/initier        → Initier un paiement
- *   GET  /abonnement/retour         → Retour après paiement (success/cancel)
- *   GET  /abonnement/historique     → Historique des paiements
+ * Routes (toutes protégées) :
+ *   GET  /abonnement/plans       → Voir plans + choisir renouvellement avec durée
+ *   GET  /abonnement/actuel      → Plan actuel + dates + statut
+ *   POST /abonnement/initier     → Initier paiement renouvellement
+ *   GET  /abonnement/retour      → Retour après paiement
+ *   GET  /abonnement/historique  → Historique complet des paiements
  */
 
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 
-// Étendre Bindings pour les variables paiement
 type AbonnementBindings = Bindings & {
   CINETPAY_SITE_ID?:  string
   CINETPAY_API_KEY?:  string
@@ -38,72 +26,247 @@ type AbonnementBindings = Bindings & {
 
 export const abonnementRoutes = new Hono<{ Bindings: AbonnementBindings }>()
 
-// /plans est public — visible sans connexion
-// Autres routes nécessitent connexion admin_structure
-abonnementRoutes.use('/actuel', requireAuth)
-abonnementRoutes.use('/actuel', requireRole('admin_structure', 'super_admin'))
-abonnementRoutes.use('/initier', requireAuth)
-abonnementRoutes.use('/initier', requireRole('admin_structure', 'super_admin'))
-abonnementRoutes.use('/retour', requireAuth)
-abonnementRoutes.use('/retour', requireRole('admin_structure', 'super_admin'))
-abonnementRoutes.use('/historique', requireAuth)
-abonnementRoutes.use('/historique', requireRole('admin_structure', 'super_admin'))
+// Toutes les routes protégées — admin_structure ou super_admin uniquement
+abonnementRoutes.use('/actuel',      requireAuth)
+abonnementRoutes.use('/actuel',      requireRole('admin_structure', 'super_admin'))
+abonnementRoutes.use('/plans',       requireAuth)
+abonnementRoutes.use('/plans',       requireRole('admin_structure', 'super_admin'))
+abonnementRoutes.use('/initier',     requireAuth)
+abonnementRoutes.use('/initier',     requireRole('admin_structure', 'super_admin'))
+abonnementRoutes.use('/retour',      requireAuth)
+abonnementRoutes.use('/retour',      requireRole('admin_structure', 'super_admin'))
+abonnementRoutes.use('/historique',  requireAuth)
+abonnementRoutes.use('/historique',  requireRole('admin_structure', 'super_admin'))
 
-// ── Plans disponibles ────────────────────────────────────────
+// ── Plans disponibles ─────────────────────────────────────────
 
 const PLANS = [
   {
-    id:       'starter',
-    nom:      'Starter',
-    prix:     40000,
-    devise:   'XOF',
-    periode:  'mois',
-    features: ['Dossiers patients illimites', 'Consultations & ordonnances PDF', 'Module pharmacien', 'Notifications email patients & medecins', 'Acces urgence QR code', 'Jusqu\'a 7 personnels medicaux'],
+    id: 'starter', nom: 'Starter', prix: 40000,
+    couleur: '#1565C0', bg: '#e3f2fd',
+    features: [
+      'Ordonnances PDF + QR code',
+      'Module pharmacien complet',
+      'Vaccinations & carnet vaccinal',
+      'Notifications email patients & médecins',
+      'Laboratoire',
+      "Jusqu\'à 7 personnels médicaux",
+    ],
   },
   {
-    id:       'standard',
-    nom:      'Standard',
-    prix:     90000,
-    devise:   'XOF',
-    periode:  'mois',
-    features: ['Tout du Starter', 'Laboratoire & Radiologie', 'Grossesses & CPN', 'Facturation & caisse', 'Assistant IA medical (acces limite)', 'Statistiques avancees', 'Jusqu\'a 35 personnels medicaux'],
+    id: 'standard', nom: 'Standard', prix: 90000,
+    couleur: '#1A6B3C', bg: '#e8f5ee',
+    features: [
+      'Tout du Starter',
+      'Radiologie & imagerie',
+      'Grossesses & CPN',
+      'Facturation & caisse',
+      'IA médicale (50 req/mois)',
+      'Statistiques avancées',
+      "Jusqu\'à 35 personnels médicaux",
+    ],
     populaire: true,
   },
   {
-    id:       'pro',
-    nom:      'Pro',
-    prix:     120000,
-    devise:   'XOF',
-    periode:  'mois',
-    features: ['Tout du Standard & Starter', 'Hospitalisations & gestion des lits', 'Facturation avancee & rapports', 'IA medicale illimitee', 'SMS illimites patients & medecins', 'Personnels medicaux illimites', 'Support prioritaire dedie'],
+    id: 'pro', nom: 'Pro', prix: 120000,
+    couleur: '#4A148C', bg: '#F3E5F5',
+    features: [
+      'Tout du Standard & Starter',
+      'Hospitalisations & lits',
+      'Facturation avancée & rapports',
+      'IA médicale illimitée',
+      'SMS illimités',
+      'Don de sang (CNTS)',
+      'Export CSV',
+      'Personnels médicaux illimités',
+    ],
   },
 ]
 
-// ── GET /abonnement/plans ─────────────────────────────────────
-// ROUTE PUBLIQUE — accessible sans connexion (page tarifaire)
+// ── Durées disponibles ────────────────────────────────────────
+
+const DUREES = [
+  { id: '1m',  label: '1 mois',  mois: 1,  remise: 0,   badge: '' },
+  { id: '3m',  label: '3 mois',  mois: 3,  remise: 5,   badge: '-5%' },
+  { id: '6m',  label: '6 mois',  mois: 6,  remise: 10,  badge: '-10%' },
+  { id: '1a',  label: '1 an',    mois: 12, remise: 20,  badge: '-20%' },
+]
+
+function prixTotal(prixBase: number, remise: number, mois: number): number {
+  return Math.round(prixBase * mois * (1 - remise / 100))
+}
+
+// ── Layout de base ────────────────────────────────────────────
+
+function layout(titre: string, contenu: string): string {
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>${titre} — Sant&#xe9;BF</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+:root{--v:#1A6B3C;--vf:#0d4a2a;--vc:#e8f5ee;--b:#1565C0;--bc:#e3f2fd;--vio:#4A148C;--vioc:#F3E5F5;--r:#b71c1c;--rc:#fff5f5;--or:#E65100;--oc:#FFF3E0;--tx:#0f1923;--soft:#6B7280;--bg:#f7f8fa;--w:#fff;--bd:#e2e8e4}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);min-height:100vh;color:var(--tx)}
+header{background:var(--v);height:56px;display:flex;align-items:center;padding:0 24px;justify-content:space-between;position:sticky;top:0;z-index:100}
+.hl{font-family:'DM Serif Display',serif;font-size:18px;color:white}
+.hr a{color:rgba(255,255,255,.7);font-size:13px;text-decoration:none}
+.wrap{max-width:1000px;margin:0 auto;padding:32px 20px}
+.card{background:var(--w);border-radius:14px;padding:22px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px;border:1.5px solid var(--bd)}
+.badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.bv{background:var(--vc);color:var(--v)}
+.bb{background:var(--bc);color:var(--b)}
+.br{background:var(--rc);color:var(--r)}
+.bo{background:var(--oc);color:var(--or)}
+.bvio{background:var(--vioc);color:var(--vio)}
+.bg{background:#f3f4f6;color:var(--soft)}
+.warn{background:var(--oc);border-left:4px solid var(--or);border-radius:9px;padding:13px 15px;font-size:13px;color:#7a5500;margin-bottom:16px;line-height:1.7}
+.info{background:var(--bc);border-left:4px solid var(--b);border-radius:9px;padding:13px 15px;font-size:13px;color:#1a3a6b;margin-bottom:16px;line-height:1.7}
+.ok{background:var(--vc);border-left:4px solid var(--v);border-radius:9px;padding:13px 15px;font-size:13px;color:#1a4a2e;margin-bottom:16px;font-weight:600}
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--v);color:white;padding:10px 14px;font-size:12px;text-align:left;font-weight:600}
+tbody tr{border-bottom:1px solid var(--bd)}
+tbody tr:hover{background:#f9fbf9}
+tbody td{padding:10px 14px;font-size:13px}
+.btn{display:inline-block;background:var(--v);color:white;padding:10px 20px;border-radius:9px;font-size:13px;font-weight:700;text-decoration:none;border:none;cursor:pointer;font-family:inherit;transition:all .2s}
+.btn:hover{background:var(--vf)}
+.btn-g{background:#f3f4f6;color:var(--tx);border:1px solid var(--bd)}
+.btn-b{background:var(--b);color:white}
+</style>
+</head>
+<body>
+<header>
+  <div class="hl">&#x1F3E5; Sant&#xe9;BF — Abonnement</div>
+  <div class="hr"><a href="/dashboard/structure">&#x2190; Retour au dashboard</a></div>
+</header>
+<div class="wrap">${contenu}</div>
+<div style="text-align:center;padding:20px;font-size:11px;color:var(--soft)">
+  <a href="/politique-confidentialite" style="color:var(--soft);text-decoration:none">&#x1F512; Politique de confidentialit&#xe9;</a>
+</div>
+</body>
+</html>`
+}
+
+// ══════════════════════════════════════════════════════════════
+// GET /abonnement/plans — Choisir plan + durée (privé)
+// ══════════════════════════════════════════════════════════════
 abonnementRoutes.get('/plans', async (c) => {
-  // Tenter de récupérer le profil si connecté (optionnel)
-  let structure: any = null
-  try {
-    const profil = c.get('profil' as never) as AuthProfile | undefined
-    if (profil?.structure_id) {
-      const supabase = c.get('supabase' as never) as any
-      const { data } = await supabase
-        .from('struct_structures')
-        .select('id, nom, plan_actif, abonnement_expire_at')
-        .eq('id', profil.structure_id)
-        .single()
-      structure = data
-    }
-  } catch (_) {
-    // Pas connecté — afficher la page sans info structure
+  const profil   = c.get('profil' as never) as AuthProfile
+  const supabase = c.get('supabase' as never) as any
+  const ok       = c.req.query('ok') || ''
+  const err      = c.req.query('err') || ''
+
+  const { data: structure } = await supabase
+    .from('struct_structures')
+    .select('id, nom, plan_actif, abonnement_expire_at, est_pilote')
+    .eq('id', profil.structure_id)
+    .single()
+
+  const planActuel   = structure?.plan_actif || 'gratuit'
+  const paiementActif = !!(c.env.CINETPAY_SITE_ID && c.env.CINETPAY_API_KEY)
+  const expire       = structure?.abonnement_expire_at
+    ? new Date(structure.abonnement_expire_at).toLocaleDateString('fr-FR') : '—'
+  const joursRestants = structure?.abonnement_expire_at
+    ? Math.ceil((new Date(structure.abonnement_expire_at).getTime() - Date.now()) / (1000*60*60*24)) : null
+
+  const planCouleurs: Record<string, string> = {
+    gratuit: 'bg', starter: 'bb', standard: 'bv', pro: 'bvio', pilote: 'bv', suspendu: 'br',
   }
 
-  const paiementActif = !!(c.env.CINETPAY_SITE_ID || c.env.DUNIAPAY_API_KEY)
-  return c.html(plansPage(structure, paiementActif))
+  const plansHtml = PLANS.map(plan => {
+    const isActuel = plan.id === planActuel
+    return `
+    <div style="background:var(--w);border:2px solid ${isActuel ? plan.couleur : 'var(--bd)'};border-radius:16px;padding:22px 18px;position:relative">
+      ${isActuel ? `<div style="position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:${plan.couleur};color:white;padding:3px 14px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">Plan actuel</div>` : ''}
+      ${(plan as any).populaire && !isActuel ? `<div style="position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#1A6B3C;color:white;padding:3px 14px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">&#x2B50; Populaire</div>` : ''}
+
+      <div style="background:${plan.bg};border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${plan.couleur};margin-bottom:5px">${plan.nom}</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:26px;font-weight:700;color:${plan.couleur}">${plan.prix.toLocaleString('fr-FR')} <span style="font-size:13px;font-weight:400">FCFA/mois</span></div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        ${plan.features.map(f => `<div style="font-size:12.5px;margin-bottom:6px;display:flex;gap:7px;color:var(--soft)"><span style="color:${plan.couleur};font-weight:700;flex-shrink:0">&#x2713;</span>${f}</div>`).join('')}
+      </div>
+
+      ${isActuel
+        ? `<div style="background:${plan.bg};color:${plan.couleur};text-align:center;padding:10px;border-radius:9px;font-size:13px;font-weight:700">&#x2705; Plan actif</div>`
+        : paiementActif
+          ? `<form method="POST" action="/abonnement/initier">
+               <input type="hidden" name="plan" value="${plan.id}">
+               <div style="margin-bottom:10px">
+                 <div style="font-size:12px;font-weight:600;color:var(--soft);margin-bottom:8px">Dur&#xe9;e d'engagement :</div>
+                 <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+                   ${DUREES.map((d, i) => {
+                     const t = prixTotal(plan.prix, d.remise, d.mois)
+                     return `<label style="border:1.5px solid var(--bd);border-radius:9px;padding:9px 8px;text-align:center;cursor:pointer;font-size:12px;transition:all .2s" onmouseover="this.style.borderColor='${plan.couleur}'" onmouseout="this.style.borderColor='var(--bd)'">
+                       <input type="radio" name="duree" value="${d.id}" ${i === 0 ? 'checked' : ''} style="display:none">
+                       <div style="font-weight:700;margin-bottom:2px">${d.label}</div>
+                       <div style="color:${plan.couleur};font-weight:700;font-size:13px">${t.toLocaleString('fr-FR')}</div>
+                       <div style="font-size:10px;color:var(--soft)">FCFA total</div>
+                       ${d.remise > 0 ? `<div style="background:${plan.couleur};color:white;border-radius:20px;font-size:9px;padding:1px 6px;margin-top:3px;display:inline-block;font-weight:700">${d.badge}</div>` : ''}
+                     </label>`
+                   }).join('')}
+                 </div>
+               </div>
+               <button type="submit" style="width:100%;background:${plan.couleur};color:white;border:none;padding:11px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+                 ${plan.id === planActuel ? 'Renouveler' : 'Passer au ' + plan.nom} &#x2192;
+               </button>
+             </form>`
+          : `<a href="/contact" style="display:block;text-align:center;background:#f3f4f6;color:var(--soft);padding:10px;border-radius:9px;font-size:13px;font-weight:600;text-decoration:none">Nous contacter</a>`
+      }
+    </div>`
+  }).join('')
+
+  const contenu = `
+    ${ok === 'paye' ? '<div class="ok">&#x2705; Paiement valid&#xe9; ! Votre abonnement a &#xe9;t&#xe9; activ&#xe9;.</div>' : ''}
+    ${err ? `<div class="warn">&#x26A0;&#xFE0F; ${decodeURIComponent(err)}</div>` : ''}
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+      <div>
+        <h1 style="font-family:'DM Serif Display',serif;font-size:24px;margin-bottom:4px">&#x1F4B3; Abonnement</h1>
+        <p style="font-size:13px;color:var(--soft)">${structure?.nom || '—'}</p>
+      </div>
+      <a href="/abonnement/historique" class="btn btn-g" style="font-size:12px;padding:8px 14px">&#x1F4CB; Historique</a>
+    </div>
+
+    <div class="card" style="margin-bottom:24px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:12px;color:var(--soft);margin-bottom:4px">Plan actif</div>
+          <span class="badge ${planCouleurs[planActuel] || 'bg'}" style="font-size:14px;padding:5px 14px">${planActuel.toUpperCase()}</span>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;color:var(--soft)">Expiration : <strong>${expire}</strong></div>
+          ${joursRestants !== null ? `<div style="font-size:12px;margin-top:4px;color:${joursRestants < 30 ? 'var(--r)' : 'var(--soft)'};font-weight:${joursRestants < 30 ? '700' : '400'}">${joursRestants > 0 ? joursRestants + ' jours restants' : '&#x26A0;&#xFE0F; Expiré'}</div>` : ''}
+        </div>
+      </div>
+      ${structure?.est_pilote ? '<div class="ok" style="margin-top:12px;margin-bottom:0">&#x1F44D; Votre structure est en mode Pilote — accès complet offert.</div>' : ''}
+    </div>
+
+    ${joursRestants !== null && joursRestants < 30 && joursRestants > 0
+      ? '<div class="warn">&#x23F0; Votre abonnement expire dans moins de 30 jours. Pensez à le renouveler pour &#xe9;viter toute interruption de service.</div>'
+      : ''}
+    ${!paiementActif ? '<div class="info">&#x2139;&#xFE0F; Le paiement en ligne est en cours d\'activation. Contactez notre &#xe9;quipe pour renouveler ou changer de plan.</div>' : ''}
+
+    <h2 style="font-size:16px;font-weight:700;margin-bottom:16px">Choisir ou renouveler</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-bottom:24px">
+      ${plansHtml}
+    </div>
+    <p style="font-size:12px;color:var(--soft);text-align:center">
+      Besoin d'un plan Entreprise ou de conditions sp&#xe9;ciales ?
+      <a href="/contact" style="color:var(--v);font-weight:600">Contactez-nous</a>
+    </p>`
+
+  return c.html(layout('Plans & Abonnements', contenu))
 })
 
-// ── GET /abonnement/actuel ────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// GET /abonnement/actuel
+// ══════════════════════════════════════════════════════════════
 abonnementRoutes.get('/actuel', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
@@ -116,99 +279,138 @@ abonnementRoutes.get('/actuel', async (c) => {
 
   const { data: historique } = await supabase
     .from('struct_abonnements')
-    .select('id, plan, montant, statut, date_debut, date_expiration, mode_paiement, created_at')
+    .select('plan, montant, statut, mode_paiement, date_debut, date_expiration, notes, created_at')
     .eq('structure_id', profil.structure_id)
     .order('created_at', { ascending: false })
     .limit(10)
 
-  return c.html(actuelPage(structure, historique ?? []))
+  const planActuel = structure?.plan_actif || 'gratuit'
+  const expire     = structure?.abonnement_expire_at
+    ? new Date(structure.abonnement_expire_at).toLocaleDateString('fr-FR') : '—'
+
+  const rows = (historique ?? []).map((h: any) => {
+    const bc = h.statut === 'actif' ? 'bv' : h.statut === 'en_attente' ? 'bo' : 'br'
+    return `<tr>
+      <td><span class="badge ${bc}">${h.plan?.toUpperCase()}</span></td>
+      <td style="font-weight:600">${(h.montant || 0).toLocaleString('fr-FR')} FCFA</td>
+      <td><span class="badge ${bc}">${h.statut}</span></td>
+      <td style="font-size:12px">${h.mode_paiement || '—'}</td>
+      <td style="font-size:12px">${h.date_debut ? new Date(h.date_debut).toLocaleDateString('fr-FR') : '—'}</td>
+      <td style="font-size:12px">${h.date_expiration ? new Date(h.date_expiration).toLocaleDateString('fr-FR') : '—'}</td>
+    </tr>`
+  }).join('')
+
+  const contenu = `
+    <h1 style="font-family:'DM Serif Display',serif;font-size:24px;margin-bottom:20px">&#x1F4B3; Mon abonnement</h1>
+    <div class="card">
+      <div style="font-size:12px;color:var(--soft);margin-bottom:8px">Structure : <strong>${structure?.nom || '—'}</strong></div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span class="badge bv" style="font-size:15px;padding:6px 16px">${planActuel.toUpperCase()}</span>
+        <span style="font-size:13px;color:var(--soft)">Expire le : <strong>${expire}</strong></span>
+      </div>
+      <a href="/abonnement/plans" class="btn" style="display:inline-block;margin-top:16px">Modifier / Renouveler &#x2192;</a>
+    </div>
+    <div class="card">
+      <h2 style="font-size:15px;font-weight:700;margin-bottom:14px">Historique des paiements</h2>
+      ${(historique ?? []).length === 0
+        ? '<p style="color:var(--soft);font-style:italic;font-size:13px">Aucun paiement enregistré</p>'
+        : `<div style="overflow-x:auto"><table>
+             <thead><tr><th>Plan</th><th>Montant</th><th>Statut</th><th>Mode</th><th>Début</th><th>Fin</th></tr></thead>
+             <tbody>${rows}</tbody>
+           </table></div>`
+      }
+    </div>`
+
+  return c.html(layout('Mon abonnement', contenu))
 })
 
-// ── POST /abonnement/initier ──────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// POST /abonnement/initier
+// ══════════════════════════════════════════════════════════════
 abonnementRoutes.post('/initier', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
   const body     = await c.req.parseBody()
 
-  const planId = String(body.plan || '').trim()
-  const plan   = PLANS.find(p => p.id === planId)
+  const planId  = String(body.plan  || 'standard')
+  const dureeId = String(body.duree || '1m')
+  const plan    = PLANS.find(p => p.id === planId)
+  const duree   = DUREES.find(d => d.id === dureeId) || DUREES[0]
 
-  if (!plan) {
-    return c.redirect('/abonnement/plans?err=plan_invalide', 303)
+  if (!plan) return c.redirect('/abonnement/plans?err=Plan+invalide', 303)
+
+  const total  = prixTotal(plan.prix, duree.remise, duree.mois)
+  const txId   = `SBFREN-${profil.structure_id?.slice(0,8)}-${Date.now()}`
+  const expire = new Date(Date.now() + duree.mois * 30 * 24 * 60 * 60 * 1000).toISOString()
+  const baseUrl = new URL(c.req.url).origin
+
+  // Enregistrer la transaction en attente
+  await supabase.from('struct_abonnements').insert({
+    structure_id:    profil.structure_id,
+    plan:            planId,
+    montant:         total,
+    statut:          'en_attente',
+    mode_paiement:   'cinetpay',
+    transaction_id:  txId,
+    date_debut:      new Date().toISOString(),
+    date_expiration: expire,
+    notes:           `Renouvellement ${duree.label} — admin ${profil.email || profil.id}`,
+  }).catch(() => {})
+
+  if (!c.env.CINETPAY_SITE_ID || !c.env.CINETPAY_API_KEY) {
+    // Mode manuel — pas de passerelle
+    return c.html(layout('Paiement en attente', `
+      <div class="card" style="text-align:center;padding:40px">
+        <div style="font-size:48px;margin-bottom:16px">&#x1F4E7;</div>
+        <h2 style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:10px">Demande enregistr&#xe9;e</h2>
+        <p style="color:var(--soft);font-size:14px;margin-bottom:8px">Plan : <strong>${plan.nom}</strong> — Dur&#xe9;e : <strong>${duree.label}</strong></p>
+        <p style="color:var(--soft);font-size:14px;margin-bottom:20px">Montant : <strong>${total.toLocaleString('fr-FR')} FCFA</strong></p>
+        <div class="info">Le paiement en ligne n'est pas encore activ&#xe9;. Notre &#xe9;quipe vous contactera pour finaliser.</div>
+        <p style="font-size:12px;color:var(--soft);font-family:monospace;margin-bottom:20px">R&#xe9;f. ${txId}</p>
+        <a href="/abonnement/actuel" class="btn">Retour &#xe0; mon abonnement</a>
+      </div>`))
   }
 
-  // Vérifier si une passerelle est configurée
-  if (!c.env.CINETPAY_SITE_ID && !c.env.DUNIAPAY_API_KEY) {
-    // Pas encore de passerelle — mode manuel
-    return c.html(paiementManuelPage(plan, profil))
-  }
+  // CinetPay actif
+  const { data: struct } = await supabase.from('struct_structures').select('nom').eq('id', profil.structure_id).single()
 
-  // ── CinetPay ─────────────────────────────────────────────
-  if (c.env.CINETPAY_SITE_ID && c.env.CINETPAY_API_KEY) {
-    const transactionId = `SBFABO-${profil.structure_id?.slice(0,8)}-${Date.now()}`
-    const baseUrl       = new URL(c.req.url).origin
-
-    // Enregistrer la transaction en attente
-    await supabase.from('struct_abonnements').insert({
-      structure_id:     profil.structure_id,
-      plan:             planId,
-      montant:          plan.prix,
-      statut:           'en_attente',
-      mode_paiement:    'cinetpay',
-      transaction_id:   transactionId,
-      date_debut:       new Date().toISOString(),
-      date_expiration:  new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  try {
+    const res  = await fetch('https://api-checkout.cinetpay.com/v2/payment', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apikey: c.env.CINETPAY_API_KEY, site_id: c.env.CINETPAY_SITE_ID,
+        transaction_id: txId, amount: total, currency: 'XOF',
+        description: `SantéBF Renouvellement ${plan.nom} — ${duree.label}`,
+        notify_url:  `${baseUrl}/webhooks/cinetpay`,
+        return_url:  `${baseUrl}/abonnement/retour?plan=${planId}&tx=${txId}&duree=${dureeId}`,
+        cancel_url:  `${baseUrl}/abonnement/plans?err=Paiement+annulé`,
+        customer_name: `${profil.prenom} ${profil.nom}`,
+        customer_email: (profil as any).email || '',
+        lang: 'fr',
+      }),
     })
-
-    // Initier le paiement CinetPay
-    const payload = {
-      apikey:           c.env.CINETPAY_API_KEY,
-      site_id:          c.env.CINETPAY_SITE_ID,
-      transaction_id:   transactionId,
-      amount:           plan.prix,
-      currency:         'XOF',
-      description:      `SantéBF — Abonnement ${plan.nom}`,
-      notify_url:       `${baseUrl}/webhooks/cinetpay`,
-      return_url:       `${baseUrl}/abonnement/retour?plan=${planId}&tx=${transactionId}`,
-      cancel_url:       `${baseUrl}/abonnement/plans?cancel=1`,
-      customer_name:    profil.nom,
-      customer_email:   profil.email || '',
-      lang:             'fr',
-    }
-
-    try {
-      const res  = await fetch('https://api-checkout.cinetpay.com/v2/payment', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      })
-      const data = await res.json() as any
-
-      if (data.code === '201' && data.data?.payment_url) {
-        return c.redirect(data.data.payment_url, 302)
-      }
-
-      return c.redirect('/abonnement/plans?err=' + encodeURIComponent(data.message || 'Erreur CinetPay'), 303)
-    } catch (err) {
-      console.error('CinetPay error:', err)
-      return c.redirect('/abonnement/plans?err=erreur_passerelle', 303)
-    }
+    const data = await res.json() as any
+    if (data.code === '201' && data.data?.payment_url) return c.redirect(data.data.payment_url, 302)
+    return c.redirect(`/abonnement/plans?err=${encodeURIComponent(data.message || 'Erreur passerelle')}`, 303)
+  } catch {
+    return c.redirect('/abonnement/plans?err=Erreur+connexion+passerelle', 303)
   }
-
-  return c.redirect('/abonnement/plans?err=passerelle_non_configuree', 303)
 })
 
-// ── GET /abonnement/retour ────────────────────────────────────
-// Appelé par CinetPay après paiement (succès ou annulation)
+// ══════════════════════════════════════════════════════════════
+// GET /abonnement/retour — Après paiement CinetPay
+// ══════════════════════════════════════════════════════════════
 abonnementRoutes.get('/retour', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
+  const planId   = c.req.query('plan')  || ''
+  const txId     = c.req.query('tx')    || ''
+  const dureeId  = c.req.query('duree') || '1m'
 
-  const planId = c.req.query('plan') || ''
-  const txId   = c.req.query('tx')   || ''
+  const duree = DUREES.find(d => d.id === dureeId) || DUREES[0]
+  const plan  = PLANS.find(p => p.id === planId)
 
-  // Vérifier le statut du paiement via webhook (déjà traité)
-  // Si le webhook a validé → abonnement actif
+  // Vérifier si le webhook a déjà traité le paiement
   const { data: abo } = await supabase
     .from('struct_abonnements')
     .select('statut, plan, date_expiration')
@@ -216,13 +418,29 @@ abonnementRoutes.get('/retour', async (c) => {
     .single()
 
   if (abo?.statut === 'actif') {
-    return c.html(retourSuccesPage(abo.plan))
+    return c.redirect('/abonnement/plans?ok=paye', 303)
   }
 
-  return c.html(retourAttenteePage(planId, txId))
+  // Pas encore traité — attente
+  return c.html(layout('Paiement en cours', `
+    <div class="card" style="text-align:center;padding:40px">
+      <div style="font-size:48px;margin-bottom:16px">&#x23F3;</div>
+      <h2 style="font-family:'DM Serif Display',serif;font-size:22px;margin-bottom:10px">Paiement en cours de v&#xe9;rification</h2>
+      <p style="color:var(--soft);font-size:14px;margin-bottom:8px">
+        Plan : <strong>${plan?.nom || planId}</strong> — ${duree.label}
+      </p>
+      <p style="font-size:12px;color:var(--soft);font-family:monospace;margin-bottom:20px">R&#xe9;f. : ${txId}</p>
+      <div class="info">La validation peut prendre quelques instants. Revenez dans 2 minutes.</div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+        <a href="/abonnement/retour?plan=${planId}&tx=${txId}&duree=${dureeId}" class="btn btn-g">&#x1F504; V&#xe9;rifier &#xe0; nouveau</a>
+        <a href="/abonnement/actuel" class="btn">Mon abonnement</a>
+      </div>
+    </div>`))
 })
 
-// ── GET /abonnement/historique ────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// GET /abonnement/historique
+// ══════════════════════════════════════════════════════════════
 abonnementRoutes.get('/historique', async (c) => {
   const profil   = c.get('profil' as never) as AuthProfile
   const supabase = c.get('supabase' as never) as any
@@ -233,203 +451,36 @@ abonnementRoutes.get('/historique', async (c) => {
     .eq('structure_id', profil.structure_id)
     .order('created_at', { ascending: false })
 
-  return c.html(historiquePage(historique ?? []))
-})
-
-// ══════════════════════════════════════════════════════════════
-// PAGES HTML
-// ══════════════════════════════════════════════════════════════
-
-function layout(titre: string, contenu: string): string {
-  return `<!DOCTYPE html><html lang="fr"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${titre} — SantéBF</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
-<style>
-:root{--v:#1A6B3C;--vf:#0d4a2a;--vc:#e8f5ee;--b:#1565C0;--bc:#e3f2fd;--or:#C9A84C;--oc:#fdf6e3;--r:#b71c1c;--rc:#fff5f5;--tx:#0f1923;--soft:#6b7280;--bg:#f7f8fa;--w:#fff;--bd:#e2e8e4}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);min-height:100vh;color:var(--tx)}
-header{background:var(--v);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-.hl{font-family:'DM Serif Display',serif;font-size:18px;color:white}
-.hr a{color:rgba(255,255,255,.7);font-size:13px;text-decoration:none}
-.wrap{max-width:1000px;margin:0 auto;padding:32px 20px}
-.card{background:var(--w);border-radius:14px;padding:24px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:16px;border:1.5px solid var(--bd)}
-h1{font-family:'DM Serif Display',serif;font-size:26px;margin-bottom:8px}
-h2{font-size:18px;font-weight:700;margin-bottom:14px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-bottom:24px}
-.plan{background:var(--w);border:2px solid var(--bd);border-radius:14px;padding:24px;position:relative;transition:all .2s}
-.plan:hover{border-color:var(--v);transform:translateY(-2px)}
-.plan.pop{border-color:var(--v);background:var(--vc)}
-.pop-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--v);color:white;padding:3px 14px;border-radius:20px;font-size:11px;font-weight:700}
-.plan-name{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--soft);margin-bottom:8px}
-.plan-price{font-family:'DM Serif Display',serif;font-size:28px;font-weight:700;margin-bottom:4px}
-.plan-period{font-size:12px;color:var(--soft);margin-bottom:14px}
-.plan-feat{font-size:13px;display:flex;gap:7px;align-items:flex-start;margin-bottom:6px}
-.plan-feat::before{content:'✓';color:var(--v);font-weight:700;flex-shrink:0}
-.btn{display:block;text-align:center;padding:11px;border-radius:9px;font-size:14px;font-weight:700;text-decoration:none;margin-top:16px;cursor:pointer;border:none;font-family:inherit;width:100%}
-.btn-v{background:var(--v);color:white}
-.btn-b{background:var(--b);color:white}
-.btn-gray{background:#f3f4f6;color:#374151}
-.badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
-.bv{background:var(--vc);color:var(--v)}
-.bb{background:var(--bc);color:var(--b)}
-.br{background:var(--rc);color:var(--r)}
-.bo{background:var(--oc);color:#7a5500}
-.info-box{background:var(--bc);border-left:4px solid var(--b);border-radius:9px;padding:14px 16px;font-size:13px;color:#1a3a6b;margin-bottom:16px}
-.warn-box{background:var(--oc);border-left:4px solid var(--or);border-radius:9px;padding:14px 16px;font-size:13px;color:#7a5500;margin-bottom:16px}
-</style></head><body>
-<header>
-  <div class="hl">🏥 SantéBF</div>
-  <div class="hr"><a href="/dashboard/structure">← Retour</a></div>
-</header>
-<div class="wrap">${contenu}</div>
-</body></html>`
-}
-
-function plansPage(structure: any, paiementActif: boolean): string {
-  const planActuel = structure?.plan_actif || 'gratuit'
-  const expire     = structure?.abonnement_expire_at
-    ? new Date(structure.abonnement_expire_at).toLocaleDateString('fr-FR')
-    : '—'
-
-  const plansHtml = PLANS.map(plan => `
-    <div class="plan ${plan.populaire ? 'pop' : ''}">
-      ${plan.populaire ? '<div class="pop-badge">⭐ Le plus populaire</div>' : ''}
-      <div class="plan-name">${plan.nom}</div>
-      <div class="plan-price">${plan.prix.toLocaleString('fr-FR')} FCFA</div>
-      <div class="plan-period">par mois · engagement mensuel</div>
-      ${plan.features.map(f => `<div class="plan-feat">${f}</div>`).join('')}
-      ${paiementActif
-        ? `<form method="POST" action="/abonnement/initier">
-             <input type="hidden" name="plan" value="${plan.id}">
-             <button type="submit" class="btn btn-v">Souscrire →</button>
-           </form>`
-        : `<a href="#contact" class="btn btn-gray" onclick="alert('Contactez-nous pour activer ce plan.')">Nous contacter</a>`
-      }
-    </div>`).join('')
-
-  return layout('Abonnements', `
-    <h1>💳 Plans & Abonnements</h1>
-    <p style="color:var(--soft);margin-bottom:24px">Gérez l'abonnement de votre structure.</p>
-
-    <div class="card">
-      <h2>📊 Plan actuel — <span class="badge bv">${planActuel.toUpperCase()}</span></h2>
-      <p style="font-size:13px;color:var(--soft)">Structure : <strong>${structure?.nom || '—'}</strong></p>
-      <p style="font-size:13px;color:var(--soft);margin-top:4px">Expire le : <strong>${expire}</strong></p>
-      ${!paiementActif ? `<div class="warn-box" style="margin-top:14px">⚠️ Le paiement en ligne n'est pas encore activé. Contactez l'équipe SantéBF pour activer votre abonnement.</div>` : ''}
-    </div>
-
-    <h2 style="margin-bottom:16px">Choisir un plan</h2>
-    <div class="grid">${plansHtml}</div>
-  `)
-}
-
-function actuelPage(structure: any, historique: any[]): string {
-  const rows = historique.map((h: any) => {
+  const rows = (historique ?? []).map((h: any) => {
     const bc = h.statut === 'actif' ? 'bv' : h.statut === 'en_attente' ? 'bo' : 'br'
-    const dt = new Date(h.created_at).toLocaleDateString('fr-FR')
     return `<tr>
-      <td>${h.plan?.toUpperCase()}</td>
-      <td>${h.montant?.toLocaleString('fr-FR')} FCFA</td>
+      <td><span class="badge ${bc}">${h.plan?.toUpperCase()}</span></td>
+      <td style="font-weight:600">${(h.montant || 0).toLocaleString('fr-FR')} FCFA</td>
       <td><span class="badge ${bc}">${h.statut}</span></td>
-      <td>${h.mode_paiement || '—'}</td>
-      <td style="font-size:12px">${dt}</td>
+      <td style="font-size:12px">${h.mode_paiement || '—'}</td>
+      <td style="font-size:12px">${h.notes?.split('—')[0]?.trim() || '—'}</td>
+      <td style="font-size:12px">${h.date_debut ? new Date(h.date_debut).toLocaleDateString('fr-FR') : '—'}</td>
+      <td style="font-size:12px">${h.date_expiration ? new Date(h.date_expiration).toLocaleDateString('fr-FR') : '—'}</td>
     </tr>`
   }).join('')
 
-  return layout('Abonnement actuel', `
-    <h1>💳 Mon abonnement</h1>
-    <div class="card">
-      <h2>Plan actif : <span class="badge bv">${(structure?.plan_actif || 'gratuit').toUpperCase()}</span></h2>
-      <a href="/abonnement/plans" class="btn btn-v" style="margin-top:12px;display:inline-block;width:auto;padding:10px 20px;text-decoration:none">Changer de plan →</a>
+  const contenu = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+      <h1 style="font-family:'DM Serif Display',serif;font-size:24px">&#x1F4CB; Historique des paiements</h1>
+      <a href="/abonnement/plans" class="btn" style="font-size:12px;padding:8px 14px">&#x1F4B3; Renouveler</a>
     </div>
     <div class="card">
-      <h2>Historique des paiements</h2>
-      ${historique.length === 0
-        ? '<p style="color:var(--soft);font-style:italic">Aucun paiement enregistré</p>'
-        : `<table style="width:100%;border-collapse:collapse;font-size:13px">
-             <thead><tr style="background:var(--v);color:white">
-               <th style="padding:8px;text-align:left">Plan</th>
-               <th style="padding:8px;text-align:left">Montant</th>
-               <th style="padding:8px;text-align:left">Statut</th>
-               <th style="padding:8px;text-align:left">Mode</th>
-               <th style="padding:8px;text-align:left">Date</th>
+      ${(historique ?? []).length === 0
+        ? '<p style="color:var(--soft);font-style:italic;font-size:13px">Aucun paiement enregistré</p>'
+        : `<div style="overflow-x:auto"><table>
+             <thead><tr>
+               <th>Plan</th><th>Montant</th><th>Statut</th>
+               <th>Mode</th><th>Dur&#xe9;e</th><th>D&#xe9;but</th><th>Fin</th>
              </tr></thead>
              <tbody>${rows}</tbody>
-           </table>`}
-    </div>
-  `)
-}
+           </table></div>`
+      }
+    </div>`
 
-function paiementManuelPage(plan: typeof PLANS[0], profil: any): string {
-  return layout('Paiement manuel', `
-    <h1>💳 Paiement — ${plan.nom}</h1>
-    <div class="card">
-      <h2>Montant : ${plan.prix.toLocaleString('fr-FR')} FCFA / mois</h2>
-      <div class="info-box" style="margin-top:16px">
-        ℹ️ Le paiement en ligne n'est pas encore activé. Pour activer votre abonnement <strong>${plan.nom}</strong>, contactez l'équipe SantéBF par email ou téléphone en mentionnant :
-        <ul style="margin-top:8px;margin-left:16px">
-          <li>Nom de votre structure</li>
-          <li>Plan souhaité : <strong>${plan.nom}</strong></li>
-          <li>Montant : <strong>${plan.prix.toLocaleString('fr-FR')} FCFA/mois</strong></li>
-        </ul>
-      </div>
-      <a href="/abonnement/plans" class="btn btn-gray" style="display:inline-block;width:auto;padding:10px 20px;margin-top:12px">← Retour aux plans</a>
-    </div>
-  `)
-}
-
-function retourSuccesPage(plan: string): string {
-  return layout('Paiement réussi', `
-    <div class="card" style="text-align:center;padding:48px">
-      <div style="font-size:60px;margin-bottom:16px">✅</div>
-      <h1>Paiement réussi !</h1>
-      <p style="color:var(--soft);margin-top:8px">Votre abonnement <strong>${plan?.toUpperCase()}</strong> est maintenant actif.</p>
-      <a href="/dashboard/structure" class="btn btn-v" style="display:inline-block;width:auto;padding:12px 28px;margin-top:24px;text-decoration:none">Accéder au dashboard →</a>
-    </div>
-  `)
-}
-
-function retourAttenteePage(plan: string, txId: string): string {
-  return layout('Paiement en attente', `
-    <div class="card" style="text-align:center;padding:48px">
-      <div style="font-size:60px;margin-bottom:16px">⏳</div>
-      <h1>Paiement en cours de vérification</h1>
-      <p style="color:var(--soft);margin-top:8px">Votre paiement est en cours de traitement. Revenez dans quelques minutes.</p>
-      <p style="font-size:11px;color:var(--soft);margin-top:8px;font-family:monospace">Ref: ${txId}</p>
-      <a href="/abonnement/actuel" class="btn btn-gray" style="display:inline-block;width:auto;padding:12px 28px;margin-top:24px;text-decoration:none">Vérifier le statut</a>
-    </div>
-  `)
-}
-
-function historiquePage(historique: any[]): string {
-  const rows = historique.map((h: any) => {
-    const bc = h.statut === 'actif' ? 'bv' : h.statut === 'en_attente' ? 'bo' : 'br'
-    const dt = new Date(h.created_at).toLocaleDateString('fr-FR')
-    return `<tr style="border-bottom:1px solid var(--bd)">
-      <td style="padding:10px">${h.plan?.toUpperCase()}</td>
-      <td style="padding:10px">${(h.montant||0).toLocaleString('fr-FR')} FCFA</td>
-      <td style="padding:10px"><span class="badge ${bc}">${h.statut}</span></td>
-      <td style="padding:10px">${h.mode_paiement||'—'}</td>
-      <td style="padding:10px;font-size:12px">${dt}</td>
-    </tr>`
-  }).join('')
-
-  return layout('Historique paiements', `
-    <h1>📋 Historique des paiements</h1>
-    <div class="card">
-      ${historique.length === 0
-        ? '<p style="color:var(--soft);font-style:italic">Aucun paiement</p>'
-        : `<table style="width:100%;border-collapse:collapse;font-size:13px">
-             <thead><tr style="background:var(--v);color:white">
-               <th style="padding:10px;text-align:left">Plan</th>
-               <th style="padding:10px;text-align:left">Montant</th>
-               <th style="padding:10px;text-align:left">Statut</th>
-               <th style="padding:10px;text-align:left">Mode</th>
-               <th style="padding:10px;text-align:left">Date</th>
-             </tr></thead>
-             <tbody>${rows}</tbody>
-           </table>`}
-    </div>
-  `)
-}
+  return c.html(layout('Historique paiements', contenu))
+})
