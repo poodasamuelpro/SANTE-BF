@@ -203,7 +203,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <a href="#modules">Modules</a>
     <a href="#securite">S&#xe9;curit&#xe9;</a>
     <a href="#plans">Tarifs</a>
-    <a href="/abonnement/plans">Abonnement</a>
+    <a href="/plans">Abonnement</a>
     <a href="#faq">FAQ</a>
     <a href="/contact">Contact</a>
     <a href="/auth/login" class="nc">Connexion &#x2192;</a>
@@ -218,8 +218,13 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <h1>Gérez votre structure de santé<br><em>simplement, efficacement</em></h1>
     <p class="hsub">SantéBF connecte médecins, infirmiers, pharmaciens, laborantins et patients dans une seule plateforme sécurisée. Zéro papier, zéro perte de dossier.</p>
     <div class="hbtns">
-      <a href="/auth/inscription" class="btn1">🚀 Essai gratuit 6 mois</a>
-      <a href="/auth/login" class="btn2">Se connecter →</a>
+      <a href="/plans" class="btn1">&#x1F3E5; Voir les tarifs &amp; S&#x27;abonner</a>
+      <a href="/auth/login" class="btn2">Se connecter &#x2192;</a>
+    </div>
+    <div style="margin-top:-40px;margin-bottom:52px;position:relative;z-index:1">
+      <a href="/auth/inscription" style="font-size:13px;color:rgba(255,255,255,.7);text-decoration:none">
+        &#x1F464; Patient ? Cr&#xe9;ez votre compte gratuitement &#x2192;
+      </a>
     </div>
     <div class="hstats">
       <div class="hs"><strong>12+</strong><span>Modules intégrés</span></div>
@@ -471,7 +476,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
           <div class="pl">Acc&#xe8;s urgence QR code</div>
           <div class="pl">Jusqu&#x27;&#xe0; 7 personnels m&#xe9;dicaux</div>
         </div>
-        <a href="/abonnement/plans" class="plan-btn">S&#x27;abonner</a>
+        <a href="/plans" class="plan-btn">S&#x27;abonner</a>
         <p class="plan-note">Id&#xe9;al cabinet ou dispensaire</p>
       </div>
 
@@ -490,7 +495,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
           <div class="pl">Jusqu&#x27;&#xe0; 35 personnels m&#xe9;dicaux</div>
           <div class="pl">Statistiques avanc&#xe9;es</div>
         </div>
-        <a href="/abonnement/plans" class="plan-btn">S&#x27;abonner</a>
+        <a href="/plans" class="plan-btn">S&#x27;abonner</a>
         <p class="plan-note">Id&#xe9;al pharmacie priv&#xe9;e &amp; centre de sant&#xe9;</p>
       </div>
 
@@ -508,7 +513,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
           <div class="pl">Personnels m&#xe9;dicaux illimit&#xe9;s</div>
           <div class="pl">Support prioritaire d&#xe9;di&#xe9;</div>
         </div>
-        <a href="/abonnement/plans" class="plan-btn">S&#x27;abonner</a>
+        <a href="/plans" class="plan-btn">S&#x27;abonner</a>
         <p class="plan-note">Id&#xe9;al h&#xf4;pital r&#xe9;gional &amp; clinique</p>
       </div>
 
@@ -650,7 +655,7 @@ footer{background:var(--tx);padding:56px 5% 28px}
     <div class="fc">
       <h4>Plateforme</h4>
       <a href="#modules">Modules</a>
-      <a href="/abonnement/plans">Abonnement</a>
+      <a href="/plans">Abonnement</a>
       <a href="#plans">Tarifs</a>
       <a href="#securite">Sécurité</a>
       <a href="#apps">Applications</a>
