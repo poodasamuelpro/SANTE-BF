@@ -1,202 +1,304 @@
-// src/pages/inscription-structure.ts
+/**
+ * src/pages/inscription-structure.ts
+ * SantéBF — Page de création de compte structure
+ *
+ * Affichée APRÈS validation du paiement (depuis plans.ts)
+ * Signature : inscriptionStructurePage(opts)
+ */
 
-export function inscriptionStructurePage(
-  data: {
-    structure_nom: string;
-    structure_type: string;
-    ville: string;
-    prenom: string;
-    nom: string;
-    email: string;
-    telephone: string;
-    plan: string;
-  },
-  tx: string,
-  erreur?: string
-): string {
-  function esc(s: string): string {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;').replace(/'/g,'&#x27;');
-  }
+export function inscriptionStructurePage(opts: {
+  tx:        string
+  planNom:   string
+  planId:    string
+  planBg:    string
+  planColor: string
+  prenom?:   string
+  nom?:      string
+  email?:    string
+  telephone?: string
+  structure_nom?:  string
+  structure_type?: string
+  ville?:    string
+  erreur?:   string
+  csrf:      string
+}): string {
+  const {
+    tx, planNom, planId, planBg, planColor,
+    prenom = '', nom = '', email = '', telephone = '',
+    structure_nom = '', structure_type = '', ville = '',
+    erreur = '', csrf,
+  } = opts
+
+  const typeOptions = [
+    ['chu', 'CHU — Centre Hospitalier Universitaire'],
+    ['chr', 'CHR — Centre Hospitalier Régional'],
+    ['chd', 'CHD — Centre Hospitalier de District'],
+    ['clinique', 'Clinique privée'],
+    ['cabinet', 'Cabinet médical'],
+    ['csps', 'CSPS — Centre de Santé et Promotion Sociale'],
+    ['cma', 'CMA — Centre Médical avec Antène Chirurgicale'],
+    ['pharmacie', 'Pharmacie'],
+    ['laboratoire', 'Laboratoire d\'analyses'],
+    ['cnts', 'CNTS — Centre de Transfusion Sanguine'],
+    ['maternite', 'Maternité'],
+    ['autre', 'Autre'],
+  ].map(([v, l]) => `<option value="${v}" ${structure_type === v ? 'selected' : ''}>${l}</option>`).join('')
+
+  const regions = [
+    'Boucle du Mouhoun','Cascades','Centre','Centre-Est',
+    'Centre-Nord','Centre-Ouest','Centre-Sud','Est',
+    'Hauts-Bassins','Nord','Plateau Central','Sahel','Sud-Ouest',
+  ].map(r => `<option value="${r}">${r}</option>`).join('')
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Inscription de votre structure — SantéBF</title>
+<meta name="robots" content="noindex,nofollow">
+<title>Créer votre compte structure — SantéBF</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
 <style>
-:root{--v:#1A6B3C;--vf:#0d4a2a;--vc:#e8f5ee;--b:#1565C0;--bc:#e3f2fd;--vio:#4A148C;--vioc:#F3E5F5;--r:#b71c1c;--rc:#fff5f5;--or:#C9A84C;--oc:#fdf6e3;--tx:#0f1923;--soft:#5a6a78;--bg:#f8faf8;--w:#fff;--bd:#e2e8e4}
+:root{--v:#1A6B3C;--vf:#0d4a2a;--vc:#e8f5ee;--r:#b71c1c;--rc:#fff5f5;--or:#E65100;--oc:#FFF3E0;--tx:#0f1923;--soft:#5a6a78;--bg:#f8faf8;--w:#fff;--bd:#e2e8e4}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{font-family:'Plus Jakarta Sans',sans-serif;color:var(--tx);background:var(--bg);min-height:100vh}
-nav{background:var(--w);border-bottom:1px solid var(--bd);padding:0 5%;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.05)}
-.nb{display:flex;align-items:center;gap:10px;font-family:'Fraunces',serif;font-size:22px;color:var(--tx);text-decoration:none}
-.ni{width:38px;height:38px;background:var(--v);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px}
-.nl{display:flex;align-items:center;gap:20px}
-.nl a{font-size:14px;color:var(--soft);text-decoration:none;font-weight:500;transition:color .2s}
-.nl a:hover{color:var(--v)}
-.nc{background:var(--v);color:#fff!important;padding:10px 20px;border-radius:9px;font-weight:700!important}
-.mb{display:none;background:none;border:none;font-size:24px;cursor:pointer;color:var(--tx)}
-footer{background:var(--tx);padding:40px 5% 24px;margin-top:0}
-@media(max-width:640px){.nl{display:none}.mb{display:block}}
-.wrap{max-width:720px;margin:0 auto;padding:48px 5%}
-.card{background:var(--w);border-radius:24px;padding:40px 32px;box-shadow:0 4px 32px rgba(0,0,0,.08);border:1px solid var(--bd)}
-h1{font-family:'Fraunces',serif;font-size:28px;margin-bottom:8px}
-.sub{font-size:14px;color:var(--soft);margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--bd)}
-.ftitle{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--soft);margin:20px 0 12px;padding-top:20px;border-top:1px solid var(--bd)}
-.ftitle:first-of-type{border-top:none;margin-top:0;padding-top:0}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+nav{background:var(--v);height:56px;display:flex;align-items:center;padding:0 5%;justify-content:space-between}
+.nl{font-family:'Fraunces',serif;font-size:18px;color:white;text-decoration:none;display:flex;align-items:center;gap:10px}
+.ni{width:34px;height:34px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.wrap{max-width:760px;margin:0 auto;padding:48px 5%}
+.head{text-align:center;margin-bottom:36px}
+.plan-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;margin-bottom:16px}
+.head h1{font-family:'Fraunces',serif;font-size:28px;margin-bottom:8px}
+.head p{font-size:14px;color:var(--soft);max-width:520px;margin:0 auto;line-height:1.6}
+.notice{background:var(--oc);border-left:4px solid var(--or);border-radius:12px;padding:16px 18px;margin-bottom:28px;display:flex;gap:14px;align-items:flex-start}
+.notice-ico{font-size:22px;flex-shrink:0}
+.notice h3{font-size:14px;font-weight:700;color:var(--or);margin-bottom:5px}
+.notice p{font-size:13px;color:#7a5500;line-height:1.6}
+.card{background:var(--w);border-radius:20px;padding:36px;box-shadow:0 4px 24px rgba(0,0,0,.07);border:1px solid var(--bd);margin-bottom:20px}
+.stitle{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--soft);margin:28px 0 16px;padding-top:28px;border-top:1px solid var(--bd)}
+.stitle:first-child{border-top:none;margin-top:0;padding-top:0}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 .fg{margin-bottom:14px}
-label.lbl{display:block;font-size:12.5px;font-weight:600;color:var(--tx);margin-bottom:5px}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--tx);margin-bottom:6px}
 .req{color:var(--r)}
+.opt{font-size:10px;font-weight:400;color:var(--soft);margin-left:4px}
 input[type=text],input[type=email],input[type=tel],input[type=password],select{width:100%;padding:11px 13px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13.5px;border:1.5px solid var(--bd);border-radius:10px;background:#fafcfa;color:var(--tx);outline:none;transition:border-color .2s}
-input:focus,select:focus{border-color:var(--v);background:var(--w)}
-.btn{display:block;width:100%;padding:14px;background:var(--v);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;margin-top:16px}
-.btn:hover{background:var(--vf)}
-.err{background:var(--rc);border:1px solid #ffb3b3;border-radius:9px;padding:11px 13px;font-size:13px;color:var(--r);margin-bottom:16px}
-.info{background:var(--bc);border-left:4px solid var(--b);border-radius:9px;padding:13px 15px;font-size:13px;color:#1a3a6b;margin-bottom:16px;line-height:1.7}
-.back-link{font-size:13px;color:var(--v);text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px;margin-bottom:24px}
-@media(max-width:500px){.grid2{grid-template-columns:1fr}.card{padding:32px 20px}}
+input:focus,select:focus{border-color:var(--v);background:white}
+.fnote{font-size:11px;color:var(--soft);margin-top:5px;line-height:1.5}
+.autobox{background:var(--vc);border:1.5px solid #a5d6b7;border-radius:12px;padding:18px;margin-bottom:6px}
+.autobox label{color:var(--vf)}
+.autobox input{background:white;margin-top:8px}
+.autohint{font-size:12px;color:#2d6a4f;margin-top:8px;line-height:1.6;display:flex;gap:7px}
+.pwdbar{height:4px;border-radius:2px;background:#e0e0e0;margin-top:8px;overflow:hidden}
+.pwdfill{height:100%;border-radius:2px;transition:width .3s,background .3s;width:0}
+.pwdlist{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px;font-size:11px}
+.pr{display:flex;align-items:center;gap:5px;color:var(--soft);transition:color .2s}
+.pr.ok{color:var(--v);font-weight:600}
+.prdot{width:6px;height:6px;border-radius:50%;background:var(--bd);flex-shrink:0;transition:background .2s}
+.pr.ok .prdot{background:var(--v)}
+.consent{display:flex;align-items:flex-start;gap:10px;margin:18px 0;font-size:13px;color:var(--soft);line-height:1.6}
+.consent input{width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--v)}
+.consent a{color:var(--v);font-weight:600}
+.msg-err{background:var(--rc);border:1.5px solid #ffb3b3;border-radius:11px;padding:14px 16px;font-size:13px;color:var(--r);margin-bottom:20px}
+.btnsubmit{width:100%;padding:15px;background:var(--v);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;margin-top:8px}
+.btnsubmit:hover{background:var(--vf)}
+.btnsubmit:disabled{opacity:.6;cursor:not-allowed}
+.btnnote{font-size:11px;color:var(--soft);text-align:center;margin-top:10px;line-height:1.5}
+.foot{text-align:center;padding:20px;font-size:11px;color:var(--soft)}
+.foot a{color:var(--soft);text-decoration:none;margin:0 6px}
+.foot a:hover{color:var(--v)}
+@media(max-width:600px){.g2,.g3{grid-template-columns:1fr}.card{padding:24px 18px}.pwdlist{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <nav>
-  <a href="/" class="nb"><div class="ni">🏥</div>SantéBF</a>
-  <div class="nl">
-    <a href="/#modules">Modules</a>
-    <a href="/#securite">Sécurité</a>
-    <a href="/plans">Abonnement</a>
-    <a href="/contact">Contact</a>
-    <a href="/auth/login" class="nc">Connexion →</a>
-  </div>
-  <button class="mb" onclick="toggleMenu()">☰</button>
+  <a href="/" class="nl"><div class="ni">&#x1F3E5;</div>SantéBF</a>
+  <span style="font-size:12px;color:rgba(255,255,255,.6)">Création de compte</span>
 </nav>
 
 <div class="wrap">
-  <a href="/plans" class="back-link">← Retour aux plans</a>
+  <div class="head">
+    <div class="plan-badge" style="background:${planBg};color:${planColor}">&#x1F3E5; Plan ${planNom} sélectionné</div>
+    <h1>Créez le compte de votre structure</h1>
+    <p>Renseignez les informations de votre structure et du responsable légal. Votre compte sera activé après vérification <strong>(72h maximum)</strong>.</p>
+  </div>
+
+  <div class="notice">
+    <div class="notice-ico">&#x26A0;&#xFE0F;</div>
+    <div>
+      <h3>Vérification obligatoire sous 72h</h3>
+      <p>Nous vérifions l'existence légale de chaque structure avant activation. Votre numéro d'autorisation ministérielle sera contrôlé. En cas de non-conformité, votre abonnement est remboursé intégralement.</p>
+    </div>
+  </div>
+
   <div class="card">
-    <h1>Finalisez l'inscription de votre structure</h1>
-    <div class="sub">Créez votre compte administrateur. Vous pourrez ensuite inviter vos collaborateurs.</div>
-    
-    ${erreur ? `<div class="err">⚠️ ${esc(erreur)}</div>` : ''}
-    <div class="info">📌 Plan sélectionné : <strong>${esc(data.plan)}</strong>. Votre abonnement sera activé automatiquement après création du compte.</div>
-    
+    ${erreur ? `<div class="msg-err">&#x26A0;&#xFE0F; ${erreur}</div>` : ''}
     <form method="POST" action="/plans/inscription" id="inscForm">
-      <input type="hidden" name="tx" value="${esc(tx)}">
-      
-      <div class="ftitle">Informations de la structure</div>
+      <input type="hidden" name="_csrf" value="${csrf}">
+      <input type="hidden" name="tx" value="${tx}">
+      <input type="hidden" name="plan" value="${planId}">
+
+      <!-- STRUCTURE -->
+      <div class="stitle">&#x1F3E5; Informations de la structure</div>
       <div class="fg">
-        <label class="lbl">Nom de la structure <span class="req">*</span></label>
-        <input type="text" name="structure_nom" value="${esc(data.structure_nom)}" required>
+        <label>Nom officiel de la structure <span class="req">*</span></label>
+        <input type="text" name="structure_nom" value="${structure_nom}" placeholder="Ex: Clinique Sainte Marie de Ouagadougou" required maxlength="200">
+        <div class="fnote">Tel que mentionné dans votre autorisation ministérielle</div>
       </div>
-      <div class="grid2">
-        <div class="fg">
-          <label class="lbl">Type <span class="req">*</span></label>
-          <select name="structure_type" required>
-            <option value="">Sélectionner...</option>
-            <option value="chu" ${data.structure_type === 'chu' ? 'selected' : ''}>CHU / CHR</option>
-            <option value="clinique" ${data.structure_type === 'clinique' ? 'selected' : ''}>Clinique privée</option>
-            <option value="cabinet" ${data.structure_type === 'cabinet' ? 'selected' : ''}>Cabinet médical</option>
-            <option value="csps" ${data.structure_type === 'csps' ? 'selected' : ''}>CSPS / Centre de santé</option>
-            <option value="pharmacie" ${data.structure_type === 'pharmacie' ? 'selected' : ''}>Pharmacie</option>
-            <option value="laboratoire" ${data.structure_type === 'laboratoire' ? 'selected' : ''}>Laboratoire</option>
-            <option value="autre" ${data.structure_type === 'autre' ? 'selected' : ''}>Autre</option>
+      <div class="g2">
+        <div class="fg" style="margin-bottom:0">
+          <label>Type de structure <span class="req">*</span></label>
+          <select name="structure_type" required>${typeOptions}</select>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Niveau</label>
+          <select name="niveau">
+            <option value="1">Niveau 1 — Local / CSPS</option>
+            <option value="2">Niveau 2 — District</option>
+            <option value="3">Niveau 3 — Régional</option>
+            <option value="4">Niveau 4 — National</option>
           </select>
         </div>
-        <div class="fg">
-          <label class="lbl">Ville <span class="req">*</span></label>
-          <input type="text" name="ville" value="${esc(data.ville)}" required>
+      </div>
+      <div class="g3" style="margin-top:14px">
+        <div class="fg" style="margin-bottom:0">
+          <label>Ville <span class="req">*</span></label>
+          <input type="text" name="ville" value="${ville}" placeholder="Ouagadougou" required>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Région <span class="req">*</span></label>
+          <select name="region" required><option value="">Sélectionner...</option>${regions}</select>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Téléphone structure</label>
+          <input type="tel" name="structure_telephone" placeholder="+226 25 XX XX XX">
         </div>
       </div>
+      <div class="fg" style="margin-top:14px">
+        <label>Adresse complète <span class="opt">(facultatif)</span></label>
+        <input type="text" name="adresse" placeholder="Secteur 15, Avenue de la République">
+      </div>
+
+      <!-- AUTORISATION -->
+      <div class="stitle">&#x1F4DC; Autorisation ministérielle</div>
+      <div class="autobox">
+        <label>Numéro d'autorisation ministérielle <span class="req">*</span></label>
+        <input type="text" name="numero_autorisation" placeholder="Ex: MS/SG/DGAS/2024/0123" required maxlength="100">
+        <div class="autohint">
+          <span>&#x2139;&#xFE0F;</span>
+          <span>Délivré par le <strong>Ministère de la Santé du Burkina Faso</strong>. Sera vérifié dans un délai de 72h ouvrables auprès des autorités compétentes.</span>
+        </div>
+      </div>
+
+      <!-- RESPONSABLE -->
+      <div class="stitle">&#x1F464; Responsable légal de la structure</div>
+      <p style="font-size:13px;color:var(--soft);margin-bottom:16px">Directeur(trice) ou médecin chef responsable devant les autorités.</p>
+      <div class="g2">
+        <div class="fg" style="margin-bottom:0">
+          <label>Prénom <span class="req">*</span></label>
+          <input type="text" name="responsable_prenom" value="${prenom}" required>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Nom <span class="req">*</span></label>
+          <input type="text" name="responsable_nom" value="${nom}" required>
+        </div>
+      </div>
+      <div class="g2" style="margin-top:14px">
+        <div class="fg" style="margin-bottom:0">
+          <label>Fonction <span class="req">*</span></label>
+          <select name="responsable_fonction" required>
+            <option value="">Sélectionner...</option>
+            <option value="directeur">Directeur(trice)</option>
+            <option value="medecin_chef">Médecin Chef</option>
+            <option value="pharmacien_chef">Pharmacien(ne) Chef</option>
+            <option value="administrateur">Administrateur(trice)</option>
+            <option value="autre">Autre</option>
+          </select>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Téléphone <span class="req">*</span></label>
+          <input type="tel" name="responsable_telephone" value="${telephone}" required placeholder="+226 XX XX XX XX">
+        </div>
+      </div>
+
+      <!-- COMPTE ADMIN -->
+      <div class="stitle">&#x1F511; Compte administrateur principal</div>
+      <p style="font-size:13px;color:var(--soft);margin-bottom:16px">Ce compte aura accès complet à la gestion de la structure. Vous pourrez créer d'autres comptes après connexion.</p>
       <div class="fg">
-        <label class="lbl">Téléphone structure (optionnel)</label>
-        <input type="tel" name="structure_telephone" placeholder="+226 XX XX XX XX">
+        <label>Email professionnel <span class="req">*</span></label>
+        <input type="email" name="email" value="${email}" required placeholder="direction@votre-structure.bf">
+        <div class="fnote">Sera votre identifiant de connexion à SantéBF.</div>
       </div>
-
-      <div class="ftitle">Responsable (administrateur)</div>
-      <div class="grid2">
-        <div class="fg">
-          <label class="lbl">Prénom <span class="req">*</span></label>
-          <input type="text" name="prenom" value="${esc(data.prenom)}" required>
+      <div class="g2">
+        <div class="fg" style="margin-bottom:0">
+          <label>Mot de passe <span class="req">*</span></label>
+          <input type="password" name="password" id="pwdI" required minlength="8" oninput="checkPwd(this.value)">
+          <div class="pwdbar"><div class="pwdfill" id="pwdFill"></div></div>
+          <div class="pwdlist">
+            <div class="pr" id="pr-len"><div class="prdot"></div>8 caractères min.</div>
+            <div class="pr" id="pr-maj"><div class="prdot"></div>1 majuscule</div>
+            <div class="pr" id="pr-num"><div class="prdot"></div>1 chiffre</div>
+            <div class="pr" id="pr-spe"><div class="prdot"></div>1 spécial (#@!$%)</div>
+          </div>
         </div>
-        <div class="fg">
-          <label class="lbl">Nom <span class="req">*</span></label>
-          <input type="text" name="nom" value="${esc(data.nom)}" required>
-        </div>
-      </div>
-      <div class="grid2">
-        <div class="fg">
-          <label class="lbl">Email <span class="req">*</span></label>
-          <input type="email" name="email" value="${esc(data.email)}" required>
-        </div>
-        <div class="fg">
-          <label class="lbl">Téléphone <span class="req">*</span></label>
-          <input type="tel" name="telephone" value="${esc(data.telephone)}" required>
+        <div class="fg" style="margin-bottom:0">
+          <label>Confirmer <span class="req">*</span></label>
+          <input type="password" name="password_confirm" id="pwdC" required oninput="checkMatch()">
+          <div id="matchMsg" style="font-size:11px;margin-top:8px"></div>
         </div>
       </div>
 
-      <div class="ftitle">Sécurité</div>
-      <div class="grid2">
-        <div class="fg">
-          <label class="lbl">Mot de passe <span class="req">*</span></label>
-          <input type="password" name="password" required autocomplete="new-password">
-          <div style="font-size:11px;color:var(--soft);margin-top:4px">8+ caractères, une majuscule, un chiffre, un caractère spécial (#@!$%)</div>
-        </div>
-        <div class="fg">
-          <label class="lbl">Confirmer le mot de passe <span class="req">*</span></label>
-          <input type="password" name="password_confirm" required autocomplete="new-password">
-        </div>
+      <!-- CONSENTEMENT -->
+      <div class="consent">
+        <input type="checkbox" id="con" name="consent" required>
+        <label for="con" style="margin-bottom:0;font-weight:400;cursor:pointer">Je certifie que les informations fournies sont exactes et que j'ai le mandat pour enregistrer cette structure. J'accepte les <a href="/politique-confidentialite" target="_blank">conditions d'utilisation et la politique de confidentialité</a>.</label>
       </div>
 
-      <button type="submit" class="btn">Créer mon compte →</button>
+      <button type="submit" class="btnsubmit" id="subBtn" onclick="return handleSub()">
+        Soumettre la demande d'inscription &#x2192;
+      </button>
+      <p class="btnnote">&#x1F512; Données chiffrées et protégées. Notre équipe vérifie votre dossier sous 72h.</p>
     </form>
+  </div>
+
+  <div class="foot">
+    <a href="/politique-confidentialite">Confidentialité</a>
+    <a href="/contact">Contact</a>
+    <a href="/">Accueil</a>
   </div>
 </div>
 
-<footer>
-  <div style="max-width:1100px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:32px;padding-bottom:32px;border-bottom:1px solid rgba(255,255,255,.08)">
-    <div>
-      <div style="font-family:'Fraunces',serif;font-size:20px;color:white;margin-bottom:10px">🏥 SantéBF</div>
-      <p style="font-size:13px;color:rgba(255,255,255,.45);line-height:1.7;max-width:260px">Plateforme numérique de gestion de santé pour les structures sanitaires du Burkina Faso.</p>
-    </div>
-    <div>
-      <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Plateforme</div>
-      <a href="/#modules" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Modules</a>
-      <a href="/plans" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Abonnement</a>
-      <a href="/#securite" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Sécurité</a>
-    </div>
-    <div>
-      <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Accès</div>
-      <a href="/auth/login" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Connexion</a>
-      <a href="/auth/inscription" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">App Patient</a>
-    </div>
-    <div>
-      <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Support</div>
-      <a href="/contact" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Contact</a>
-      <a href="/#faq" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">FAQ</a>
-      <a href="/politique-confidentialite" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Confidentialité</a>
-    </div>
-  </div>
-  <div style="max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.3);flex-wrap:wrap;gap:8px">
-    <span>© 2026 SantéBF — Tous droits réservés</span>
-    <span>Fait avec ❤️ au Burkina Faso</span>
-  </div>
-</footer>
 <script>
-function toggleMenu(){
-  const nl=document.querySelector('.nl')
-  if(nl.style.display==='flex'){nl.style.display=''}
-  else{nl.style.cssText='display:flex;flex-direction:column;position:fixed;top:64px;left:0;right:0;background:white;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:199;gap:16px;'}
+function checkPwd(v) {
+  const rules = {len:v.length>=8,maj:/[A-Z]/.test(v),num:/[0-9]/.test(v),spe:/[#@!$%]/.test(v)}
+  let s = Object.values(rules).filter(Boolean).length
+  const f = document.getElementById('pwdFill')
+  f.style.width = (s*25)+'%'
+  f.style.background = ['#e0e0e0','#e53935','#fb8c00','#fdd835','#43a047'][s]
+  for (const [k,ok] of Object.entries(rules)) {
+    const el = document.getElementById('pr-'+k)
+    if (el) el.className = 'pr'+(ok?' ok':'')
+  }
+  checkMatch()
 }
-document.getElementById('inscForm').onsubmit = function() {
-  const btn = this.querySelector('button[type=submit]');
-  btn.disabled = true;
-  btn.textContent = 'Création en cours...';
-};
+function checkMatch() {
+  const p = document.getElementById('pwdI').value
+  const c = document.getElementById('pwdC').value
+  const m = document.getElementById('matchMsg')
+  if (!c) { m.textContent=''; return }
+  if (c===p) { m.style.color='var(--v)'; m.textContent='✅ Identiques' }
+  else { m.style.color='var(--r)'; m.textContent='⚠️ Différents' }
+}
+function handleSub() {
+  const p = document.getElementById('pwdI').value
+  const c = document.getElementById('pwdC').value
+  if (p!==c) { alert('Les mots de passe ne correspondent pas'); return false }
+  document.getElementById('subBtn').disabled = true
+  document.getElementById('subBtn').textContent = 'Envoi en cours...'
+  return true
+}
 </script>
 </body>
-</html>`;
+</html>`
 }
