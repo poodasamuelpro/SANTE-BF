@@ -44,7 +44,7 @@ const PLANS = [
     features: [
       'Ordonnances PDF + QR code', 'Module pharmacien', 'Vaccinations',
       'Notifications email patients & médecins', 'Laboratoire',
-      "Jusqu\'à 7 personnels médicaux",
+      "Jusqu'à 7 personnels médicaux",
     ],
   },
   {
@@ -54,7 +54,7 @@ const PLANS = [
       'Tout du Starter', 'Radiologie & imagerie', 'Grossesses & CPN',
       'Infirmerie & soins', 'Facturation & caisse',
       'IA médicale (50 req/mois)', 'Statistiques avancées',
-      "Jusqu\'à 35 personnels médicaux",
+      "Jusqu'à 35 personnels médicaux",
     ],
     populaire: true,
   },
@@ -219,7 +219,7 @@ abonnementRoutes.get('/plans', async (c) => {
     </div>
 
     ${joursRestants !== null && joursRestants < 30 && joursRestants > 0 ? '<div class="warn">⏰ Votre abonnement expire dans moins de 30 jours. Pensez à le renouveler.</div>' : ''}
-    ${!paiementActif ? '<div class="info">ℹ️ Le paiement en ligne est en cours d/'activation. Contactez-nous pour renouveler votre abonnement.</div>' : ''}
+    ${!paiementActif ? "<div class=\"info\">ℹ️ Le paiement en ligne est en cours d'activation. Contactez-nous pour renouveler votre abonnement.</div>" : ''}
 
     <h2 style="font-size:16px;font-weight:700;margin-bottom:16px">Choisir ou renouveler</h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-bottom:24px">
@@ -338,7 +338,7 @@ abonnementRoutes.post('/initier', async (c) => {
         description: `SantéBF Renouvellement ${plan.nom} — ${duree.label}`,
         notify_url:  `${baseUrl}/webhooks/cinetpay`,
         return_url:  `${baseUrl}/abonnement/retour?plan=${planId}&tx=${txId}&duree=${dureeId}`,
-        cancel_url:  `${baseUrl}/abonnement/plans?err=Paiement+annulé`,
+        cancel_url:  `${baseUrl}/abonnement/plans?err=Paiement+annul%C3%A9`,
         customer_name:  `${profil.prenom} ${profil.nom}`,
         customer_email: (profil as any).email || '',
         lang: 'fr',
