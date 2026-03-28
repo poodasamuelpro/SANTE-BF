@@ -29,7 +29,7 @@ export const plansRoutes = new Hono<{ Bindings: PlansBindings }>()
 // ── Plans ────────────────────────────────────────────────────
 const PLANS_INFO = [
   {
-    id: \'gratuit\', nom: \'Gratuit\', prix_base: 0,
+    id: 'gratuit', nom: 'Gratuit', prix_base: 0,
     couleur: \'#6B7280\', bg: \'#f3f4f6\',
     pour: \'Découverte — 3 mois offerts\',
     features: [
