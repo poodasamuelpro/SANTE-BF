@@ -1,5 +1,5 @@
 /**
- * functions/[[path]].ts 
+ * functions/[[path]].ts
  * SantéBF — Point d'entrée Cloudflare Pages
  *
  * Corrections :
