@@ -1,6 +1,6 @@
 /**
  * src/routes/politique-confidentialite.ts
- * SantéBF — Politique de Confidentialité & Protection des Données
+ * SantéBF — Politique de Confidentialité & Protection des Données 
  *
  * Routes :
  *   GET /politique-confidentialite  → Page politique complète
