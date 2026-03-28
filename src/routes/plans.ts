@@ -1,13 +1,13 @@
 /**
  * src/routes/plans.ts
- * Sant\u00e9BF \u2014 Page Abonnement PUBLIQUE + Paiement + Inscription Structure
+ * SantéBF — Page Abonnement PUBLIQUE + Paiement + Inscription Structure
  *
  * Corrections v2 :
  *   - Utilise getSupabase (lib/supabase.ts) au lieu de dynamic import
- *   - Dur\u00e9es : 6 mois -5%, 1 an -10% uniquement (plus de 3 mois -5%)
+ *   - Durées : 6 mois -5%, 1 an -10% uniquement (plus de 3 mois -5%)
  *   - Offre gratuite : 3 mois (pas 6 mois)
- *   - Offre gratuite : features compl\u00e8tes (email, PDF, QR, CSV, calendar...)
- *   - Bouton Gratuit \u2192 formulaire email "D\u00e9marrer" (pas /auth/inscription)
+ *   - Offre gratuite : features complètes (email, PDF, QR, CSV, calendar...)
+ *   - Bouton Gratuit → formulaire email "Démarrer" (pas /auth/inscription)
  *   - Protection CSRF sur tous les formulaires POST
  *   - Page inscription structure utilise inscriptionStructurePage
  */
@@ -26,79 +26,79 @@ type PlansBindings = {
 
 export const plansRoutes = new Hono<{ Bindings: PlansBindings }>()
 
-// \u2500\u2500 Plans \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// ── Plans ────────────────────────────────────────────────────
 const PLANS_INFO = [
   {
     id: 'gratuit', nom: 'Gratuit', prix_base: 0,
     couleur: '#6B7280', bg: '#f3f4f6',
-    pour: 'D\u00e9couverte \u2014 3 mois offerts',
+    pour: 'Découverte — 3 mois offerts',
     features: [
-      'Dossiers patients illimit\u00e9s',
+      'Dossiers patients illimités',
       'Consultations & ordonnances',
       'Ordonnances PDF + QR code',
-      'Certificats m\u00e9dicaux PDF',
-      'Notifications email patients & m\u00e9decins',
+      'Certificats médicaux PDF',
+      'Notifications email patients & médecins',
       'Google Calendar (rendez-vous)',
       'Vaccinations & carnet vaccinal',
       'Grossesses & CPN',
       'Don de sang (CNTS)',
-      'Export CSV des donn\u00e9es',
+      'Export CSV des données',
       'Agenda & rendez-vous',
       'Tableau de bord',
-      'Acc\u00e8s web & mobile',
-      'Personnel m\u00e9dical illimit\u00e9',
+      'Accès web & mobile',
+      'Personnel médical illimité',
     ],
-    bloque: ['Pharmacien', 'Laboratoire', 'Facturation', 'IA m\u00e9dicale', 'Hospitalisations', 'Radiologie', 'Infirmerie'],
+    bloque: ['Pharmacien', 'Laboratoire', 'Facturation', 'IA médicale', 'Hospitalisations', 'Radiologie', 'Infirmerie'],
     max_users: null, payant: false,
   },
   {
     id: 'starter', nom: 'Starter', prix_base: 40000,
     couleur: '#1565C0', bg: '#e3f2fd',
-    pour: 'Cabinet m\u00e9dical & dispensaire',
+    pour: 'Cabinet médical & dispensaire',
     features: [
       'Tout du plan Gratuit',
       'Module pharmacien complet',
       "Laboratoire d'analyses",
-      "Jusqu'\u00e0 7 personnels m\u00e9dicaux",
+      "Jusqu'à 7 personnels médicaux",
     ],
-    bloque: ['Radiologie', 'Facturation', 'IA m\u00e9dicale', 'Hospitalisations', 'Infirmerie'],
+    bloque: ['Radiologie', 'Facturation', 'IA médicale', 'Hospitalisations', 'Infirmerie'],
     max_users: 7, payant: true,
   },
   {
     id: 'standard', nom: 'Standard', prix_base: 90000,
     couleur: '#1A6B3C', bg: '#e8f5ee',
-    pour: 'Pharmacie priv\u00e9e & centre de sant\u00e9',
+    pour: 'Pharmacie privée & centre de santé',
     features: [
       'Tout du Starter',
       'Radiologie & imagerie',
       'Infirmerie & soins',
       'Facturation & caisse',
-      'IA m\u00e9dicale (50 req/mois)',
-      'Statistiques avanc\u00e9es',
-      "Jusqu'\u00e0 35 personnels m\u00e9dicaux",
+      'IA médicale (50 req/mois)',
+      'Statistiques avancées',
+      "Jusqu'à 35 personnels médicaux",
     ],
-    bloque: ['Hospitalisations & lits', 'Export avanc\u00e9', 'IA illimit\u00e9e'],
+    bloque: ['Hospitalisations & lits', 'Export avancé', 'IA illimitée'],
     max_users: 35, payant: true, populaire: true,
   },
   {
     id: 'pro', nom: 'Pro', prix_base: 120000,
     couleur: '#4A148C', bg: '#F3E5F5',
-    pour: 'H\u00f4pital r\u00e9gional & clinique',
+    pour: 'Hôpital régional & clinique',
     features: [
       'Tout du Standard & Starter',
       'Hospitalisations & gestion des lits',
-      'Facturation avanc\u00e9e & rapports',
-      'IA m\u00e9dicale illimit\u00e9e',
-      'SMS illimit\u00e9s',
-      'Support prioritaire d\u00e9di\u00e9',
-      'Personnels m\u00e9dicaux illimit\u00e9s',
+      'Facturation avancée & rapports',
+      'IA médicale illimitée',
+      'SMS illimités',
+      'Support prioritaire dédié',
+      'Personnels médicaux illimités',
     ],
     bloque: [],
     max_users: null, payant: true,
   },
 ]
 
-// Dur\u00e9es \u2014 seulement 6 mois -5% et 1 an -10%
+// Durées — seulement 6 mois -5% et 1 an -10%
 const DUREES = [
   { id: '1m',  label: '1 mois',  mois: 1,  remise: 0,   badge: ''     },
   { id: '6m',  label: '6 mois',  mois: 6,  remise: 5,   badge: '-5%'  },
@@ -114,12 +114,12 @@ function esc(s: string): string {
     .replace(/"/g,'&quot;').replace(/'/g,'&#x27;')
 }
 
-// G\u00e9n\u00e9rer un token CSRF simple
+// Générer un token CSRF simple
 function genCSRF(): string {
   return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
 }
 
-// Store CSRF en m\u00e9moire (simple, suffisant pour Workers sans \u00e9tat)
+// Store CSRF en mémoire (simple, suffisant pour Workers sans état)
 const csrfTokens = new Map<string, number>()
 
 function validateCSRF(token: string): boolean {
@@ -133,7 +133,7 @@ function validateCSRF(token: string): boolean {
 
 function navHtml(): string {
   return `<nav>
-  <a href="/" class="nb"><div class="ni">&#x1F3E5;</div>Sant\u00e9BF</a>
+  <a href="/" class="nb"><div class="ni">&#x1F3E5;</div>SantéBF</a>
   <div class="nl">
     <a href="/#modules">Modules</a>
     <a href="/plans" style="color:var(--v);font-weight:700">Abonnement</a>
@@ -147,22 +147,22 @@ function navHtml(): string {
 function footerHtml(): string {
   return `<footer>
   <div style="max-width:1100px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:32px;padding-bottom:32px;border-bottom:1px solid rgba(255,255,255,.08)">
-    <div><div style="font-family:'Fraunces',serif;font-size:20px;color:white;margin-bottom:10px">&#x1F3E5; Sant\u00e9BF</div><p style="font-size:13px;color:rgba(255,255,255,.45);line-height:1.7;max-width:260px">Plateforme num\u00e9rique de gestion de sant\u00e9 pour les structures sanitaires du Burkina Faso.</p></div>
+    <div><div style="font-family:'Fraunces',serif;font-size:20px;color:white;margin-bottom:10px">&#x1F3E5; SantéBF</div><p style="font-size:13px;color:rgba(255,255,255,.45);line-height:1.7;max-width:260px">Plateforme numérique de gestion de santé pour les structures sanitaires du Burkina Faso.</p></div>
     <div><div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Plateforme</div>
       <a href="/#modules" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Modules</a>
       <a href="/plans" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Abonnement</a>
     </div>
-    <div><div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Acc\u00e8s</div>
+    <div><div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Accès</div>
       <a href="/auth/login" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Connexion</a>
       <a href="/auth/inscription" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">App Patient</a>
     </div>
     <div><div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Support</div>
       <a href="/contact" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Contact</a>
-      <a href="/politique-confidentialite" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Confidentialit\u00e9</a>
+      <a href="/politique-confidentialite" style="display:block;font-size:13px;color:rgba(255,255,255,.4);text-decoration:none;margin-bottom:8px">Confidentialité</a>
     </div>
   </div>
   <div style="max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.3);flex-wrap:wrap;gap:8px">
-    <span>\u00a9 2026 Sant\u00e9BF \u2014 Tous droits r\u00e9serv\u00e9s</span><span>Fait avec \u2764\ufe0f au Burkina Faso</span>
+    <span>© 2026 SantéBF — Tous droits réservés</span><span>Fait avec ❤️ au Burkina Faso</span>
   </div>
 </footer>
 <script>
@@ -192,9 +192,9 @@ footer{background:var(--tx);padding:40px 5% 24px;margin-top:0}
 </style>`
 }
 
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-// GET /plans \u2014 Page publique tarifs
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// ══════════════════════════════════════════════════════════════
+// GET /plans — Page publique tarifs
+// ══════════════════════════════════════════════════════════════
 plansRoutes.get('/', (c) => {
   const dureeId    = c.req.query('duree') || '1m'
   const duree      = DUREES.find(d => d.id === dureeId) || DUREES[0]
@@ -206,7 +206,7 @@ plansRoutes.get('/', (c) => {
     const isPopular = !!(plan as any).populaire
 
     return `<div class="plan-card${isPopular ? ' popular' : ''}" style="--pcolor:${plan.couleur}">
-      ${isPopular ? '<div class="pop-badge">\u2b50 Le plus choisi</div>' : ''}
+      ${isPopular ? '<div class="pop-badge">⭐ Le plus choisi</div>' : ''}
       <div style="background:${plan.bg};border-radius:12px;padding:14px;margin-bottom:16px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:${plan.couleur};margin-bottom:6px">${plan.nom}</div>
         <div style="font-size:12px;color:var(--soft);margin-bottom:10px">${plan.pour}</div>
@@ -215,7 +215,7 @@ plansRoutes.get('/', (c) => {
              <div style="font-size:11px;color:var(--soft);margin-top:3px">pour ${duree.label}${duree.remise > 0 ? ` <span style="background:${plan.couleur};color:white;padding:1px 7px;border-radius:20px;font-size:10px;font-weight:700">${duree.badge}</span>` : ''}</div>`
           : `<div style="font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:var(--soft)">Gratuit</div><div style="font-size:11px;color:var(--soft);margin-top:3px">3 mois offerts</div>`
         }
-        ${plan.max_users ? `<div style="margin-top:8px;font-size:11px;background:rgba(255,255,255,.7);border-radius:20px;padding:3px 10px;display:inline-block;color:${plan.couleur};font-weight:600">&#x1F465; Jusqu'\u00e0 ${plan.max_users} personnels</div>` : plan.payant ? `<div style="margin-top:8px;font-size:11px;background:rgba(255,255,255,.7);border-radius:20px;padding:3px 10px;display:inline-block;color:${plan.couleur};font-weight:600">&#x1F465; Personnels illimit\u00e9s</div>` : ''}
+        ${plan.max_users ? `<div style="margin-top:8px;font-size:11px;background:rgba(255,255,255,.7);border-radius:20px;padding:3px 10px;display:inline-block;color:${plan.couleur};font-weight:600">&#x1F465; Jusqu'à ${plan.max_users} personnels</div>` : plan.payant ? `<div style="margin-top:8px;font-size:11px;background:rgba(255,255,255,.7);border-radius:20px;padding:3px 10px;display:inline-block;color:${plan.couleur};font-weight:600">&#x1F465; Personnels illimités</div>` : ''}
       </div>
       <div style="flex:1;margin-bottom:16px">
         ${plan.features.map(f => `<div style="font-size:12.5px;margin-bottom:6px;display:flex;align-items:flex-start;gap:7px"><span style="color:${plan.couleur};font-weight:700;flex-shrink:0">&#x2713;</span>${f}</div>`).join('')}
@@ -223,9 +223,9 @@ plansRoutes.get('/', (c) => {
       </div>
       ${plan.payant
         ? `<a href="/plans/paiement?plan=${plan.id}&duree=${dureeId}" style="display:block;text-align:center;padding:13px;border-radius:12px;font-size:14px;font-weight:700;text-decoration:none;color:white;background:${plan.couleur}">Choisir ${plan.nom} &#x2192;</a>`
-        : `<button onclick="showDemarrerForm()" style="display:block;width:100%;text-align:center;padding:13px;border-radius:12px;font-size:14px;font-weight:700;border:none;color:white;background:var(--soft);cursor:pointer">D\u00e9marrer gratuitement</button>
+        : `<button onclick="showDemarrerForm()" style="display:block;width:100%;text-align:center;padding:13px;border-radius:12px;font-size:14px;font-weight:700;border:none;color:white;background:var(--soft);cursor:pointer">Démarrer gratuitement</button>
            <div id="demarrerForm" style="display:none;margin-top:12px;background:#f3f4f6;border-radius:10px;padding:14px">
-             <p style="font-size:12px;color:var(--soft);margin-bottom:8px">Entrez votre email \u2014 nous vous envoyons un lien d'activation :</p>
+             <p style="font-size:12px;color:var(--soft);margin-bottom:8px">Entrez votre email — nous vous envoyons un lien d'activation :</p>
              <form method="POST" action="/plans/demarrer-gratuit" style="display:flex;gap:8px">
                <input type="hidden" name="_csrf" value="${csrf}">
                <input type="email" name="email" required placeholder="votre@email.bf" style="flex:1;padding:9px 12px;border:1.5px solid var(--bd);border-radius:9px;font-size:13px;outline:none">
@@ -233,7 +233,7 @@ plansRoutes.get('/', (c) => {
              </form>
            </div>`
       }
-      ${plan.payant ? '<div style="text-align:center;font-size:11px;color:var(--soft);margin-top:7px">Paiement s\u00e9curis\u00e9 \u2022 Sans engagement</div>' : '<div style="text-align:center;font-size:11px;color:var(--soft);margin-top:7px">Sans carte bancaire requise</div>'}
+      ${plan.payant ? '<div style="text-align:center;font-size:11px;color:var(--soft);margin-top:7px">Paiement sécurisé • Sans engagement</div>' : '<div style="text-align:center;font-size:11px;color:var(--soft);margin-top:7px">Sans carte bancaire requise</div>'}
     </div>`
   }).join('')
 
@@ -241,10 +241,10 @@ plansRoutes.get('/', (c) => {
 <html lang="fr">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Plans Sant\u00e9BF : Gratuit 3 mois, Starter 40 000 FCFA, Standard 90 000 FCFA, Pro 120 000 FCFA. Remise 10% engagement annuel.">
-<meta property="og:title" content="Plans & Tarifs \u2014 Sant\u00e9BF">
+<meta name="description" content="Plans SantéBF : Gratuit 3 mois, Starter 40 000 FCFA, Standard 90 000 FCFA, Pro 120 000 FCFA. Remise 10% engagement annuel.">
+<meta property="og:title" content="Plans & Tarifs — SantéBF">
 <link rel="canonical" href="https://santebf.bf/plans">
-<title>Plans & Tarifs \u2014 Sant\u00e9BF</title>
+<title>Plans & Tarifs — SantéBF</title>
 ${cssBase()}
 <style>
 .hero{background:linear-gradient(135deg,#0d4a2a,#1A6B3C);padding:64px 5% 76px;text-align:center;position:relative;overflow:hidden}
@@ -298,38 +298,38 @@ ${cssBase()}
 ${navHtml()}
 <div class="hero">
   <div style="display:inline-block;background:rgba(255,255,255,.15);color:white;padding:7px 18px;border-radius:30px;font-size:13px;font-weight:600;margin-bottom:18px;border:1px solid rgba(255,255,255,.2);position:relative;z-index:1">&#x1F4B3; Plans & Abonnements</div>
-  <h1>Choisissez votre plan<br>et d\u00e9marrez aujourd'hui</h1>
-  <p>3 mois gratuits pour d\u00e9couvrir. Passez \u00e0 un plan payant quand vous \u00eates pr\u00eat, avec remise jusqu'\u00e0 10% pour les engagements longs.</p>
+  <h1>Choisissez votre plan<br>et démarrez aujourd'hui</h1>
+  <p>3 mois gratuits pour découvrir. Passez à un plan payant quand vous êtes prêt, avec remise jusqu'à 10% pour les engagements longs.</p>
 </div>
 
 <div class="wrap">
-  <!-- S\u00c9LECTEUR DUR\u00c9E -->
+  <!-- SÉLECTEUR DURÉE -->
   <div style="text-align:center;margin-bottom:16px">
-    <div style="font-size:14px;font-weight:600;color:var(--soft);margin-bottom:14px">Choisissez votre dur\u00e9e d'engagement</div>
+    <div style="font-size:14px;font-weight:600;color:var(--soft);margin-bottom:14px">Choisissez votre durée d'engagement</div>
     <div class="duree-sel">
       ${DUREES.map(d => `<a href="/plans?duree=${d.id}" class="db ${d.id === dureeId ? 'act' : ''}">
         ${d.label}
         ${d.remise > 0 ? `<span class="db-badge">${d.badge}</span>` : ''}
       </a>`).join('')}
     </div>
-    ${duree.remise > 0 ? `<div style="font-size:13px;color:var(--v);font-weight:600">&#x2705; Vous \u00e9conomisez ${duree.remise}% avec l'engagement ${duree.label}</div>` : ''}
+    ${duree.remise > 0 ? `<div style="font-size:13px;color:var(--v);font-weight:600">&#x2705; Vous économisez ${duree.remise}% avec l'engagement ${duree.label}</div>` : ''}
   </div>
 
   <!-- PLANS -->
   <div class="plans-grid">${plansHtml}</div>
 
   <p style="text-align:center;font-size:13px;color:var(--soft);margin-bottom:48px">
-    Remise multi-structures disponible \u2014 <a href="/contact" style="color:var(--v);font-weight:600">Contactez-nous pour un devis personnalis\u00e9</a>
+    Remise multi-structures disponible — <a href="/contact" style="color:var(--v);font-weight:600">Contactez-nous pour un devis personnalisé</a>
   </p>
 
   <!-- TABLEAU COMPARATIF -->
   <div class="compare" style="padding:0">
-    <h2>Comparaison d\u00e9taill\u00e9e</h2>
+    <h2>Comparaison détaillée</h2>
     <div style="overflow-x:auto">
       <table class="ctable">
         <thead>
           <tr>
-            <th style="min-width:180px">Fonctionnalit\u00e9</th>
+            <th style="min-width:180px">Fonctionnalité</th>
             <th>Gratuit<br><span style="font-weight:400;font-size:11px">3 mois</span></th>
             <th>Starter<br><span style="font-weight:400;font-size:11px">40 000 FCFA/mois</span></th>
             <th>Standard<br><span style="font-weight:400;font-size:11px">90 000 FCFA/mois</span></th>
@@ -340,7 +340,7 @@ ${navHtml()}
           <tr><td>Dossiers patients</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
           <tr><td>Consultations & ordonnances</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
           <tr><td>Ordonnances PDF + QR code</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
-          <tr><td>Certificats m\u00e9dicaux PDF</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
+          <tr><td>Certificats médicaux PDF</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
           <tr><td>Notifications email</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
           <tr><td>Google Calendar</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
           <tr><td>Vaccinations</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
@@ -351,10 +351,10 @@ ${navHtml()}
           <tr><td>Laboratoire</td><td class="cx">&#x2715;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
           <tr><td>Radiologie</td><td class="cx">&#x2715;</td><td class="cx">&#x2715;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
           <tr><td>Facturation & caisse</td><td class="cx">&#x2715;</td><td class="cx">&#x2715;</td><td class="ck">&#x2713;</td><td class="ck">&#x2713;</td></tr>
-          <tr><td>IA m\u00e9dicale</td><td class="cx">&#x2715;</td><td class="cx">&#x2715;</td><td class="cl">50 req/mois</td><td class="ck">Illimit\u00e9e</td></tr>
-          <tr><td>SMS patients</td><td class="cx">&#x2715;</td><td class="cx">&#x2715;</td><td class="cx">&#x2715;</td><td class="ck">Illimit\u00e9s</td></tr>
+          <tr><td>IA médicale</td><td class="cx">&#x2715;</td><td class="cx">&#x2715;</td><td class="cl">50 req/mois</td><td class="ck">Illimitée</td></tr>
+          <tr><td>SMS patients</td><td class="cx">&#x2715;</td><td class="cx">&#x2715;</td><td class="cx">&#x2715;</td><td class="ck">Illimités</td></tr>
           <tr><td>Hospitalisations & lits</td><td class="cx">&#x2715;</td><td class="cx">&#x2715;</td><td class="cx">&#x2715;</td><td class="ck">&#x2713;</td></tr>
-          <tr><td>Personnels m\u00e9dicaux max</td><td class="cg">Illimit\u00e9s</td><td class="cg">7 max</td><td class="cg">35 max</td><td class="cg">Illimit\u00e9s</td></tr>
+          <tr><td>Personnels médicaux max</td><td class="cg">Illimités</td><td class="cg">7 max</td><td class="cg">35 max</td><td class="cg">Illimités</td></tr>
         </tbody>
       </table>
     </div>
@@ -363,20 +363,20 @@ ${navHtml()}
 
 <!-- FAQ -->
 <div class="faq-wrap">
-  <h2>Questions fr\u00e9quentes</h2>
+  <h2>Questions fréquentes</h2>
   ${[
-    ["Combien de temps dure l'essai gratuit ?", "L'essai gratuit dure <strong>3 mois</strong> complets. Toutes les fonctionnalit\u00e9s de base sont incluses. Aucune carte bancaire n'est requise."],
-    ["Quelles remises sont disponibles ?", "Une remise de <strong>5%</strong> pour un engagement de 6 mois et <strong>10%</strong> pour un engagement d'1 an. Le paiement est unique en d\u00e9but de p\u00e9riode."],
-    ["Le paiement est-il s\u00e9curis\u00e9 ?", "Oui. Le paiement est trait\u00e9 par CinetPay, sp\u00e9cialiste des paiements en Afrique de l'Ouest. Nous acceptons Orange Money, Moov Money et Wave."],
-    ["Peut-on changer de plan en cours d'abonnement ?", 'Oui, depuis votre dashboard. Le montant sera calcul\u00e9 au prorata.'],
-    ["Y a-t-il une limite au nombre de patients ?", 'Non. Les dossiers patients sont toujours illimit\u00e9s. La limite s\'applique uniquement au nombre de personnels m\u00e9dicaux.'],
+    ["Combien de temps dure l'essai gratuit ?", "L'essai gratuit dure <strong>3 mois</strong> complets. Toutes les fonctionnalités de base sont incluses. Aucune carte bancaire n'est requise."],
+    ["Quelles remises sont disponibles ?", "Une remise de <strong>5%</strong> pour un engagement de 6 mois et <strong>10%</strong> pour un engagement d'1 an. Le paiement est unique en début de période."],
+    ["Le paiement est-il sécurisé ?", "Oui. Le paiement est traité par CinetPay, spécialiste des paiements en Afrique de l'Ouest. Nous acceptons Orange Money, Moov Money et Wave."],
+    ["Peut-on changer de plan en cours d'abonnement ?", 'Oui, depuis votre dashboard. Le montant sera calculé au prorata.'],
+    ["Y a-t-il une limite au nombre de patients ?", 'Non. Les dossiers patients sont toujours illimités. La limite s\'applique uniquement au nombre de personnels médicaux.'],
   ].map(([q, a]) => `<div class="fi" onclick="this.classList.toggle('open')"><div class="fq">${q}<span class="fi-ico">+</span></div><div class="fa">${a}</div></div>`).join('')}
 </div>
 
 <!-- CTA -->
 <div class="cta">
-  <h2>Pr\u00eat \u00e0 digitaliser votre structure ?</h2>
-  <p>D\u00e9marrez gratuitement ou choisissez votre plan maintenant.</p>
+  <h2>Prêt à digitaliser votre structure ?</h2>
+  <p>Démarrez gratuitement ou choisissez votre plan maintenant.</p>
   <a href="/auth/inscription" class="bw">&#x1F464; Compte patient gratuit</a>
   <a href="/plans/paiement?plan=standard&duree=1m" class="bg2">&#x1F3E5; Inscrire ma structure</a>
 </div>
@@ -391,15 +391,15 @@ function showDemarrerForm() {
 </html>`)
 })
 
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-// POST /plans/demarrer-gratuit \u2014 Enregistrer email pour gratuit
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// ══════════════════════════════════════════════════════════════
+// POST /plans/demarrer-gratuit — Enregistrer email pour gratuit
+// ══════════════════════════════════════════════════════════════
 plansRoutes.post('/demarrer-gratuit', async (c) => {
   const body  = await c.req.parseBody()
   const csrf  = String(body._csrf  || '')
   const email = String(body.email  || '').trim().toLowerCase()
 
-  // V\u00e9rification CSRF (souple en prod si token expir\u00e9)
+  // Vérification CSRF (souple en prod si token expiré)
   if (csrf && !validateCSRF(csrf) && c.env.ENVIRONMENT === 'production') {
     return c.redirect('/plans?err=Token+invalide', 303)
   }
@@ -424,13 +424,13 @@ plansRoutes.post('/demarrer-gratuit', async (c) => {
     }).catch(() => {})
   } catch (_) {}
 
-  // Rediriger vers inscription patient (compte perso) ou page d\u00e9di\u00e9e
+  // Rediriger vers inscription patient (compte perso) ou page dédiée
   return c.redirect(`/auth/inscription?email=${encodeURIComponent(email)}&plan=gratuit`, 302)
 })
 
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-// GET /plans/paiement \u2014 Page paiement
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// ══════════════════════════════════════════════════════════════
+// GET /plans/paiement — Page paiement
+// ══════════════════════════════════════════════════════════════
 plansRoutes.get('/paiement', (c) => {
   const planId    = c.req.query('plan')  || 'standard'
   const dureeId   = c.req.query('duree') || '1m'
@@ -458,7 +458,7 @@ plansRoutes.get('/paiement', (c) => {
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Paiement ${esc(plan.nom)} \u2014 Sant\u00e9BF</title>
+<title>Paiement ${esc(plan.nom)} — SantéBF</title>
 ${cssBase()}
 <style>
 .pw{max-width:1000px;margin:0 auto;padding:48px 5%}
@@ -507,7 +507,7 @@ ${navHtml()}
 <div class="pw">
   <a href="/plans" class="back">&#x2190; Retour aux plans</a>
   <div class="pgrid">
-    <!-- R\u00c9CAP -->
+    <!-- RÉCAP -->
     <div class="recap">
       <h3>Votre commande</h3>
       <div class="plan-chip" style="background:${plan.bg};color:${plan.couleur}">&#x1F3E5; Plan ${plan.nom}</div>
@@ -518,7 +518,7 @@ ${navHtml()}
         ${plan.features.length > 5 ? `<div style="color:var(--v);font-weight:600">+ ${plan.features.length-5} autres inclus</div>` : ''}
       </div>
       <div class="sbadges">
-        <div class="sbadge">&#x1F512; S\u00e9curis\u00e9</div>
+        <div class="sbadge">&#x1F512; Sécurisé</div>
         <div class="sbadge">&#x2705; Sans engagement</div>
         <div class="sbadge">&#x26A1; Activation rapide</div>
       </div>
@@ -527,16 +527,16 @@ ${navHtml()}
     <!-- FORMULAIRE -->
     <div class="fbox">
       <h2>Informations & paiement</h2>
-      <p class="fsub">Renseignez vos informations. Votre compte sera cr\u00e9\u00e9 apr\u00e8s validation.</p>
+      <p class="fsub">Renseignez vos informations. Votre compte sera créé après validation.</p>
       ${erreur ? `<div class="err">&#x26A0;&#xFE0F; ${esc(erreur)}</div>` : ''}
-      ${!paiemOk ? '<div class="infoman">&#x2139;&#xFE0F; <strong>Paiement en ligne bient\u00f4t disponible.</strong> Soumettez et notre \u00e9quipe vous contacte sous 24h.</div>' : ''}
+      ${!paiemOk ? '<div class="infoman">&#x2139;&#xFE0F; <strong>Paiement en ligne bientôt disponible.</strong> Soumettez et notre équipe vous contacte sous 24h.</div>' : ''}
 
       <form method="POST" action="/plans/paiement" id="pf">
         <input type="hidden" name="_csrf" value="${csrf}">
         <input type="hidden" name="plan" value="${esc(planId)}">
         <input type="hidden" name="duree" id="dh" value="${esc(dureeId)}">
 
-        <div class="ftit">Dur\u00e9e d'engagement</div>
+        <div class="ftit">Durée d'engagement</div>
         <div class="dgrid">${dureeOpts}</div>
 
         <div class="ftit">Votre structure</div>
@@ -548,9 +548,9 @@ ${navHtml()}
           <div class="fg" style="margin-bottom:0">
             <label class="lbl">Type <span class="req">*</span></label>
             <select name="structure_type" required>
-              <option value="">S\u00e9lectionner...</option>
+              <option value="">Sélectionner...</option>
               <option value="chu">CHU / CHR</option><option value="clinique">Clinique</option>
-              <option value="cabinet">Cabinet m\u00e9dical</option><option value="csps">CSPS</option>
+              <option value="cabinet">Cabinet médical</option><option value="csps">CSPS</option>
               <option value="pharmacie">Pharmacie</option><option value="laboratoire">Laboratoire</option>
               <option value="autre">Autre</option>
             </select>
@@ -564,7 +564,7 @@ ${navHtml()}
         <div class="ftit">Responsable principal</div>
         <div class="g2">
           <div class="fg" style="margin-bottom:0">
-            <label class="lbl">Pr\u00e9nom <span class="req">*</span></label>
+            <label class="lbl">Prénom <span class="req">*</span></label>
             <input type="text" name="prenom" required>
           </div>
           <div class="fg" style="margin-bottom:0">
@@ -578,7 +578,7 @@ ${navHtml()}
             <input type="email" name="email" required placeholder="direction@structure.bf">
           </div>
           <div class="fg" style="margin-bottom:0">
-            <label class="lbl">T\u00e9l\u00e9phone <span class="req">*</span></label>
+            <label class="lbl">Téléphone <span class="req">*</span></label>
             <input type="tel" name="telephone" required placeholder="+226 XX XX XX XX">
           </div>
         </div>
@@ -594,7 +594,7 @@ ${navHtml()}
         <button type="submit" class="btnpay" id="pb">
           ${paiemOk ? `Payer ${total.toLocaleString('fr-FR')} FCFA &#x2192;` : 'Envoyer la demande &#x2192;'}
         </button>
-        <p style="font-size:11px;color:var(--soft);text-align:center;margin-top:10px">En continuant vous acceptez notre <a href="/politique-confidentialite" style="color:var(--v)">politique de confidentialit\u00e9</a></p>
+        <p style="font-size:11px;color:var(--soft);text-align:center;margin-top:10px">En continuant vous acceptez notre <a href="/politique-confidentialite" style="color:var(--v)">politique de confidentialité</a></p>
       </form>
     </div>
   </div>
@@ -621,9 +621,9 @@ document.getElementById('pf').onsubmit=function(){
 </html>`)
 })
 
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// ══════════════════════════════════════════════════════════════
 // POST /plans/paiement
-// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// ══════════════════════════════════════════════════════════════
 plansRoutes.post('/paiement', async (c) => {
   const body    = await c.req.parseBody()
   const csrf    = String(body._csrf || '')
@@ -646,4 +646,232 @@ plansRoutes.post('/paiement', async (c) => {
     return c.redirect(`/plans/paiement?plan=${planId}&duree=${dureeId}&err=Tous+les+champs+sont+obligatoires`, 303)
   }
 
-  const sb   = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_AN
+  const sb   = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+  const txId = `SBFNEW-${Date.now()}-${Math.random().toString(36).slice(2,7).toUpperCase()}`
+
+  await sb.from('commandes_pendantes').insert({
+    transaction_id: txId, plan: planId, montant: total, duree: dureeId,
+    structure_nom, structure_type, ville, prenom, nom, email, telephone,
+    statut: 'en_attente',
+  }).catch((e: any) => { console.error('Insert commande:', e) })
+
+  const baseUrl = new URL(c.req.url).origin
+
+  if (c.env.CINETPAY_SITE_ID && c.env.CINETPAY_API_KEY) {
+    try {
+      const res  = await fetch('https://api-checkout.cinetpay.com/v2/payment', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apikey: c.env.CINETPAY_API_KEY, site_id: c.env.CINETPAY_SITE_ID,
+          transaction_id: txId, amount: total, currency: 'XOF',
+          description: `SantéBF Plan ${plan.nom} — ${duree.label}`,
+          notify_url: `${baseUrl}/webhooks/cinetpay`,
+          return_url: `${baseUrl}/plans/confirmation?tx=${txId}`,
+          cancel_url: `${baseUrl}/plans/paiement?plan=${planId}&duree=${dureeId}&err=Paiement+annul%C3%A9`,
+          customer_name: `${prenom} ${nom}`, customer_email: email,
+          customer_phone_number: telephone, lang: 'fr',
+        }),
+      })
+      const data = await res.json() as any
+      if (data.code === '201' && data.data?.payment_url) return c.redirect(data.data.payment_url, 302)
+      return c.redirect(`/plans/paiement?plan=${planId}&duree=${dureeId}&err=${encodeURIComponent(data.message || 'Erreur passerelle')}`, 303)
+    } catch (e) {
+      console.error('CinetPay error:', e)
+      return c.redirect(`/plans/paiement?plan=${planId}&duree=${dureeId}&err=Erreur+connexion+passerelle`, 303)
+    }
+  }
+
+  return c.redirect(`/plans/confirmation?tx=${txId}&manuel=1`, 302)
+})
+
+// ══════════════════════════════════════════════════════════════
+// GET /plans/confirmation
+// ══════════════════════════════════════════════════════════════
+plansRoutes.get('/confirmation', async (c) => {
+  const tx     = c.req.query('tx')     || ''
+  const manuel = c.req.query('manuel') || ''
+
+  const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+  const { data: cmd } = await sb.from('commandes_pendantes').select('*').eq('transaction_id', tx).single()
+    .catch(() => ({ data: null, error: null }))
+
+  const plan  = PLANS_INFO.find(p => p.id === cmd?.plan)  || PLANS_INFO[2]
+  const duree = DUREES.find(d => d.id === (cmd as any)?.duree) || DUREES[0]
+
+  return c.html(`<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Confirmation — SantéBF</title>
+${cssBase()}
+<style>
+.w{max-width:640px;margin:0 auto;padding:60px 5%}
+.box{background:var(--w);border-radius:24px;padding:48px 36px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.08)}
+h1{font-family:'Fraunces',serif;font-size:28px;margin-bottom:10px}
+.sub{font-size:15px;color:var(--soft);margin-bottom:24px;line-height:1.7}
+.ref{font-size:12px;color:var(--soft);font-family:monospace;background:#f3f4f6;padding:6px 14px;border-radius:8px;display:inline-block;margin-bottom:28px}
+.steps{background:var(--vc);border-radius:14px;padding:22px;text-align:left;margin-bottom:28px}
+.step{display:flex;gap:12px;margin-bottom:12px}.step:last-child{margin-bottom:0}
+.sn{width:24px;height:24px;background:var(--v);color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.st{font-size:13px;color:#1a4a2e;line-height:1.6}
+.btnm{display:inline-block;background:var(--v);color:white;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:700;text-decoration:none}
+@media(max-width:480px){.box{padding:32px 20px}}
+</style></head><body>
+${navHtml()}
+<div class="w"><div class="box">
+  <div style="font-size:60px;margin-bottom:18px">${manuel ? '&#x1F4E8;' : '&#x2705;'}</div>
+  <h1>${manuel ? 'Demande envoyée !' : 'Paiement confirmé !'}</h1>
+  <p class="sub">
+    ${manuel
+      ? `Notre équipe vous contacte sous 24h pour activer votre plan <strong>${plan.nom}</strong>.`
+      : `Votre paiement pour le plan <strong>${plan.nom}</strong> (${duree.label}) a bien été reçu.`
+    }
+  </p>
+  <div class="ref">Réf. : ${esc(tx)}</div>
+  <div class="steps">
+    <div style="font-size:14px;font-weight:700;color:var(--v);margin-bottom:14px">&#x1F4CB; Prochaines étapes</div>
+    <div class="step"><div class="sn">1</div><div class="st">${manuel ? 'Notre équipe valide et active votre abonnement' : 'Créez le compte de votre structure'}</div></div>
+    <div class="step"><div class="sn">2</div><div class="st">Connectez-vous et ajoutez votre équipe médicale</div></div>
+    <div class="step"><div class="sn">3</div><div class="st">Commencez à enregistrer vos patients</div></div>
+  </div>
+  ${!manuel ? `<a href="/plans/inscription?tx=${esc(tx)}" class="btnm">Créer le compte de ma structure &#x2192;</a>` : `<a href="/auth/login" class="btnm">Retour à la connexion</a>`}
+</div></div>
+${footerHtml()}
+</body></html>`)
+})
+
+// ══════════════════════════════════════════════════════════════
+// GET /plans/inscription — Formulaire création compte structure
+// ══════════════════════════════════════════════════════════════
+plansRoutes.get('/inscription', async (c) => {
+  const tx     = c.req.query('tx')  || ''
+  const erreur = c.req.query('err') || ''
+
+  const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+  const { data: cmd } = await sb.from('commandes_pendantes').select('*').eq('transaction_id', tx).single()
+    .catch(() => ({ data: null, error: null }))
+
+  if (!cmd) return c.redirect('/plans?err=Reference+introuvable', 303)
+
+  const plan  = PLANS_INFO.find(p => p.id === cmd.plan) || PLANS_INFO[2]
+  const csrf  = genCSRF()
+  csrfTokens.set(csrf, Date.now())
+
+  return c.html(inscriptionStructurePage({
+    tx, csrf,
+    planNom:   plan.nom,
+    planId:    plan.id,
+    planBg:    plan.bg,
+    planColor: plan.couleur,
+    prenom:    cmd.prenom   || '',
+    nom:       cmd.nom      || '',
+    email:     cmd.email    || '',
+    telephone: cmd.telephone || '',
+    structure_nom:  cmd.structure_nom  || '',
+    structure_type: cmd.structure_type || '',
+    ville:     cmd.ville    || '',
+    erreur:    erreur.replace(/\+/g, ' '),
+  }))
+})
+
+// ══════════════════════════════════════════════════════════════
+// POST /plans/inscription — Créer structure en DB
+// ══════════════════════════════════════════════════════════════
+plansRoutes.post('/inscription', async (c) => {
+  const body = await c.req.parseBody()
+  const tx   = String(body.tx || '')
+
+  const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+  const { data: cmd } = await sb.from('commandes_pendantes').select('*').eq('transaction_id', tx).single()
+    .catch(() => ({ data: null, error: null }))
+
+  if (!cmd) return c.redirect('/plans?err=Reference+introuvable', 303)
+
+  const plan  = PLANS_INFO.find(p => p.id === cmd.plan) || PLANS_INFO[2]
+  const duree = DUREES.find(d => d.id === (cmd as any).duree) || DUREES[0]
+
+  const structure_nom     = String(body.structure_nom      || '').trim()
+  const structure_type    = String(body.structure_type     || '').trim()
+  const niveau            = parseInt(String(body.niveau    || '1'))
+  const ville             = String(body.ville              || '').trim()
+  const region            = String(body.region             || '').trim()
+  const adresse           = String(body.adresse            || '').trim()
+  const structure_tel     = String(body.structure_telephone|| '').trim() || null
+  const numero_autorisation = String(body.numero_autorisation || '').trim()
+  const responsable_prenom= String(body.responsable_prenom  || '').trim()
+  const responsable_nom   = String(body.responsable_nom     || '').trim()
+  const responsable_fonct = String(body.responsable_fonction|| '').trim()
+  const responsable_tel   = String(body.responsable_telephone || '').trim()
+  const email             = String(body.email              || '').trim().toLowerCase()
+  const password          = String(body.password           || '')
+  const pwd_confirm       = String(body.password_confirm   || '')
+
+  if (!structure_nom || !email || !responsable_nom || !password || !numero_autorisation) {
+    return c.redirect(`/plans/inscription?tx=${tx}&err=Champs+obligatoires+manquants`, 303)
+  }
+  if (password !== pwd_confirm) {
+    return c.redirect(`/plans/inscription?tx=${tx}&err=Mots+de+passe+differents`, 303)
+  }
+  if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[#@!$%]/.test(password)) {
+    return c.redirect(`/plans/inscription?tx=${tx}&err=Mot+de+passe+trop+faible+(8+car+1+maj+1+chiffre+1+special)`, 303)
+  }
+
+  const expire = new Date(Date.now() + duree.mois * 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  // 1. Créer la structure
+  const { data: struct, error: se } = await sb.from('struct_structures').insert({
+    nom:                  structure_nom,
+    type:                 structure_type,
+    niveau,
+    plan_actif:           cmd.plan,
+    est_actif:            true,
+    est_pilote:           false,
+    telephone:            structure_tel,
+    abonnement_expire_at: expire,
+    numero_autorisation,
+    responsable_nom,
+    responsable_prenom,
+    responsable_telephone: responsable_tel,
+    responsable_email:    email,
+    statut_verification:  'en_attente',
+    adresse:              adresse || null,
+    region:               region  || null,
+  }).select('id').single()
+
+  if (se || !struct) {
+    const msg = se?.message || 'Erreur création structure'
+    return c.redirect(`/plans/inscription?tx=${tx}&err=${encodeURIComponent(msg)}`, 303)
+  }
+
+  // 2. Créer compte Auth
+  const { data: authData, error: ae } = await sb.auth.admin.createUser({
+    email, password, email_confirm: true,
+    user_metadata: { nom: responsable_nom, prenom: responsable_prenom, role: 'admin_structure', telephone: responsable_tel },
+  })
+
+  if (ae || !authData?.user) {
+    await sb.from('struct_structures').delete().eq('id', struct.id)
+    const msg = ae?.message?.includes('already') ? 'Email+deja+utilise' : encodeURIComponent(ae?.message || 'Erreur compte')
+    return c.redirect(`/plans/inscription?tx=${tx}&err=${msg}`, 303)
+  }
+
+  // 3. Mettre à jour le profil
+  await sb.from('auth_profiles').update({
+    nom: responsable_nom, prenom: responsable_prenom,
+    role: 'admin_structure', structure_id: struct.id,
+    est_actif: true, doit_changer_mdp: false,
+    telephone: responsable_tel,
+  }).eq('id', authData.user.id).catch((e: any) => console.error('profil update:', e))
+
+  // 4. Enregistrer abonnement
+  await sb.from('struct_abonnements').insert({
+    structure_id: struct.id, plan: cmd.plan, montant: cmd.montant,
+    statut: 'actif', mode_paiement: 'cinetpay', transaction_id: tx,
+    date_debut: new Date().toISOString(), date_expiration: expire,
+    notes: `Inscription /plans — ${email} — ${duree.label}`,
+  }).catch((e: any) => console.error('abo insert:', e))
+
+  // 5. Marquer commande traitée
+  await sb.from('commandes_pendantes').update({ statut: 'traite', structure_id: struct.id })
+    .eq('transaction_id', tx).catch(() => {})
+
+  return c.redirect('/auth/login?inscription=ok', 302)
+})
