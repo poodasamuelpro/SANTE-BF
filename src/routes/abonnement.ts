@@ -219,7 +219,7 @@ abonnementRoutes.get('/plans', async (c) => {
     </div>
 
     ${joursRestants !== null && joursRestants < 30 && joursRestants > 0 ? '<div class="warn">⏰ Votre abonnement expire dans moins de 30 jours. Pensez à le renouveler.</div>' : ''}
-    ${!paiementActif ? '<div class="info">ℹ️ Le paiement en ligne est en cours d'activation. Contactez-nous pour renouveler votre abonnement.</div>' : ''}
+    ${!paiementActif ? '<div class="info">ℹ️ Le paiement en ligne est en cours d/'activation. Contactez-nous pour renouveler votre abonnement.</div>' : ''}
 
     <h2 style="font-size:16px;font-weight:700;margin-bottom:16px">Choisir ou renouveler</h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-bottom:24px">
