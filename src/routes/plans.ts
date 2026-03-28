@@ -19,7 +19,6 @@
 
 import { Hono } from 'hono'
 import { createClient } from '@supabase/supabase-js'
-import { inscriptionStructurePage } from '../pages/inscription-structure'
 
 type PlansBindings = {
   SUPABASE_URL:      string
@@ -722,8 +721,6 @@ ${footerHtml()}
 // ══════════════════════════════════════════════════════════════
 // GET /plans/inscription — Formulaire création compte structure
 // ══════════════════════════════════════════════════════════════
-// GET /plans/inscription — Formulaire création compte structure
-// ══════════════════════════════════════════════════════════════
 plansRoutes.get('/inscription', async (c) => {
   const tx     = c.req.query('tx')  || ''
   const erreur = c.req.query('err') || ''
@@ -731,23 +728,139 @@ plansRoutes.get('/inscription', async (c) => {
   const { data: cmd } = await sb.from('commandes_pendantes').select('*').eq('transaction_id', tx).single().catch(() => ({ data: null }))
 
   if (!cmd) return c.redirect('/plans?err=Reference+introuvable', 303)
+  const plan = PLANS_INFO.find(p => p.id === cmd.plan) || PLANS_INFO[2]
 
-  return c.html(inscriptionStructurePage(
-    {
-      structure_nom:  cmd.structure_nom,
-      structure_type: cmd.structure_type,
-      ville:          cmd.ville,
-      prenom:         cmd.prenom,
-      nom:            cmd.nom,
-      email:          cmd.email,
-      telephone:      cmd.telephone,
-      plan:           cmd.plan,
-    },
-    tx,
-    erreur ? decodeURIComponent(erreur) : undefined
-  ))
+  return c.html(`<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Cr&#xe9;er votre compte — Sant&#xe9;BF</title>
+${cssCommun()}
+<style>
+.wrap{max-width:700px;margin:0 auto;padding:48px 5%}
+.head{text-align:center;margin-bottom:32px}
+.head h1{font-family:'Fraunces',serif;font-size:26px;margin-bottom:8px}
+.head p{font-size:14px;color:var(--soft)}
+.plan-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;margin-bottom:14px}
+.box{background:var(--w);border-radius:20px;padding:36px;box-shadow:0 4px 24px rgba(0,0,0,.07);border:1px solid var(--bd)}
+.stitle{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--soft);margin:22px 0 14px;padding-top:22px;border-top:1px solid var(--bd)}
+.stitle:first-child{border-top:none;margin-top:0;padding-top:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fg{margin-bottom:14px}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--tx);margin-bottom:5px}
+.req{color:var(--r)}
+input[type=text],input[type=email],input[type=tel],input[type=password],select{width:100%;padding:11px 13px;font-family:'Plus Jakarta Sans',sans-serif;font-size:13.5px;border:1.5px solid var(--bd);border-radius:10px;background:#fafcfa;color:var(--tx);outline:none;transition:border-color .2s}
+input:focus,select:focus{border-color:var(--v);background:var(--w)}
+.pwd-hint{font-size:11px;color:var(--soft);margin-top:4px;line-height:1.5}
+.note{font-size:12px;color:var(--soft);margin-top:4px;line-height:1.5;background:#f8faf8;border-radius:8px;padding:9px 12px}
+.consent{display:flex;align-items:flex-start;gap:10px;margin:14px 0;font-size:13px;color:var(--soft);line-height:1.6}
+.consent input[type=checkbox]{width:18px;height:18px;flex-shrink:0;accent-color:var(--v)}
+.btn-sub{width:100%;padding:14px;background:var(--v);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;margin-top:6px}
+.btn-sub:hover{background:var(--vf)}
+.err{background:var(--rc);border:1px solid #ffb3b3;border-radius:9px;padding:11px 13px;font-size:13px;color:var(--r);margin-bottom:14px}
+@media(max-width:500px){.box{padding:24px 18px}.grid2{grid-template-columns:1fr}}
+</style></head><body>
+${navHtml()}
+<div class="wrap">
+  <div class="head">
+    <div class="plan-badge" style="background:${plan.bg};color:${plan.couleur}">&#x1F3E5; Plan ${plan.nom}</div>
+    <h1>Cr&#xe9;ez votre compte structure</h1>
+    <p>Renseignez les informations de votre structure et de l&#x27;administrateur principal.</p>
+  </div>
+  <div class="box">
+    ${erreur ? `<div class="err">&#x26A0;&#xFE0F; ${esc(decodeURIComponent(erreur))}</div>` : ''}
+    <form method="POST" action="/plans/inscription">
+      <input type="hidden" name="tx" value="${esc(tx)}">
+
+      <div class="stitle">Informations de la structure</div>
+      <div class="fg">
+        <label>Nom de la structure <span class="req">*</span></label>
+        <input type="text" name="structure_nom" value="${esc(cmd.structure_nom || '')}" required>
+      </div>
+      <div class="grid2">
+        <div class="fg" style="margin-bottom:0">
+          <label>Type <span class="req">*</span></label>
+          <select name="structure_type" required>
+            <option value="">S&#xe9;lectionner...</option>
+            ${['chu:CHU / CHR','chr:CHR','district:Centre santé district','csps:CSPS','clinique:Clinique','cabinet:Cabinet médical','pharmacie:Pharmacie','laboratoire:Laboratoire','autre:Autre'].map(t => {
+              const [val, lab] = t.split(':')
+              return `<option value="${val}" ${cmd.structure_type===val?'selected':''}>${lab}</option>`
+            }).join('')}
+          </select>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Niveau</label>
+          <select name="niveau">
+            <option value="1">Niveau 1 — Local</option>
+            <option value="2">Niveau 2 — District</option>
+            <option value="3">Niveau 3 — R&#xe9;gional</option>
+            <option value="4">Niveau 4 — National</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:12px">
+        <div class="fg" style="margin-bottom:0">
+          <label>Ville <span class="req">*</span></label>
+          <input type="text" name="ville" value="${esc(cmd.ville || '')}" required>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>T&#xe9;l&#xe9;phone structure</label>
+          <input type="tel" name="structure_telephone" placeholder="+226 XX XX XX XX">
+        </div>
+      </div>
+
+      <div class="stitle">Administrateur principal</div>
+      <div class="note">Ce compte aura les droits complets. Vous pourrez ajouter d&#x27;autres administrateurs et m&#xe9;decins apr&#xe8;s connexion.</div>
+      <div class="grid2" style="margin-top:12px">
+        <div class="fg" style="margin-bottom:0">
+          <label>Pr&#xe9;nom <span class="req">*</span></label>
+          <input type="text" name="prenom" value="${esc(cmd.prenom || '')}" required>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Nom <span class="req">*</span></label>
+          <input type="text" name="nom" value="${esc(cmd.nom || '')}" required>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:12px">
+        <div class="fg" style="margin-bottom:0">
+          <label>Email <span class="req">*</span></label>
+          <input type="email" name="email" value="${esc(cmd.email || '')}" required>
+          <div class="pwd-hint">Sera votre identifiant de connexion</div>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>T&#xe9;l&#xe9;phone <span class="req">*</span></label>
+          <input type="tel" name="telephone" value="${esc(cmd.telephone || '')}" required>
+        </div>
+      </div>
+
+      <div class="stitle">Mot de passe</div>
+      <div class="grid2">
+        <div class="fg" style="margin-bottom:0">
+          <label>Mot de passe <span class="req">*</span></label>
+          <input type="password" name="password" required minlength="8">
+          <div class="pwd-hint">8+ car., 1 maj., 1 chiffre, 1 sp&#xe9;cial (#@!$%)</div>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Confirmer <span class="req">*</span></label>
+          <input type="password" name="password_confirm" required>
+        </div>
+      </div>
+
+      <div class="consent">
+        <input type="checkbox" id="consent" name="consent" required>
+        <label for="consent" style="margin-bottom:0;font-weight:400">
+          J&#x27;accepte les <a href="/politique-confidentialite" target="_blank" style="color:var(--v);font-weight:600">conditions et la politique de confidentialit&#xe9;</a> de Sant&#xe9;BF.
+        </label>
+      </div>
+
+      <button type="submit" class="btn-sub">Cr&#xe9;er le compte et acc&#xe9;der au dashboard &#x2192;</button>
+      <p style="font-size:11px;color:var(--soft);text-align:center;margin-top:8px">Vous pourrez modifier ces informations depuis votre dashboard.</p>
+    </form>
+  </div>
+</div>
+${footerHtml()}
+</body></html>`)
 })
-
 
 // ══════════════════════════════════════════════════════════════
 // POST /plans/inscription — Créer la structure en DB
