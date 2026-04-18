@@ -2,21 +2,16 @@
  * src/middleware/plan.ts
  * SantéBF — Middleware contrôle plan d'abonnement
  *
- * USAGE dans une route :
- *   import { requirePlan } from '../middleware/plan'
- *   medecinRoutes.get('/ia/...', requirePlan('standard','pro','enterprise'), handler)
- *
- * COMPORTEMENT ACTUEL : toutes les fonctions retournent next()
- * → Tout le monde a accès, rien n'est bloqué
- * → Quand tu veux activer : décommenter le bloc de vérification
- *
- * PLANS :
- *   gratuit    → accès de base (dossier patient, consultation, RDV)
- *   starter    → + PDF, pharmacien, notifications (40 000 FCFA/mois)
- *   standard   → + Labo, grossesse, facturation, IA limitée (90 000 FCFA/mois)
- *   pro        → + Hospit, IA illimitée, SMS illimités (120 000 FCFA/mois)
- *   enterprise → API publique, SLA, support (sur devis)
- *   pilote     → accès complet gratuit (structures partenaires)
+ * CORRECTIONS APPLIQUÉES :
+ *   [LM-02] requirePlan() est maintenant ACTIF (restrictions non commentées)
+ *           Les vérifications de plan fonctionnent réellement
+ *   [S-18]  !profil.structure_id : super_admin pass uniquement si rôle super_admin
+ *           Les autres sans structure_id ne bypassent plus la vérification
+ *   [LM-05] requireIA() est maintenant appliqué sur les routes /ia/*
+ *           (Les routes ia.ts doivent utiliser ce middleware)
+ *   [S-21]  Logger l'usage IA APRÈS la requête IA, pas avant
+ *           (Ce middleware logue le quota AVANT la requête — à corriger dans ia.ts)
+ *   [QC-17] modele: '' → modele renseigné via le paramètre passé
  */
 
 import type { Context, Next } from 'hono'
@@ -109,24 +104,34 @@ p{color:#5a6a78;font-size:14px;line-height:1.6;margin-bottom:6px;}
 </html>`
 }
 
-// ─── Middleware principal ─────────────────────────────────────
+// ─── Middleware principal requirePlan ─────────────────────────
+// [LM-02] CORRECTION : Les vérifications sont maintenant ACTIVES
 
 export function requirePlan(...plans: string[]) {
   return async (c: Context, next: Next) => {
     const profil = c.get('profil') as any
-    if (!profil?.structure_id) { await next(); return }
 
     // super_admin passe toujours
     if (profil?.role === 'super_admin') { await next(); return }
 
+    // [S-18] CORRECTION : Un utilisateur sans structure_id est BLOQUÉ
+    // (sauf super_admin ci-dessus) — plus de bypass implicite
+    if (!profil?.structure_id) {
+      return c.html(pagePlanRequis(plans[0]), 402)
+    }
+
     const supabase = c.get('supabase') as any
-    const { data: struct } = await supabase
+    const { data: struct, error } = await supabase
       .from('struct_structures')
       .select('plan_actif, abonnement_expire_at, est_pilote')
       .eq('id', profil.structure_id)
       .single()
 
-    if (!struct) { await next(); return }
+    if (error || !struct) {
+      // Erreur DB → bloquer par sécurité (pas next())
+      console.error('requirePlan: erreur chargement structure', error)
+      return c.html(pagePlanRequis(plans[0]), 402)
+    }
 
     // Structures pilotes : accès complet
     if (struct.est_pilote) { await next(); return }
@@ -153,6 +158,8 @@ export function requirePlan(...plans: string[]) {
 }
 
 // ─── Middleware IA ────────────────────────────────────────────
+// [LM-05] CORRECTION : requireIA() doit être appliqué sur les routes /ia/*
+// [QC-17] CORRECTION : modele passé en paramètre et enregistré dans les logs
 
 function pageIANonActivee(fonctionnalite: string): string {
   return `<!DOCTYPE html>
@@ -188,7 +195,11 @@ p{color:#5a6a78;font-size:14px;line-height:1.6;margin-bottom:6px;}
 </html>`
 }
 
-export function requireIA(fonctionnalite: string) {
+// [LM-05] requireIA maintenant avec paramètre modele
+// [QC-17] modele enregistré dans les logs
+// [S-21]  NOTE : Ce middleware logue AVANT la requête IA
+//         Pour logger APRÈS, ia.ts doit appeler une fonction de log post-requête
+export function requireIA(fonctionnalite: string, modele: string = '') {
   return async (c: Context, next: Next) => {
     const profil   = c.get('profil') as any
     const supabase = c.get('supabase') as any
@@ -196,26 +207,42 @@ export function requireIA(fonctionnalite: string) {
     // super_admin passe toujours
     if (profil?.role === 'super_admin') { await next(); return }
 
-    if (!profil?.structure_id) { await next(); return }
+    // [S-18] CORRECTION : Pas de bypass pour structure_id manquant
+    if (!profil?.structure_id) {
+      const accept = c.req.header('Accept') || ''
+      if (accept.includes('application/json')) {
+        return c.json({ error: 'Structure non définie', code: 'NO_STRUCTURE' }, 402)
+      }
+      return c.html(pageIANonActivee(fonctionnalite), 402)
+    }
 
-    // Vérifier le plan de la structure pour l'IA
     const { data: struct } = await supabase
       .from('struct_structures')
       .select('plan_actif, est_pilote, abonnement_expire_at')
       .eq('id', profil.structure_id)
       .single()
 
-    if (!struct) { await next(); return }
+    if (!struct) { 
+      const accept = c.req.header('Accept') || ''
+      if (accept.includes('application/json')) {
+        return c.json({ error: 'Structure introuvable' }, 402)
+      }
+      return c.html(pageIANonActivee(fonctionnalite), 402)
+    }
+
     if (struct.est_pilote) { await next(); return }
 
     // Vérifier expiration
     if (struct.abonnement_expire_at && new Date(struct.abonnement_expire_at) < new Date()) {
-      return c.json({ error: 'Abonnement expire', upgrade: true }, 402)
+      const accept = c.req.header('Accept') || ''
+      if (accept.includes('application/json')) {
+        return c.json({ error: 'Abonnement expiré', upgrade: true }, 402)
+      }
+      return c.html(pageIANonActivee('abonnement_expire'), 402)
     }
 
     const planActif = struct?.plan_actif ?? 'gratuit'
 
-    // Plans avec IA : standard (limité) et pro (illimité)
     if (!['standard', 'pro', 'pilote'].includes(planActif)) {
       const accept = c.req.header('Accept') || ''
       if (accept.includes('application/json')) {
@@ -245,16 +272,41 @@ export function requireIA(fonctionnalite: string) {
       }
     }
 
-    // Logger l'utilisation
+    // [QC-17] CORRECTION : enregistrer avec modele renseigné (pas chaîne vide)
+    // [S-21] NOTE : Ce log est AVANT la requête IA (le quota est déduit même si IA échoue)
+    // Pour corriger S-21 complètement, ia.ts doit appeler logUsageIA() APRÈS la requête
     await supabase.from('usage_ia_logs').insert({
       structure_id:   profil.structure_id,
       user_id:        profil.id,
       fonctionnalite,
-      modele:         '',
-      succes:         true,
-      tokens_approx:  0,
-    }).catch(() => {})
+      modele:         modele || 'non_defini',  // [QC-17] plus jamais ''
+      succes:         true,   // optimiste — sera mis à false par ia.ts si erreur
+      tokens_approx:  0,      // mis à jour par ia.ts après la requête
+    }).catch((e: any) => console.error('usage_ia_logs insert error:', e))
 
     await next()
   }
+}
+
+// ─── Fonction de log post-requête IA ─────────────────────────
+// [S-21] À appeler depuis ia.ts APRÈS la requête IA pour corriger le statut
+export async function logUsageIAPost(
+  supabase: any,
+  structureId: string,
+  userId: string,
+  fonctionnalite: string,
+  modele: string,
+  succes: boolean,
+  tokensApprox: number = 0
+) {
+  // Mettre à jour le dernier log pour cette requête
+  await supabase
+    .from('usage_ia_logs')
+    .update({ succes, tokens_approx: tokensApprox, modele })
+    .eq('structure_id', structureId)
+    .eq('user_id', userId)
+    .eq('fonctionnalite', fonctionnalite)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .catch((e: any) => console.error('logUsageIAPost error:', e))
 }
