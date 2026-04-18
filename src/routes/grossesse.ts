@@ -8,7 +8,7 @@
  *  3. Bindings importé depuis supabase.ts
  *  4. actionCard(...args individuels) → actionCard([tableau d'objets])
  *  5. FROM medical_grossesses → spec_grossesses (table réelle)
- *  6. ddr → date_dernières_regles
+ *  6. ddr → date_dernieres_regles
  *  7. dpa → date_accouchement_prevue
  *  8. terme_semaines → age_gestationnel_debut
  *  9. nb_cpn → COUNT via spec_grossesse_cpn
@@ -48,7 +48,7 @@ grossesseRoutes.get('/', async (c) => {
       // grossesse_a_risque est BOOLEAN — pas de colonne 'risque'
       supabase.from('spec_grossesses')
         .select(`
-          id, patient_id, date_dernières_regles, date_accouchement_prevue,
+          id, patient_id, date_dernieres_regles, date_accouchement_prevue,
           age_gestationnel_debut, statut, grossesse_a_risque, facteurs_risque,
           patient:patient_dossiers(nom, prenom, numero_national, date_naissance)
         `)
@@ -179,7 +179,7 @@ grossesseRoutes.get('/nouveau', async (c) => {
           </div>
           <div>
             <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Date dernières règles (DDR) *</label>
-            <input type="date" name="date_dernières_regles" style="width:100%;padding:11px 14px;border:1.5px solid #e2e8e4;border-radius:8px;font-size:14px;font-family:inherit" required>
+            <input type="date" name="date_dernieres_regles" style="width:100%;padding:11px 14px;border:1.5px solid #e2e8e4;border-radius:8px;font-size:14px;font-family:inherit" required>
           </div>
           <div>
             <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Grossesse à risque</label>
@@ -220,15 +220,15 @@ grossesseRoutes.post('/nouveau', async (c) => {
   const body     = await c.req.parseBody()
 
   // Calculer DPA = DDR + 280 jours
-  const ddr = new Date(String(body['date_dernières_regles'] || body.date_ddr || ''))
+  const ddr = new Date(String(body['date_dernieres_regles'] || body.date_ddr || ''))
   const dpa = new Date(ddr)
   dpa.setDate(dpa.getDate() + 280)
 
   const { error } = await supabase.from('spec_grossesses').insert({
     patient_id:             body.patient_id,
     structure_id:           profil.structure_id,
-    medecin_referent_id:    profil.id,
-    date_dernières_regles:  String(body['date_dernières_regles'] || body.date_ddr || ''),
+    medecin_referent_id: profil.medecin_id ?? profil.id,
+    date_dernieres_regles:  String(body['date_dernieres_regles'] || body.date_ddr || ''),
     date_accouchement_prevue: isNaN(dpa.getTime()) ? null : dpa.toISOString().split('T')[0],
     grossesse_a_risque:     body.grossesse_a_risque === 'true',
     facteurs_risque:        String(body.facteurs_risque || '') || null,
@@ -255,7 +255,7 @@ grossesseRoutes.get('/dossier/:id', async (c) => {
   const { data: g } = await supabase
     .from('spec_grossesses')
     .select(`
-      id, date_dernières_regles, date_accouchement_prevue,
+      id, date_dernieres_regles, date_accouchement_prevue,
       age_gestationnel_debut, grossesse_a_risque, facteurs_risque,
       gestite, parite, statut,
       patient:patient_dossiers(nom, prenom, numero_national, date_naissance, groupe_sanguin, rhesus)
@@ -289,7 +289,7 @@ grossesseRoutes.get('/dossier/:id', async (c) => {
       <div class="section-box" style="padding:20px;">
         <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;">🤰 Grossesse</h3>
         <div style="font-size:13px;display:flex;flex-direction:column;gap:8px;">
-          <div><span style="color:#6b7280;">DDR : </span>${g.date_dernières_regles ? new Date(g.date_dernières_regles).toLocaleDateString('fr-FR') : '—'}</div>
+          <div><span style="color:#6b7280;">DDR : </span>${g.date_dernieres_regles ? new Date(g.date_dernieres_regles).toLocaleDateString('fr-FR') : '—'}</div>
           <div><span style="color:#6b7280;">DPA : </span><strong>${g.date_accouchement_prevue ? new Date(g.date_accouchement_prevue).toLocaleDateString('fr-FR') : '—'}</strong></div>
           <div><span style="color:#6b7280;">Terme début : </span>${g.age_gestationnel_debut||'—'} SA</div>
           <div><span style="color:#6b7280;">Risque : </span><span class="badge ${g.grossesse_a_risque ? 'badge-danger' : 'badge-ok'}">${g.grossesse_a_risque ? 'Élevé' : 'Normal'}</span></div>
