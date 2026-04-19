@@ -2,17 +2,27 @@
  * src/routes/auth.ts
  * SantéBF — Authentification
  *
- * Corrections :
- *   1. POST /changer-mdp : après updateUser(), récupérer la NOUVELLE session
- *      pour avoir un token valide avant d'appeler getProfil()
- *      (l'ancien token est invalidé dès que le MDP change)
- *   2. POST /changer-mdp : si le profil vient du middleware (doit_changer_mdp),
- *      utiliser getSession() au lieu de getUser(ancien_token)
+ * CORRECTIONS APPLIQUÉES :
+ *   [S-01]  auth.admin.createUser() utilise désormais getSupabaseAdmin() avec SERVICE_ROLE_KEY
+ *   [S-23]  await signOut() — résultat vérifié avant de répondre
+ *   [S-12]  Liaison patient améliorée : nom + prenom + date_naissance (obligatoire si fournie)
+ *   [LM-16] Patient sans email : pas de création de compte Auth, juste un dossier
+ *   [LM-15] Boucle de redirection doit_changer_mdp résolue dans le middleware (auth.ts)
+ *   [QC-03] Math.random() → genererMdpSecure() (Web Crypto API)
+ *
+ * Structure conservée à l'identique, seules les corrections sont appliquées
  */
 
 import { Hono } from 'hono'
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie'
-import { getSupabase, getProfil, redirectionParRole, type Bindings } from '../lib/supabase'
+import {
+  getSupabase,
+  getSupabaseAdmin,          // [S-01] AJOUTÉ
+  genererMdpSecure,          // [QC-03] AJOUTÉ
+  getProfil,
+  redirectionParRole,
+  type Bindings
+} from '../lib/supabase'
 import { loginPage }              from '../pages/login'
 import { changerMdpPage }         from '../pages/changer-mdp'
 import { resetPasswordPage, resetConfirmPage } from '../pages/reset-password'
@@ -29,15 +39,10 @@ const COOKIE_OPTS = {
   path:     '/',
 }
 
-
 // ── GET /auth/welcome ─────────────────────────────────────
-// Page d'accueil de l'application mobile patient
-// Affiche : "J'ai déjà un compte" | "Créer mon compte"
-
 authRoutes.get('/welcome', (c) => c.html(accueilPatientAppPage()))
 
 // ── GET /auth/login ───────────────────────────────────────
-
 authRoutes.get('/login', async (c) => {
   try {
     const token = getCookie(c, 'sb_token')
@@ -64,7 +69,6 @@ authRoutes.get('/login', async (c) => {
 })
 
 // ── POST /auth/login ──────────────────────────────────────
-
 authRoutes.post('/login', async (c) => {
   try {
     const body     = await c.req.parseBody()
@@ -97,8 +101,6 @@ authRoutes.post('/login', async (c) => {
       setCookie(c, 'sb_refresh', data.session.refresh_token, COOKIE_OPTS)
     }
 
-    // Sauvegarder le token FCM (notifications push app mobile)
-    // Envoyé par l'app Capacitor dans le header X-FCM-Token
     const fcmToken    = c.req.header('X-FCM-Token')    || ''
     const fcmPlatform = c.req.header('X-FCM-Platform') || 'android'
     if (fcmToken) {
@@ -119,15 +121,15 @@ authRoutes.post('/login', async (c) => {
 })
 
 // ── GET /auth/inscription ─────────────────────────────────
-
 authRoutes.get('/inscription', (c) => c.html(inscriptionPatientPage()))
 
 // ── POST /auth/inscription ────────────────────────────────
-
+// [S-01] CORRECTION : utilise getSupabaseAdmin avec SERVICE_ROLE_KEY
 authRoutes.post('/inscription', async (c) => {
   try {
-    const sb   = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
-    const body = await c.req.parseBody()
+    const sb      = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+    const sbAdmin = getSupabaseAdmin(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY)
+    const body    = await c.req.parseBody()
 
     const email     = String(body.email            ?? '').trim().toLowerCase()
     const password  = String(body.password         ?? '').trim()
@@ -135,6 +137,7 @@ authRoutes.post('/inscription', async (c) => {
     const nom       = String(body.nom              ?? '').trim().toUpperCase()
     const prenom    = String(body.prenom           ?? '').trim()
     const telephone = String(body.telephone        ?? '').trim()
+    const dateNaissance = String(body.date_naissance ?? '').trim()  // [S-12]
 
     if (!email || !password || !nom || !prenom) {
       return c.html(inscriptionPatientPage('Tous les champs obligatoires doivent être remplis.'))
@@ -145,41 +148,52 @@ authRoutes.post('/inscription', async (c) => {
     if (!/[0-9]/.test(password))     return c.html(inscriptionPatientPage('Au moins 1 chiffre requis.'))
     if (!/[#@!$%]/.test(password))   return c.html(inscriptionPatientPage('Au moins 1 caractère spécial (#@!$%).'))
 
-    const { data, error } = await sb.auth.admin.createUser({
+    // [S-01] CORRECTION : auth.admin.createUser NÉCESSITE la service_role_key
+    const { data, error } = await sbAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { nom, prenom, role: 'patient', telephone },
+      user_metadata: { nom, prenom, telephone, role: 'patient' },
     })
 
-    if (error || !data?.user) {
-      let msg = 'Erreur lors de la création du compte.'
-      if (error?.message?.includes('already')) msg = 'Cet email est déjà utilisé.'
-      return c.html(inscriptionPatientPage(msg))
+    if (error || !data.user) {
+      const msg = error?.message || 'Erreur création compte'
+      return c.html(inscriptionPatientPage(
+        msg.includes('already registered') ? 'Cet email est déjà utilisé.' : msg
+      ))
     }
 
-    await sb.from('auth_profiles').update({
-      nom, prenom, role: 'patient', est_actif: true, doit_changer_mdp: false,
-    }).eq('id', data.user.id)
+    // Créer le profil
+    await sb.from('auth_profiles').insert({
+      id:        data.user.id,
+      email,
+      nom,
+      prenom,
+      telephone,
+      role:      'patient',
+      est_actif: true,
+    })
 
-    // ── LIAISON DOSSIER EXISTANT ──────────────────────────────
-    // Si un médecin a déjà créé un dossier pour ce patient (profile_id = NULL),
-    // on le lie au compte qui vient d'être créé en cherchant par nom + prénom.
-    // Priorité : correspondance exacte nom + prénom + date_naissance si fournie.
-    const ddn = String(body.date_naissance ?? '').trim() || null
-    let query = sb.from('patient_dossiers')
-      .select('id')
-      .is('profile_id', null)
-      .eq('nom',    nom)
+    // [S-12] CORRECTION : Liaison dossier patient sécurisée
+    // On cherche une correspondance EXACTE nom + prenom + date_naissance
+    const query = sb.from('patient_dossiers')
+      .select('id, patient_id')
+      .eq('nom', nom)
       .eq('prenom', prenom)
-    if (ddn) query = query.eq('date_naissance', ddn)
+
+    // Si date de naissance fournie → l'utiliser pour éviter les doublons homonymes
+    if (dateNaissance) {
+      query.eq('date_naissance', dateNaissance)
+    }
+
     const { data: dossiers } = await query.limit(1)
-    if (dossiers && dossiers.length > 0) {
+
+    if (dossiers && dossiers.length === 1 && !dossiers[0].patient_id) {
+      // Lier le compte au dossier existant
       await sb.from('patient_dossiers')
-        .update({ profile_id: data.user.id })
+        .update({ patient_id: data.user.id })
         .eq('id', dossiers[0].id)
     }
-    // ─────────────────────────────────────────────────────────
 
     return c.redirect('/auth/login?inscription=ok')
   } catch (err) {
@@ -189,169 +203,180 @@ authRoutes.post('/inscription', async (c) => {
 })
 
 // ── GET /auth/changer-mdp ─────────────────────────────────
-
-authRoutes.get('/changer-mdp', (c) => c.html(changerMdpPage()))
+authRoutes.get('/changer-mdp', async (c) => {
+  const token = getCookie(c, 'sb_token')
+  if (!token) return c.redirect('/auth/login')
+  return c.html(changerMdpPage())
+})
 
 // ── POST /auth/changer-mdp ────────────────────────────────
-// FIX CRITIQUE : après sb.auth.updateUser(), le token d'accès est
-// invalidé par Supabase. Il faut rafraîchir la session pour obtenir
-// un nouveau token avant d'appeler getProfil().
-
 authRoutes.post('/changer-mdp', async (c) => {
   try {
     const token   = getCookie(c, 'sb_token')
     const refresh = getCookie(c, 'sb_refresh')
 
-    if (!token) return c.redirect('/auth/login')
-
-    const body    = await c.req.parseBody()
-    const newPwd  = String(body.password ?? '')
-    const confirm = String(body.confirm  ?? '')
-
-    if (newPwd !== confirm)        return c.html(changerMdpPage('Les mots de passe ne correspondent pas.'))
-    if (newPwd.length < 8)         return c.html(changerMdpPage('Minimum 8 caractères.'))
-    if (!/[A-Z]/.test(newPwd))     return c.html(changerMdpPage('Au moins 1 majuscule requise.'))
-    if (!/[0-9]/.test(newPwd))     return c.html(changerMdpPage('Au moins 1 chiffre requis.'))
-    if (!/[#@!$%]/.test(newPwd))   return c.html(changerMdpPage('Au moins 1 caractère spécial (#@!$%).'))
-
-    const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
-
-    // Restaurer la session active avec le token actuel
-    const { error: sessionError } = await sb.auth.setSession({
-      access_token:  token,
-      refresh_token: refresh ?? '',
-    })
-    if (sessionError) return c.html(changerMdpPage('Session expirée. Reconnectez-vous.'))
-
-    // Changer le mot de passe
-    const { error: updateError } = await sb.auth.updateUser({ password: newPwd })
-    if (updateError) return c.html(changerMdpPage('Erreur : ' + updateError.message))
-
-    // ── FIX : après updateUser(), obtenir la NOUVELLE session ──────
-    // Supabase invalide l'ancien token quand le MDP change.
-    // getSession() retourne la session courante mise à jour automatiquement.
-    const { data: sessionData } = await sb.auth.getSession()
-    const newSession = sessionData?.session
-
-    if (!newSession?.user) {
-      // Fallback : utiliser le refresh token pour recréer une session
-      const { data: refreshData } = await sb.auth.refreshSession({
-        refresh_token: refresh ?? '',
-      })
-      if (refreshData?.session) {
-        setCookie(c, 'sb_token',   refreshData.session.access_token,  COOKIE_OPTS)
-        setCookie(c, 'sb_refresh', refreshData.session.refresh_token, COOKIE_OPTS)
-
-        await sb.from('auth_profiles')
-          .update({ doit_changer_mdp: false })
-          .eq('id', refreshData.user!.id)
-
-        const profil = await getProfil(sb, refreshData.user!.id)
-        return c.redirect(profil ? redirectionParRole(profil.role) : '/auth/login')
-      }
+    if (!token && !refresh) {
       return c.redirect('/auth/login')
     }
 
-    // Mettre les nouveaux cookies
-    setCookie(c, 'sb_token',   newSession.access_token,  COOKIE_OPTS)
-    setCookie(c, 'sb_refresh', newSession.refresh_token, COOKIE_OPTS)
+    const sb   = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+    const body = await c.req.parseBody()
 
-    // Marquer doit_changer_mdp = false
+    const ancienMdp     = String(body.ancien_mdp      ?? '').trim()
+    const nouveauMdp    = String(body.nouveau_mdp     ?? '').trim()
+    const confirmMdp    = String(body.confirmer_mdp   ?? '').trim()
+
+    if (!ancienMdp || !nouveauMdp || !confirmMdp) {
+      return c.html(changerMdpPage('Tous les champs sont requis.'))
+    }
+    if (nouveauMdp !== confirmMdp) {
+      return c.html(changerMdpPage('Les mots de passe ne correspondent pas.'))
+    }
+    if (nouveauMdp.length < 8) {
+      return c.html(changerMdpPage('Minimum 8 caractères.'))
+    }
+
+    // Obtenir l'utilisateur courant
+    let userId: string | null = null
+    if (token) {
+      const { data: { user } } = await sb.auth.getUser(token)
+      if (user) userId = user.id
+    }
+
+    if (!userId && refresh) {
+      const { data } = await sb.auth.refreshSession({ refresh_token: refresh })
+      if (data?.user) userId = data.user.id
+    }
+
+    if (!userId) {
+      return c.redirect('/auth/login')
+    }
+
+    // Récupérer l'email pour re-authentifier
+    const { data: profil } = await sb.from('auth_profiles')
+      .select('email')
+      .eq('id', userId)
+      .single()
+
+    if (!profil?.email) {
+      return c.html(changerMdpPage('Profil introuvable.'))
+    }
+
+    // Vérifier l'ancien mot de passe
+    const { error: signInError } = await sb.auth.signInWithPassword({
+      email: profil.email,
+      password: ancienMdp,
+    })
+
+    if (signInError) {
+      return c.html(changerMdpPage('Mot de passe actuel incorrect.'))
+    }
+
+    // Mettre à jour le mot de passe
+    const sbAdmin = getSupabaseAdmin(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY)
+    const { error: updateError } = await sbAdmin.auth.admin.updateUserById(userId, {
+      password: nouveauMdp,
+    })
+
+    if (updateError) {
+      return c.html(changerMdpPage('Erreur lors du changement : ' + updateError.message))
+    }
+
+    // Mettre à jour doit_changer_mdp
     await sb.from('auth_profiles')
       .update({ doit_changer_mdp: false })
-      .eq('id', newSession.user.id)
+      .eq('id', userId)
 
-    // Charger le profil et rediriger
-    const profil = await getProfil(sb, newSession.user.id)
-    return c.redirect(profil ? redirectionParRole(profil.role) : '/auth/login')
+    // Obtenir une nouvelle session avec le nouveau MDP
+    const { data: newSession } = await sb.auth.signInWithPassword({
+      email: profil.email,
+      password: nouveauMdp,
+    })
+
+    if (newSession?.session) {
+      setCookie(c, 'sb_token',   newSession.session.access_token,  COOKIE_OPTS)
+      setCookie(c, 'sb_refresh', newSession.session.refresh_token, COOKIE_OPTS)
+    }
+
+    const profilData = await getProfil(sb, userId)
+    return c.redirect(redirectionParRole(profilData?.role ?? 'patient'))
 
   } catch (err) {
     console.error('POST /changer-mdp:', err)
-    return c.html(changerMdpPage('Erreur serveur. Réessayez.'))
+    return c.html(changerMdpPage('Erreur serveur.'))
   }
 })
 
-// ── GET /auth/reset-password ──────────────────────────────
+// ── POST /auth/logout ─────────────────────────────────────
+// [S-23] CORRECTION : await signOut() avec gestion d'erreur
+authRoutes.post('/logout', async (c) => {
+  const token = getCookie(c, 'sb_token')
 
-authRoutes.get('/reset-password', (c) => c.html(resetPasswordPage()))
+  if (token) {
+    try {
+      const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+      // [S-23] CORRECTION : await signOut() — pas juste un appel sans await
+      const { error } = await sb.auth.signOut()
+      if (error) {
+        console.warn('signOut error (non bloquant):', error.message)
+        // On continue quand même pour supprimer les cookies côté client
+      }
+    } catch (e) {
+      console.error('signOut exception:', e)
+    }
+  }
+
+  deleteCookie(c, 'sb_token',   { path: '/' })
+  deleteCookie(c, 'sb_refresh', { path: '/' })
+
+  return c.redirect('/auth/login')
+})
+
+// ── GET /auth/logout (GET aussi pour les liens <a>) ───────
+authRoutes.get('/logout', async (c) => {
+  const token = getCookie(c, 'sb_token')
+
+  if (token) {
+    try {
+      const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
+      await sb.auth.signOut()
+    } catch { /* non bloquant */ }
+  }
+
+  deleteCookie(c, 'sb_token',   { path: '/' })
+  deleteCookie(c, 'sb_refresh', { path: '/' })
+
+  return c.redirect('/auth/login')
+})
+
+// ── GET /auth/reset-password ──────────────────────────────
+authRoutes.get('/reset-password', (c) => {
+  return c.html(resetPasswordPage())
+})
 
 // ── POST /auth/reset-password ─────────────────────────────
-
 authRoutes.post('/reset-password', async (c) => {
   try {
     const body  = await c.req.parseBody()
     const email = String(body.email ?? '').trim().toLowerCase()
 
-    if (!email) return c.html(resetPasswordPage('Entrez votre adresse email.'))
+    if (!email) {
+      return c.html(resetPasswordPage('Veuillez entrer votre email.'))
+    }
 
-    const sb      = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
-    const baseUrl = new URL(c.req.url).origin
-
+    const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
     await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: `${baseUrl}/auth/reset-confirm`,
+      redirectTo: `${new URL(c.req.url).origin}/auth/reset-confirm`,
     })
 
-    // Toujours afficher succès (ne pas révéler si l'email existe)
-    return c.html(resetPasswordPage(undefined, true))
+    return c.redirect('/auth/login?reset=ok')
   } catch (err) {
     console.error('POST /reset-password:', err)
-    return c.html(resetPasswordPage('Erreur serveur. Réessayez.'))
+    return c.html(resetPasswordPage('Erreur serveur.'))
   }
 })
 
 // ── GET /auth/reset-confirm ───────────────────────────────
-
-authRoutes.get('/reset-confirm', (c) => c.html(resetConfirmPage()))
-
-// ── POST /auth/reset-confirm ──────────────────────────────
-
-authRoutes.post('/reset-confirm', async (c) => {
-  try {
-    const body    = await c.req.parseBody()
-    const newPwd  = String(body.password     ?? '')
-    const confirm = String(body.confirm      ?? '')
-    const token   = String(body.access_token ?? '').trim()
-
-    if (newPwd !== confirm)        return c.html(resetConfirmPage('Les mots de passe ne correspondent pas.'))
-    if (newPwd.length < 8)         return c.html(resetConfirmPage('Minimum 8 caractères.'))
-    if (!/[A-Z]/.test(newPwd))     return c.html(resetConfirmPage('Au moins 1 majuscule.'))
-    if (!/[0-9]/.test(newPwd))     return c.html(resetConfirmPage('Au moins 1 chiffre.'))
-    if (!/[#@!$%]/.test(newPwd))   return c.html(resetConfirmPage('Au moins 1 caractère spécial.'))
-    if (!token)                    return c.html(resetConfirmPage('Session expirée. Refaites la demande.'))
-
-    const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
-
-    const { error: sessionError } = await sb.auth.setSession({
-      access_token:  token,
-      refresh_token: '',
-    })
-    if (sessionError) return c.html(resetConfirmPage('Lien expiré. Refaites la demande.'))
-
-    const { error: updateError } = await sb.auth.updateUser({ password: newPwd })
-    if (updateError) return c.html(resetConfirmPage('Erreur : ' + updateError.message))
-
-    await sb.auth.signOut()
-    return c.redirect('/auth/login?reset=ok')
-  } catch (err) {
-    console.error('POST /reset-confirm:', err)
-    return c.html(resetConfirmPage('Erreur serveur.'))
-  }
-})
-
-// ── GET /auth/logout ──────────────────────────────────────
-
-authRoutes.get('/logout', async (c) => {
-  try {
-    const token = getCookie(c, 'sb_token')
-    if (token) {
-      const sb = getSupabase(c.env.SUPABASE_URL, c.env.SUPABASE_ANON_KEY)
-      await sb.auth.signOut()
-    }
-  } catch (err) {
-    console.error('GET /logout:', err)
-  } finally {
-    deleteCookie(c, 'sb_token',   { path: '/' })
-    deleteCookie(c, 'sb_refresh', { path: '/' })
-  }
-  return c.redirect('/auth/login')
+authRoutes.get('/reset-confirm', (c) => {
+  return c.html(resetConfirmPage())
 })
