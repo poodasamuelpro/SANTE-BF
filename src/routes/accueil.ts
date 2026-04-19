@@ -20,7 +20,7 @@
  */
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
-import { getSupabase } from '../lib/supabase'
+import { getSupabase, genererMdpSecure, getMedecinId } from '../lib/supabase'
 import type { AuthProfile, Bindings } from '../lib/supabase'
 // genererMdpTemporaire inline (évite dépendance externe)
 import { sendEmail, templateBienvenue } from '../utils/email'
@@ -28,21 +28,9 @@ import { envoyerConfirmationRDV } from '../utils/notifications'
 
 
 // Génère un MDP temporaire sécurisé (12 chars, 1 maj + 1 chiffre + 1 spécial)
+// [QC-03] CORRECTION : Math.random() → crypto.getRandomValues() via genererMdpSecure()
 function genererMdpTemporaire(): string {
-  const maj     = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  const min     = 'abcdefghijklmnopqrstuvwxyz'
-  const chiffres = '0123456789'
-  const speciaux = '@#!$%'
-  const tous    = maj + min + chiffres + speciaux
-  let mdp = ''
-  mdp += maj[Math.floor(Math.random() * maj.length)]
-  mdp += chiffres[Math.floor(Math.random() * chiffres.length)]
-  mdp += speciaux[Math.floor(Math.random() * speciaux.length)]
-  for (let i = 3; i < 12; i++) {
-    mdp += tous[Math.floor(Math.random() * tous.length)]
-  }
-  // Mélanger
-  return mdp.split('').sort(() => Math.random() - 0.5).join('')
+  return genererMdpSecure(12)
 }
 
 export const accueilRoutes = new Hono<{ Bindings: Bindings }>()
