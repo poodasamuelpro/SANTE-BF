@@ -417,7 +417,7 @@ medecinRoutes.post('/patients/nouveau', async (c) => {
   // Créer un consentement automatique entre ce médecin et ce patient
   await sb.from('patient_consentements').insert({
     patient_id:           pt.id,
-    medecin_id:           profil.id,
+    medecin_id: profil.medecin_id ?? profil.id,
     accorde_par:          'patient',
     type_acces:           'permanent',
     sections_autorisees:  ['consultations','ordonnances','examens','hospitalisations'],
@@ -446,7 +446,7 @@ medecinRoutes.get('/patients', async (c) => {
   } else {
     const { data: cons } = await sb.from('patient_consentements')
       .select('patient_dossiers(id,numero_national,nom,prenom,date_naissance,sexe,groupe_sanguin,rhesus)')
-      .eq('medecin_id', profil.id).eq('est_actif', true)
+      .eq('medecin_id', profil.medecin_id ?? profil.id).eq('est_actif', true)
     patients = (cons ?? []).map((r: any) => r.patient_dossiers).filter(Boolean)
   }
 
@@ -525,7 +525,7 @@ medecinRoutes.post('/urgence', async (c) => {
   if (!pt) return c.redirect('/medecin/patients?err=code_introuvable')
   const expAt = new Date(); expAt.setHours(expAt.getHours() + 24)
   await sb.from('patient_acces_urgence').insert({
-    patient_id:profil.id, medecin_id:profil.id, type_acces:'code_urgence_6chiffres',
+    patient_id:profil.id, medecin_id: profil.medecin_id ?? profil.id, type_acces:'code_urgence_6chiffres',
     motif_urgence:motif, acces_expire_at:expAt.toISOString(), valide_par_admin:false
   })
   return c.redirect(`/medecin/patients/${pt.id}?urgence=1`)
@@ -684,7 +684,7 @@ medecinRoutes.post('/consultations/nouvelle', async (c) => {
   if (!pid) return c.redirect('/medecin/patients')
 
   await sb.from('medical_consultations').insert({
-    patient_id:pid, medecin_id:profil.id, structure_id:profil.structure_id,
+    patient_id:pid, medecin_id: profil.medecin_id ?? profil.id, structure_id:profil.structure_id,
     type_consultation:String(body.type_consultation??'normale'),
     motif:String(body.motif??''),
     anamnese:String(body.anamnese??'')||null,
@@ -705,14 +705,14 @@ medecinRoutes.post('/consultations/nouvelle', async (c) => {
   const tail = parseFloat(String(body.taille??''))||null
   if (tsys||tdia||temp||pls||spo2||pds||tail) {
     await sb.from('medical_constantes').insert({
-      patient_id:pid, prise_par:profil.id,
+      patient_id:pid, mesure_par: profil.id,
       tension_systolique:tsys, tension_diastolique:tdia,
       temperature:temp, pouls:pls, saturation_o2:spo2, poids:pds, taille:tail
     })
   }
   if (body.rdv_date && body.rdv_heure) {
     await sb.from('medical_rendez_vous').insert({
-      patient_id:pid, medecin_id:profil.id, structure_id:profil.structure_id,
+      patient_id:pid, medecin_id: profil.medecin_id ?? profil.id, structure_id:profil.structure_id,
       date_heure:`${body.rdv_date}T${body.rdv_heure}:00`,
       motif:String(body.rdv_motif??'Suivi consultation'), statut:'planifie', duree_minutes:30, rappel_envoye:false
     })
@@ -746,7 +746,7 @@ medecinRoutes.post('/ordonnances/nouvelle', async (c) => {
   const dateExp = new Date(); dateExp.setMonth(dateExp.getMonth()+3)
 
   const {data:ord} = await sb.from('medical_ordonnances').insert({
-    patient_id:pid, medecin_id:profil.id, structure_id:profil.structure_id,
+    patient_id:pid, medecin_id: profil.medecin_id ?? profil.id, structure_id:profil.structure_id,
     statut:'active', date_expiration:dateExp.toISOString()
   }).select('id,numero_ordonnance,qr_code_verification').single()
 
@@ -876,7 +876,7 @@ medecinRoutes.get('/rdv', async (c) => {
   const today=new Date().toISOString().split('T')[0]
   const{data:rdvs}=await sb.from('medical_rendez_vous')
     .select('id,date_heure,motif,statut,duree_minutes,patient_dossiers(nom,prenom,numero_national)')
-    .eq('medecin_id',profil.id).gte('date_heure',today+'T00:00:00').order('date_heure').limit(50)
+    .eq('medecin_id', profil.medecin_id ?? profil.id).gte('date_heure',today+'T00:00:00').order('date_heure').limit(50)
   const lignes=(rdvs??[]).length===0?'<tr><td colspan="5" class="empty">Aucun RDV &#xe0; venir</td></tr>'
     :(rdvs??[]).map((r:any)=>`<tr>
       <td><strong style="color:var(--v)">${fmtDT(r.date_heure)}</strong></td>
@@ -923,7 +923,7 @@ medecinRoutes.post('/rdv/nouveau', async (c) => {
   const d=String(body.rdv_date??'');const h=String(body.rdv_heure??'')
   if(!pid||!d||!h)return c.redirect('/medecin/rdv')
   await sb.from('medical_rendez_vous').insert({
-    patient_id:pid,medecin_id:profil.id,structure_id:profil.structure_id,
+    patient_id:pid,medecin_id: profil.medecin_id ?? profil.id,structure_id:profil.structure_id,
     date_heure:`${d}T${h}:00`,motif:String(body.motif??'')||null,
     duree_minutes:parseInt(String(body.duree??'30'))||30,statut:'planifie',rappel_envoye:false
   })
@@ -1004,7 +1004,7 @@ medecinRoutes.get('/profil', async (c) => {
   const sb=c.get<ReturnType<typeof getSupabase>>('supabase');const profil=c.get<AuthProfile>('profil')
   const[medRes,structRes]=await Promise.all([
     sb.from('auth_medecins').select('specialite_principale,numero_ordre_national,annee_diplome').eq('profile_id',profil.id).single(),
-    sb.from('auth_medecin_structures').select('type_poste,jours_presence,struct_structures(nom,type_structure)').eq('medecin_id',profil.id)
+    sb.from('auth_medecin_structures').select('type_poste,jours_presence,struct_structures(nom,type_structure)').eq('medecin_id', profil.medecin_id ?? profil.id)
   ])
   const med=medRes.data; const structs=structRes.data??[]
   const structRows=structs.length===0?'<div class="empty">Aucune structure associ&#xe9;e</div>'
@@ -1437,7 +1437,7 @@ medecinRoutes.post('/suivi-chronique/nouveau', async (c) => {
   const body=await c.req.parseBody();const pid=String(body.patient_id??'').trim()
   if(!pid)return c.redirect('/medecin/patients')
   await sb.from('spec_suivi_chronique').insert({
-    patient_id:pid, medecin_referent_id:profil.id, structure_id:profil.structure_id,
+    patient_id:pid, medecin_referent_id: profil.medecin_id ?? profil.id, structure_id:profil.structure_id,
     maladie:String(body.maladie??''),
     traitement_fond:String(body.traitement_fond??'')||null,
     objectifs_therapeutiques:String(body.objectifs??'')||null,
@@ -1591,7 +1591,7 @@ medecinRoutes.post('/grossesse/nouvelle', async (c) => {
   let dpa=String(body.dpa??'')
   if(!dpa&&body.ddr){const d=new Date(String(body.ddr));d.setDate(d.getDate()+280);dpa=d.toISOString().split('T')[0]}
   await sb.from('spec_grossesses').insert({
-    patient_id:pid, medecin_referent_id:profil.id, structure_id:profil.structure_id,
+    patient_id:pid, medecin_referent_id: profil.medecin_id ?? profil.id, structure_id:profil.structure_id,
     date_ddr:String(body.ddr??''),
     date_prevue_accouchement:dpa||null,
     gestite:parseInt(String(body.gestite??'1'))||1,
@@ -1656,7 +1656,7 @@ medecinRoutes.post('/hospitalisations/nouvelle', async (c) => {
   if(!pid)return c.redirect('/medecin/patients')
   const litId=String(body.lit_id??'').trim()||null
   await sb.from('medical_hospitalisations').insert({
-    patient_id:pid, medecin_responsable_id:profil.id, structure_id:profil.structure_id,
+    patient_id:pid, medecin_responsable_id: profil.medecin_id ?? profil.id, structure_id:profil.structure_id,
     lit_id:litId, diagnostic_entree:String(body.diagnostic_entree??''),
     etat_a_l_entree:String(body.etat??'stable'), statut:'en_cours', notes_evolution:[]
   })
