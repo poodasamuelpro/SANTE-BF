@@ -190,23 +190,23 @@ dashboardRoutes.get('/medecin',
       const [rdvRes, consultRes, cntConsultJour, cntOrdActives] = await Promise.all([
         supabase.from('medical_rendez_vous')
           .select('id, date_heure, motif, statut, duree_minutes, patient_dossiers(nom, prenom)')
-          .eq('medecin_id', profil.id)
+          .eq('medecin_id', profil.medecin_id ?? profil.id)
           .gte('date_heure', today + 'T00:00:00')
           .lte('date_heure', today + 'T23:59:59')
           .order('date_heure', { ascending: true })
           .limit(10),
         supabase.from('medical_consultations')
           .select('id, created_at, motif, diagnostic_principal, patient_dossiers(nom, prenom)')
-          .eq('medecin_id', profil.id)
+          .eq('medecin_id', profil.medecin_id ?? profil.id)
           .order('created_at', { ascending: false })
           .limit(5),
         supabase.from('medical_consultations')
           .select('*', { count: 'exact', head: true })
-          .eq('medecin_id', profil.id)
+          .eq('medecin_id', profil.medecin_id ?? profil.id)
           .gte('created_at', today + 'T00:00:00'),
         supabase.from('medical_ordonnances')
           .select('*', { count: 'exact', head: true })
-          .eq('medecin_id', profil.id)
+          .eq('medecin_id', profil.medecin_id ?? profil.id)
           .eq('statut', 'active'),
       ])
 
@@ -588,4 +588,4 @@ export function alertHTML(type: 'error' | 'success' | 'warning', message: string
   }
   const icons: Record<string, string> = { error: '&#x26A0;', success: '&#x2713;', warning: '&#x26A0;' }
   return `<div style="${styles[type]}border-radius:10px;padding:16px 18px;font-size:14px;font-weight:600;margin:12px 0;">${icons[type]} ${message}</div>`
-} 
+}
