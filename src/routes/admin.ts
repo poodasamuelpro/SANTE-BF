@@ -5,6 +5,12 @@
  * Accessible uniquement au rôle super_admin
  * Monté sur /admin dans functions/[[path]].ts
  *
+ * CORRECTIONS APPLIQUÉES (v2.0) :
+ *   [QC-07] .catch(() => {}) vides → vraie gestion d'erreur
+ *   [QC-08] validateEmail() utilisé avant création de compte
+ *   [QC-10] Déstructuration { data, error } sur les requêtes clés
+ *   [S-09]  escapeHtml() sur les données sensibles
+ *
  * Toutes les sous-pages utilisent adminSkeleton() qui inclut :
  *   - Sidebar persistante (même menu que dashboard-admin.ts)
  *   - Bouton retour contextuel
@@ -18,21 +24,29 @@
  *   GET  /admin/structures/:id               → Détail + personnel + stats
  *   POST /admin/structures/:id/plan          → Modifier plan
  *   POST /admin/structures/:id/toggle        → Activer/Suspendre structure
+ *   POST /admin/structures/:id/valider       → Valider une structure
+ *   POST /admin/structures/:id/utilisateurs  → Créer un utilisateur dans la structure
  *   GET  /admin/comptes                      → Liste comptes (avec filtres)
  *   POST /admin/comptes/:id/toggle           → Activer/Suspendre compte
+ *   POST /admin/utilisateurs/:id/activer     → Activer un compte
+ *   POST /admin/utilisateurs/:id/desactiver  → Désactiver un compte
  *   GET  /admin/plans                        → Plans groupés
  *   GET  /admin/stats                        → Statistiques nationales
  *   GET  /admin/paiements                    → Historique paiements
+ *   POST /admin/abonnements/activer          → Activer un abonnement
  *   GET  /admin/systeme                      → Statut variables/services
  *   GET  /admin/sang                         → Redirection CNTS
  *   GET  /admin/ia                           → Redirection config IA
  *   GET  /admin/logs                         → Logs système
  *   GET  /admin/cnts                         → Redirection dashboard CNTS
+ *   GET  /admin                              → Dashboard principal
  */
 
 import { Hono } from 'hono'
 import { requireAuth, requireRole } from '../middleware/auth'
-import type { AuthProfile, Bindings } from '../lib/supabase'
+import { getSupabase, getSupabaseAdmin, type Bindings, type Variables, escapeHtml } from '../lib/supabase'
+import { validateEmail, sanitizeInput, validateUUID } from '../utils/validation'
+import type { AuthProfile } from '../lib/supabase'
 
 type AdminBindings = Bindings & {
   ANTHROPIC_API_KEY?:   string
@@ -50,7 +64,7 @@ type AdminBindings = Bindings & {
   ENVIRONMENT?:         string
 }
 
-export const adminRoutes = new Hono<{ Bindings: AdminBindings }>()
+export const adminRoutes = new Hono<{ Bindings: AdminBindings; Variables: Variables }>()
 
 adminRoutes.use('/*', requireAuth)
 adminRoutes.use('/*', requireRole('super_admin'))
@@ -89,7 +103,6 @@ function fmtDate(d: string): string {
 }
 
 // ── Layout principal des sous-pages admin ──────────────────────
-// Sidebar persistante + header avec profil + dark mode
 function adminSkeleton(
   profil: AuthProfile,
   titre:  string,
@@ -315,6 +328,178 @@ function adminSkeleton(
 </html>`
 }
 
+// ── Layout simplifié pour les pages d'erreur/succès standalone ──
+function layoutAdmin(titre: string, content: string): string {
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(titre)} | Admin SantéBF</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--primary:#4A148C;--rouge:#C62828;--vert:#1B5E20;--orange:#E65100;
+      --text:#1a1a2e;--text2:#5A6A78;--border:#E0E0E0;--bg:#F3E5F5}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text)}
+    header{background:var(--primary);padding:14px 20px;color:white;display:flex;align-items:center}
+    nav{background:white;padding:0 20px;border-bottom:1px solid var(--border);display:flex;gap:0;overflow-x:auto}
+    nav a{padding:12px 16px;text-decoration:none;color:var(--text2);font-size:13px;font-weight:500;border-bottom:2px solid transparent;white-space:nowrap}
+    nav a:hover{color:var(--primary);border-color:var(--primary)}
+    .main{max-width:1300px;margin:0 auto;padding:24px 16px}
+    .card{background:white;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px}
+    .btn{display:inline-flex;gap:6px;padding:8px 14px;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none;border:none;cursor:pointer}
+    .btn-primary{background:var(--primary);color:white}
+    .btn-secondary{background:#F3F4F6;color:var(--text);border:1px solid var(--border)}
+    code{background:#F3F4F6;padding:2px 8px;border-radius:4px;font-family:monospace;color:var(--primary);font-weight:700;font-size:16px}
+  </style>
+</head>
+<body>
+<header>
+  <div style="font-family:'DM Serif Display',serif;font-size:18px">🔐 Administration SantéBF</div>
+</header>
+<nav>
+  <a href="/admin">Dashboard</a>
+  <a href="/admin/structures">Structures</a>
+  <a href="/dashboard/admin">← Dashboard admin</a>
+</nav>
+<main class="main">
+  <h1 style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--primary);margin-bottom:20px">${escapeHtml(titre)}</h1>
+  ${content}
+</main>
+</body>
+</html>`
+}
+
+function pageSuccesAdmin(titre: string, message: string, retourId: string): string {
+  return layoutAdmin(titre, `
+    <div class="card" style="text-align:center;padding:40px">
+      <div style="font-size:48px;margin-bottom:16px">✅</div>
+      <h2 style="color:#1B5E20;margin-bottom:12px">${escapeHtml(titre)}</h2>
+      <p style="color:#5A6A78">${message}</p>
+      <div style="display:flex;gap:12px;justify-content:center;margin-top:24px">
+        <a href="/admin/structures/${retourId}" class="btn btn-primary">← Retour à la structure</a>
+        <a href="/admin/structures" class="btn btn-secondary">Liste des structures</a>
+      </div>
+    </div>
+  `)
+}
+
+function pageErreurAdmin(titre: string, message: string): string {
+  return layoutAdmin(titre, `
+    <div class="card" style="text-align:center;padding:40px">
+      <div style="font-size:48px;margin-bottom:16px">⚠️</div>
+      <h2 style="color:#C62828;margin-bottom:12px">${escapeHtml(titre)}</h2>
+      <p style="color:#5A6A78">${escapeHtml(message)}</p>
+      <a href="/admin" class="btn btn-primary" style="margin-top:24px">← Retour admin</a>
+    </div>
+  `)
+}
+
+// ══════════════════════════════════════════════════════════════
+// GET /admin  — Dashboard principal
+// ══════════════════════════════════════════════════════════════
+adminRoutes.get('/', async (c) => {
+  const supabase = c.get('supabase')
+
+  try {
+    const [
+      { data: structures, error: structErr },
+      { data: utilisateurs, error: userErr },
+      { data: abonnements, error: aboErr }
+    ] = await Promise.all([
+      supabase.from('struct_structures')
+        .select('id, nom, type, plan_actif, abonnement_expire_at, est_actif, statut_verification')
+        .order('nom')
+        .limit(50),
+      supabase.from('auth_profiles')
+        .select('id, nom, prenom, role, est_actif, created_at')
+        .order('created_at', { ascending: false })
+        .limit(20),
+      supabase.from('struct_abonnements')
+        .select('id, plan, statut, date_expiration, structure_id')
+        .eq('statut', 'actif')
+        .limit(10)
+    ])
+
+    // [QC-07] Vraie gestion d'erreurs
+    if (structErr) console.error('[admin/] structures:', structErr.message)
+    if (userErr)   console.error('[admin/] utilisateurs:', userErr.message)
+    if (aboErr)    console.error('[admin/] abonnements:', aboErr.message)
+
+    const actives   = (structures ?? []).filter((s: any) => s.est_actif).length
+    const enAttente = (structures ?? []).filter((s: any) => s.statut_verification === 'en_attente').length
+
+    const content = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+        <div style="background:white;border-radius:10px;padding:16px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.06)">
+          <div style="font-size:28px;font-weight:700;color:#4A148C">${(structures ?? []).length}</div>
+          <div style="font-size:12px;color:#5A6A78">🏥 Structures</div>
+        </div>
+        <div style="background:white;border-radius:10px;padding:16px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.06)">
+          <div style="font-size:28px;font-weight:700;color:#1B5E20">${actives}</div>
+          <div style="font-size:12px;color:#5A6A78">✅ Actives</div>
+        </div>
+        <div style="background:white;border-radius:10px;padding:16px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.06)">
+          <div style="font-size:28px;font-weight:700;color:#E65100">${enAttente}</div>
+          <div style="font-size:12px;color:#5A6A78">⏳ En attente</div>
+        </div>
+        <div style="background:white;border-radius:10px;padding:16px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.06)">
+          <div style="font-size:28px;font-weight:700;color:#4A148C">${(utilisateurs ?? []).length}</div>
+          <div style="font-size:12px;color:#5A6A78">👥 Utilisateurs récents</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:8px">🏥 Structures récentes</div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#F7F8FA">
+              <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #E0E0E0;font-size:12px;color:#5A6A78;font-weight:600">Nom</th>
+              <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #E0E0E0;font-size:12px;color:#5A6A78;font-weight:600">Type</th>
+              <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #E0E0E0;font-size:12px;color:#5A6A78;font-weight:600">Plan</th>
+              <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #E0E0E0;font-size:12px;color:#5A6A78;font-weight:600">Statut</th>
+              <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #E0E0E0;font-size:12px;color:#5A6A78;font-weight:600">Action</th>
+            </tr></thead>
+            <tbody>
+              ${(structures ?? []).slice(0, 10).map((s: any) => `
+              <tr style="border-bottom:1px solid #E0E0E0">
+                <td style="padding:10px 12px"><strong>${escapeHtml(s.nom)}</strong></td>
+                <td style="padding:10px 12px">${escapeHtml(s.type)}</td>
+                <td style="padding:10px 12px">${escapeHtml(s.plan_actif) || 'Aucun'}</td>
+                <td style="padding:10px 12px">
+                  <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;${s.est_actif ? 'background:#E8F5E9;color:#1B5E20' : s.statut_verification === 'en_attente' ? 'background:#FFF3E0;color:#E65100' : 'background:#FFEBEE;color:#C62828'}">
+                    ${s.est_actif ? '✅ Actif' : s.statut_verification === 'en_attente' ? '⏳ En attente' : '❌ Inactif'}
+                  </span>
+                </td>
+                <td style="padding:10px 12px">
+                  <a href="/admin/structures/${s.id}" style="display:inline-flex;gap:6px;padding:5px 10px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none;background:#F3F4F6;color:#1a1a2e;border:1px solid #E0E0E0">Gérer →</a>
+                  ${s.statut_verification === 'en_attente' ? `
+                  <button onclick="valider('${s.id}')" style="display:inline-flex;gap:6px;padding:5px 10px;border-radius:7px;font-size:11px;font-weight:600;background:#2E7D32;color:white;border:none;cursor:pointer;margin-left:6px">✅ Valider</button>` : ''}
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <script>
+          async function valider(id) {
+            if (!confirm('Valider cette structure ?')) return
+            const res = await fetch('/admin/structures/' + id + '/valider', {method:'POST'})
+            const d = await res.json()
+            if (d.success) location.reload()
+            else alert('Erreur: ' + d.error)
+          }
+        </script>
+      </div>
+    `
+    return c.html(layoutAdmin('Dashboard Super Admin', content))
+
+  } catch (err) {
+    console.error('[admin/]', err)
+    return c.html(pageErreurAdmin('Erreur serveur', 'Impossible de charger le dashboard.'))
+  }
+})
+
 // ══════════════════════════════════════════════════════════════
 // GET /admin/structures
 // ══════════════════════════════════════════════════════════════
@@ -333,7 +518,9 @@ adminRoutes.get('/structures', async (c) => {
   if (q.length >= 2) query = query.ilike('nom', `%${q}%`)
   if (filtre) query = query.eq('plan_actif', filtre)
 
-  const { data: structures } = await query
+  // [QC-10] Déstructuration { data, error }
+  const { data: structures, error: structErr } = await query
+  if (structErr) console.error('[admin/structures] query:', structErr.message)
 
   const lignes = (structures ?? []).map((s: any) => `<tr>
     <td><strong>${esc(s.nom)}</strong></td>
@@ -463,11 +650,11 @@ adminRoutes.post('/structures/nouvelle', async (c) => {
   const sb   = c.get('supabase' as never) as any
   const body = await c.req.parseBody()
 
-  const nom        = String(body.nom        || '').trim()
+  const nom        = sanitizeInput(String(body.nom        || '').trim(), 200)
   const type       = String(body.type       || '').trim()
   const niveau     = parseInt(String(body.niveau || '1'))
   const plan_actif = String(body.plan_actif || 'gratuit')
-  const telephone  = String(body.telephone  || '').trim() || null
+  const telephone  = sanitizeInput(String(body.telephone  || '').trim(), 20) || null
 
   if (!nom || !type) {
     return c.redirect('/admin/structures/nouvelle?err=Nom+et+type+obligatoires', 303)
@@ -476,13 +663,16 @@ adminRoutes.post('/structures/nouvelle', async (c) => {
   const expire6m  = new Date(Date.now() + 6  * 30 * 24 * 60 * 60 * 1000).toISOString()
   const expire12m = new Date(Date.now() + 12 * 30 * 24 * 60 * 60 * 1000).toISOString()
 
+  // [QC-10] Déstructuration { data, error }
   const { data: struct, error } = await sb.from('struct_structures').insert({
     nom, type, niveau, plan_actif, telephone, est_actif: true,
     est_pilote: plan_actif === 'pilote',
     abonnement_expire_at: plan_actif === 'gratuit' ? expire6m : expire12m,
   }).select('id').single()
 
+  // [QC-07] Gestion d'erreur réelle
   if (error || !struct) {
+    console.error('[admin/structures/nouvelle]', error?.message)
     return c.redirect('/admin/structures/nouvelle?err=' + encodeURIComponent(error?.message || 'Erreur'), 303)
   }
 
@@ -532,7 +722,6 @@ adminRoutes.get('/structures/:id', async (c) => {
     ${ok==='toggle' ? '<div class="a-ok">&#x2705; Statut mis &#xe0; jour</div>' : ''}
     ${ok==='compte' ? '<div class="a-ok">&#x2705; Compte mis &#xe0; jour</div>' : ''}
 
-    <!-- Titre + actions -->
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:10px">
       <div>
         <h2 class="pg-h">${esc(struct.nom)}</h2>
@@ -547,7 +736,6 @@ adminRoutes.get('/structures/:id', async (c) => {
       </div>
     </div>
 
-    <!-- Stats structure -->
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
       <div class="stat-c" style="border-top-color:#1A6B3C">
         <div class="stat-ico">📂</div>
@@ -567,7 +755,6 @@ adminRoutes.get('/structures/:id', async (c) => {
     </div>
 
     <div class="grid2">
-      <!-- Infos structure -->
       <div class="card">
         <div class="card-title">&#x1F3E5; Informations</div>
         ${[
@@ -583,7 +770,6 @@ adminRoutes.get('/structures/:id', async (c) => {
         `).join('')}
       </div>
 
-      <!-- Modifier plan -->
       <div class="card">
         <div class="card-title">&#x1F4B3; Modifier le plan</div>
         <form method="POST" action="/admin/structures/${id}/plan">
@@ -610,7 +796,6 @@ adminRoutes.get('/structures/:id', async (c) => {
       </div>
     </div>
 
-    <!-- Personnel -->
     <div class="table-wrap">
       <div style="padding:12px 16px;background:var(--c);display:flex;justify-content:space-between;align-items:center">
         <h3 style="font-size:13px;color:white;font-weight:600">&#x1F465; Personnel (${personnel.length})</h3>
@@ -637,7 +822,6 @@ adminRoutes.get('/structures/:id', async (c) => {
       </table>
     </div>
 
-    <!-- Historique abonnements -->
     ${abos.length > 0 ? `
     <div class="table-wrap">
       <div style="padding:12px 16px;background:var(--c)"><h3 style="font-size:13px;color:white;font-weight:600">📋 Historique abonnements</h3></div>
@@ -673,15 +857,25 @@ adminRoutes.post('/structures/:id/plan', async (c) => {
   const mois: Record<string,number> = { '1m':1, '3m':3, '6m':6, '1a':12, '2a':24 }
   const expire = new Date(Date.now() + (mois[duree]||12) * 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  await sb.from('struct_structures').update({
+  // [QC-10] Déstructuration + gestion d'erreur
+  const { error: structErr } = await sb.from('struct_structures').update({
     plan_actif: plan, abonnement_expire_at: expire, est_pilote: plan === 'pilote',
   }).eq('id', id)
 
-  await sb.from('struct_abonnements').insert({
+  if (structErr) {
+    console.error('[admin/structures/plan] update:', structErr.message)
+  }
+
+  // [QC-07] .catch() réel au lieu de vide
+  const { error: aboErr } = await sb.from('struct_abonnements').insert({
     structure_id: id, plan, statut: plan === 'suspendu' ? 'suspendu' : 'actif',
     date_debut: new Date().toISOString(), date_expiration: expire,
     mode_paiement: 'manuel', notes: 'Activé manuellement par super_admin',
-  }).catch(() => {})
+  })
+
+  if (aboErr) {
+    console.error('[admin/structures/plan] insert abonnement:', aboErr.message)
+  }
 
   return c.redirect(`/admin/structures/${id}?ok=plan`, 303)
 })
@@ -693,11 +887,246 @@ adminRoutes.post('/structures/:id/toggle', async (c) => {
   const sb = c.get('supabase' as never) as any
   const id = c.req.param('id')
 
-  const { data: s } = await sb.from('struct_structures').select('est_actif').eq('id', id).single()
-  if (s) await sb.from('struct_structures').update({ est_actif: !s.est_actif }).eq('id', id)
+  // [QC-10] Déstructuration { data, error }
+  const { data: s, error: fetchErr } = await sb.from('struct_structures').select('est_actif').eq('id', id).single()
+
+  if (fetchErr) {
+    console.error('[admin/structures/toggle] fetch:', fetchErr.message)
+  }
+
+  if (s) {
+    const { error: updateErr } = await sb.from('struct_structures').update({ est_actif: !s.est_actif }).eq('id', id)
+    if (updateErr) console.error('[admin/structures/toggle] update:', updateErr.message)
+  }
 
   const retour = c.req.header('referer') || `/admin/structures/${id}`
   return c.redirect(retour.includes('/structures/') ? `/admin/structures/${id}?ok=toggle` : '/admin/structures?ok=toggle', 303)
+})
+
+// ══════════════════════════════════════════════════════════════
+// POST /admin/structures/:id/valider  [NOUVEAU — patch v2.0]
+// ══════════════════════════════════════════════════════════════
+adminRoutes.post('/structures/:id/valider', async (c) => {
+  const supabase = c.get('supabase')
+  const id       = c.req.param('id')
+
+  try {
+    // [QC-10] Déstructuration { error }
+    const { error } = await supabase
+      .from('struct_structures')
+      .update({
+        statut_verification: 'valide',
+        date_verification:   new Date().toISOString(),
+        est_actif:           true,
+        updated_at:          new Date().toISOString()
+      })
+      .eq('id', id)
+
+    // [QC-07] Vraie gestion d'erreur
+    if (error) {
+      console.error('[admin/structures/valider]', error.message)
+      return c.json({ success: false, error: error.message }, 500)
+    }
+
+    return c.json({ success: true })
+
+  } catch (err) {
+    console.error('[admin/structures/valider]', err)
+    return c.json({ success: false, error: 'Erreur serveur' }, 500)
+  }
+})
+
+// ══════════════════════════════════════════════════════════════
+// POST /admin/structures/:id/utilisateurs  [NOUVEAU — patch v2.0]
+// [QC-08] validateEmail() + [QC-07] gestion erreur + [QC-10] déstructuration + [S-09] escapeHtml
+// ══════════════════════════════════════════════════════════════
+adminRoutes.post('/structures/:id/utilisateurs', async (c) => {
+  const supabase  = c.get('supabase')
+  const sbAdmin   = getSupabaseAdmin(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY)
+  const structId  = c.req.param('id')
+
+  try {
+    const body      = await c.req.parseBody()
+    const email     = String(body.email    ?? '').trim().toLowerCase()
+    const nom       = sanitizeInput(String(body.nom    ?? ''), 100).toUpperCase()
+    const prenom    = sanitizeInput(String(body.prenom ?? ''), 100)
+    const role      = String(body.role     ?? '').trim()
+    const telephone = sanitizeInput(String(body.telephone ?? ''), 20)
+
+    // Validation des champs obligatoires
+    if (!email || !nom || !prenom || !role) {
+      return c.html(pageErreurAdmin('Champs manquants', 'Email, nom, prénom et rôle sont obligatoires.'))
+    }
+
+    // [QC-08] Validation email avec validateEmail()
+    if (!validateEmail(email)) {
+      return c.html(pageErreurAdmin('Email invalide', `L'email "${escapeHtml(email)}" n'est pas valide.`))
+    }
+
+    // [QC-08] Validation UUID structure
+    if (!validateUUID(structId)) {
+      return c.html(pageErreurAdmin('ID invalide', 'L\'identifiant de la structure est invalide.'))
+    }
+
+    // Vérifier que la structure existe
+    const { data: structure, error: structErr } = await supabase
+      .from('struct_structures')
+      .select('id, nom')
+      .eq('id', structId)
+      .single()
+
+    // [QC-07] Vraie gestion d'erreur
+    if (structErr) {
+      console.error('[admin/structures/utilisateurs] structure:', structErr.message)
+      return c.html(pageErreurAdmin('Structure introuvable', `Erreur DB : ${structErr.message}`))
+    }
+    if (!structure) {
+      return c.html(pageErreurAdmin('Structure introuvable', 'Cette structure n\'existe pas.'))
+    }
+
+    // Rôles valides pour la structure
+    const rolesValides = [
+      'admin_structure', 'medecin', 'infirmier', 'sage_femme',
+      'pharmacien', 'laborantin', 'radiologue', 'caissier',
+      'agent_accueil', 'cnts_agent'
+    ]
+    if (!rolesValides.includes(role)) {
+      return c.html(pageErreurAdmin('Rôle invalide', `Le rôle "${escapeHtml(role)}" n'est pas autorisé.`))
+    }
+
+    // Générer MDP sécurisé (Web Crypto — compatible Cloudflare Workers)
+    const chars  = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#!'
+    const bytes  = new Uint8Array(12)
+    crypto.getRandomValues(bytes)
+    const mdpTemp = Array.from(bytes).map(b => chars[b % chars.length]).join('')
+
+    // Créer le compte via service_role (auth.admin nécessite SERVICE_ROLE_KEY)
+    const { data: authData, error: authErr } = await sbAdmin.auth.admin.createUser({
+      email,
+      password:      mdpTemp,
+      email_confirm: true,
+      user_metadata: { nom, prenom, role }
+    })
+
+    // [QC-07] Gestion d'erreur réelle
+    if (authErr || !authData?.user) {
+      console.error('[admin/structures/utilisateurs] auth.admin.createUser:', authErr?.message)
+      if (authErr?.message?.includes('already registered')) {
+        return c.html(pageErreurAdmin('Email déjà utilisé', 'Un compte avec cet email existe déjà.'))
+      }
+      return c.html(pageErreurAdmin('Erreur création compte', authErr?.message ?? 'Erreur inconnue'))
+    }
+
+    const userId = authData.user.id
+
+    // Créer le profil
+    const { error: profilErr } = await supabase
+      .from('auth_profiles')
+      .insert({
+        id:               userId,
+        email,
+        nom,
+        prenom,
+        telephone:        telephone || null,
+        role,
+        structure_id:     structId,
+        est_actif:        true,
+        doit_changer_mdp: true,
+        created_at:       new Date().toISOString(),
+      })
+
+    // [QC-10] Vérification erreur + rollback
+    if (profilErr) {
+      console.error('[admin/structures/utilisateurs] INSERT profil:', profilErr.message)
+      // Rollback : supprimer le compte Auth créé
+      await sbAdmin.auth.admin.deleteUser(userId)
+        .catch((e: Error) => console.error('[admin] rollback deleteUser:', e))
+      return c.html(pageErreurAdmin('Erreur profil', `Impossible de créer le profil : ${profilErr.message}`))
+    }
+
+    // Si rôle médical, créer l'entrée dans auth_medecins
+    if (['medecin', 'infirmier', 'sage_femme', 'laborantin', 'radiologue'].includes(role)) {
+      const { error: medecinErr } = await supabase
+        .from('auth_medecins')
+        .insert({
+          profile_id:            userId,
+          numero_ordre_national: sanitizeInput(String(body.numero_ordre ?? ''), 50) || `MED-${Date.now()}`,
+          specialite_principale: sanitizeInput(String(body.specialite ?? ''), 100) || 'Médecine générale',
+          created_at:            new Date().toISOString(),
+        })
+
+      // [QC-07] Log l'erreur mais ne bloque pas (compte principal déjà créé)
+      if (medecinErr) {
+        console.error('[admin/structures/utilisateurs] INSERT auth_medecins:', medecinErr.message)
+      }
+    }
+
+    return c.html(pageSuccesAdmin(
+      'Compte créé avec succès',
+      `Le compte de ${escapeHtml(prenom)} ${escapeHtml(nom)} a été créé avec le mot de passe temporaire : <code>${escapeHtml(mdpTemp)}</code>`,
+      structId
+    ))
+
+  } catch (err) {
+    console.error('[admin/structures/utilisateurs]', err)
+    return c.html(pageErreurAdmin('Erreur serveur', err instanceof Error ? err.message : 'Erreur inconnue'))
+  }
+})
+
+// ══════════════════════════════════════════════════════════════
+// POST /admin/utilisateurs/:id/activer  [NOUVEAU — patch v2.0]
+// ══════════════════════════════════════════════════════════════
+adminRoutes.post('/utilisateurs/:id/activer', async (c) => {
+  const supabase = c.get('supabase')
+  const id       = c.req.param('id')
+
+  try {
+    // [QC-10] Déstructuration { error } + vérification
+    const { error } = await supabase
+      .from('auth_profiles')
+      .update({ est_actif: true, updated_at: new Date().toISOString() })
+      .eq('id', id)
+
+    // [QC-07] Gestion d'erreur réelle
+    if (error) {
+      console.error('[admin/utilisateurs/activer]', error.message)
+      return c.json({ success: false, error: error.message }, 500)
+    }
+
+    return c.json({ success: true })
+
+  } catch (err) {
+    console.error('[admin/utilisateurs/activer]', err)
+    return c.json({ success: false, error: 'Erreur serveur' }, 500)
+  }
+})
+
+// ══════════════════════════════════════════════════════════════
+// POST /admin/utilisateurs/:id/desactiver  [NOUVEAU — patch v2.0]
+// ══════════════════════════════════════════════════════════════
+adminRoutes.post('/utilisateurs/:id/desactiver', async (c) => {
+  const supabase = c.get('supabase')
+  const id       = c.req.param('id')
+
+  try {
+    // [QC-10] Déstructuration + vérification
+    const { error } = await supabase
+      .from('auth_profiles')
+      .update({ est_actif: false, updated_at: new Date().toISOString() })
+      .eq('id', id)
+
+    // [QC-07] Vraie gestion d'erreur
+    if (error) {
+      console.error('[admin/utilisateurs/desactiver]', error.message)
+      return c.json({ success: false, error: error.message }, 500)
+    }
+
+    return c.json({ success: true })
+
+  } catch (err) {
+    console.error('[admin/utilisateurs/desactiver]', err)
+    return c.json({ success: false, error: 'Erreur serveur' }, 500)
+  }
 })
 
 // ══════════════════════════════════════════════════════════════
@@ -718,7 +1147,9 @@ adminRoutes.get('/comptes', async (c) => {
   if (q.length >= 2) query = query.or(`nom.ilike.%${q}%,prenom.ilike.%${q}%,email.ilike.%${q}%`)
   if (role) query = query.eq('role', role)
 
-  const { data: comptes } = await query
+  // [QC-10] Déstructuration { data, error }
+  const { data: comptes, error: comptesErr } = await query
+  if (comptesErr) console.error('[admin/comptes]', comptesErr.message)
 
   const lignes = (comptes ?? []).map((u: any) => {
     const struct = u.struct_structures as any
@@ -772,10 +1203,77 @@ adminRoutes.post('/comptes/:id/toggle', async (c) => {
   const id     = c.req.param('id')
   const retour = c.req.query('retour') || '/admin/comptes'
 
-  const { data: u } = await sb.from('auth_profiles').select('est_actif').eq('id', id).single()
-  if (u) await sb.from('auth_profiles').update({ est_actif: !u.est_actif }).eq('id', id)
+  // [QC-10] Déstructuration { data, error }
+  const { data: u, error: fetchErr } = await sb.from('auth_profiles').select('est_actif').eq('id', id).single()
+  if (fetchErr) console.error('[admin/comptes/toggle] fetch:', fetchErr.message)
+
+  if (u) {
+    const { error: updateErr } = await sb.from('auth_profiles').update({ est_actif: !u.est_actif }).eq('id', id)
+    if (updateErr) console.error('[admin/comptes/toggle] update:', updateErr.message)
+  }
 
   return c.redirect(retour + '?ok=toggle', 303)
+})
+
+// ══════════════════════════════════════════════════════════════
+// POST /admin/abonnements/activer  [NOUVEAU — patch v2.0]
+// ══════════════════════════════════════════════════════════════
+adminRoutes.post('/abonnements/activer', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
+
+  try {
+    const body        = await c.req.parseBody()
+    const structureId = String(body.structure_id ?? '').trim()
+    const plan        = String(body.plan ?? '').trim()
+    const duree       = parseInt(String(body.duree_mois ?? '1')) || 1
+
+    if (!structureId || !plan) {
+      return c.json({ success: false, error: 'structure_id et plan requis' }, 400)
+    }
+
+    const dateDebut   = new Date()
+    const dateExpir   = new Date(dateDebut.getTime() + duree * 30 * 24 * 60 * 60 * 1000)
+
+    // Mettre à jour la structure
+    const { error: structErr } = await supabase
+      .from('struct_structures')
+      .update({
+        plan_actif:           plan,
+        abonnement_expire_at: dateExpir.toISOString(),
+        updated_at:           new Date().toISOString()
+      })
+      .eq('id', structureId)
+
+    if (structErr) {
+      console.error('[admin/abonnements/activer] structure:', structErr.message)
+      return c.json({ success: false, error: structErr.message }, 500)
+    }
+
+    // Créer l'abonnement
+    const { error: aboErr } = await supabase
+      .from('struct_abonnements')
+      .insert({
+        structure_id:    structureId,
+        plan,
+        statut:          'actif',
+        date_debut:      dateDebut.toISOString(),
+        date_expiration: dateExpir.toISOString(),
+        cree_par:        (profil as any).id,
+        created_at:      new Date().toISOString(),
+      })
+
+    if (aboErr) {
+      console.error('[admin/abonnements/activer] abonnement:', aboErr.message)
+      return c.json({ success: false, error: aboErr.message }, 500)
+    }
+
+    return c.json({ success: true, plan, expire_at: dateExpir.toISOString() })
+
+  } catch (err) {
+    console.error('[admin/abonnements/activer]', err)
+    return c.json({ success: false, error: 'Erreur serveur' }, 500)
+  }
 })
 
 // ══════════════════════════════════════════════════════════════
@@ -785,9 +1283,12 @@ adminRoutes.get('/plans', async (c) => {
   const profil = c.get('profil' as never) as AuthProfile
   const sb     = c.get('supabase' as never) as any
 
-  const { data: structs } = await sb.from('struct_structures')
+  // [QC-10] Déstructuration { data, error }
+  const { data: structs, error: strutsErr } = await sb.from('struct_structures')
     .select('id, nom, plan_actif, abonnement_expire_at, est_actif')
     .order('nom').limit(100)
+
+  if (strutsErr) console.error('[admin/plans]', strutsErr.message)
 
   const grouped: Record<string, any[]> = {}
   for (const s of structs || []) {
@@ -813,7 +1314,7 @@ adminRoutes.get('/plans', async (c) => {
         const alerte = jR !== null && jR < 30
         return `<tr>
           <td><strong>${esc(s.nom)}</strong></td>
-          <td style="font-size:12px">${fmtDate(s.abonnement_expire_at)}${alerte?` <span style="color:#B71C1C;font-size:11px">(${jR>0?jR+' j.':'expiré'})</span>`:''}</td>
+          <td style="font-size:12px">${fmtDate(s.abonnement_expire_at)}${alerte?` <span style="color:#B71C1C;font-size:11px">(${jR!>0?jR+' j.':'expiré'})</span>`:''}</td>
           <td>${s.est_actif ? badge('Actif','vert') : badge('Inactif','rouge')}</td>
           <td><a href="/admin/structures/${s.id}" style="color:#4A148C;font-size:13px;font-weight:700;text-decoration:none">Modifier →</a></td>
         </tr>`
@@ -859,7 +1360,15 @@ adminRoutes.get('/stats', async (c) => {
     sb.from('sang_donneurs').select('*', { count:'exact', head:true }).catch(() => ({ count: 0 })),
   ])
 
-  // Top structures actives
+  // [QC-10] Vraie gestion des erreurs
+  if (stRes.error)   console.error('[admin/stats] structures:', stRes.error.message)
+  if (cpRes.error)   console.error('[admin/stats] comptes:', cpRes.error.message)
+  if (ptRes.error)   console.error('[admin/stats] patients:', ptRes.error.message)
+  if (csRes.error)   console.error('[admin/stats] consultations:', csRes.error.message)
+  if (ordRes.error)  console.error('[admin/stats] ordonnances:', ordRes.error.message)
+  if (examRes.error) console.error('[admin/stats] examens:', examRes.error.message)
+  if (rdvRes.error)  console.error('[admin/stats] rdv:', rdvRes.error.message)
+
   const { data: topStructs } = await sb.from('struct_structures')
     .select('id, nom, plan_actif').eq('est_actif', true).order('nom').limit(10)
 
@@ -900,10 +1409,13 @@ adminRoutes.get('/paiements', async (c) => {
   const profil = c.get('profil' as never) as AuthProfile
   const sb     = c.get('supabase' as never) as any
 
-  const { data: paiements } = await sb.from('struct_abonnements')
+  // [QC-10] Déstructuration { data, error }
+  const { data: paiements, error: paieErr } = await sb.from('struct_abonnements')
     .select('id, plan, statut, montant, mode_paiement, date_debut, date_expiration, notes, structure_id, struct_structures(nom)')
     .order('date_debut', { ascending: false })
     .limit(100)
+
+  if (paieErr) console.error('[admin/paiements]', paieErr.message)
 
   const lignes = (paiements ?? []).map((p: any) => {
     const struct = p.struct_structures as any
@@ -958,7 +1470,7 @@ adminRoutes.get('/systeme', async (c) => {
       </div>`
   }
 
-  const iaActif = !!(env.ANTHROPIC_API_KEY || env.GEMINI_API_KEY || env.HUGGINGFACE_API_KEY)
+  const iaActif  = !!(env.ANTHROPIC_API_KEY || env.GEMINI_API_KEY || env.HUGGINGFACE_API_KEY)
   const iaModele = env.ANTHROPIC_API_KEY ? 'Claude Haiku' : env.GEMINI_API_KEY ? 'Gemini Flash-Lite' : env.HUGGINGFACE_API_KEY ? 'HuggingFace' : 'Aucun'
 
   const contenu = `
@@ -975,7 +1487,7 @@ adminRoutes.get('/systeme', async (c) => {
     <div class="card" style="margin-bottom:16px">
       <div class="card-title">&#x1F4E7; Emails</div>
       ${ligne('RESEND_API_KEY', !!(env as any).RESEND_API_KEY, (env as any).RESEND_API_KEY ? 'Configuré' : 'Non configuré', 'https://resend.com')}
-      ${ligne('BREVO_API_KEY', !!(env as any).BREVO_API_KEY, (env as any).BREVO_API_KEY ? 'Configuré' : 'Non configuré (optionnel)', 'https://brevo.com')}
+      ${ligne('BREVO_API_KEY', !!env.BREVO_API_KEY, env.BREVO_API_KEY ? 'Configuré' : 'Non configuré (optionnel)', 'https://brevo.com')}
     </div>
 
     <div class="card" style="margin-bottom:16px">
@@ -1016,12 +1528,15 @@ adminRoutes.get('/logs', async (c) => {
   const profil = c.get('profil' as never) as AuthProfile
   const sb     = c.get('supabase' as never) as any
 
-  // Logs IA si la table existe
+  // [QC-07] .catch() réel
   const { data: logsIA } = await sb.from('usage_ia_logs')
     .select('fonctionnalite, modele, tokens_approx, created_at, struct_structures(nom)')
     .order('created_at', { ascending: false })
     .limit(50)
-    .catch(() => ({ data: [] }))
+    .catch((e: Error) => {
+      console.error('[admin/logs] usage_ia_logs:', e.message)
+      return { data: [] }
+    })
 
   const rows = (logsIA ?? []).map((l: any) => `<tr>
     <td style="font-size:11px">${l.created_at ? new Date(l.created_at).toLocaleString('fr-FR') : '—'}</td>
