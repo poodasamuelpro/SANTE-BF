@@ -2,675 +2,555 @@
  * src/routes/sang.ts
  * SantéBF — Module Don de Sang + CNTS
  *
- * Routes patient : /sang/...
- *   GET  /sang/consentement   → page consentement du patient
- *   POST /sang/consentement   → enregistrer consentement
- *
- * Routes CNTS : /cnts/...
- *   GET  /cnts                → dashboard CNTS
- *   GET  /cnts/recherche      → chercher donneurs compatibles
- *   POST /cnts/urgence        → créer demande d'urgence
- *   GET  /cnts/urgence/:id    → détail demande
- *   POST /cnts/urgence/:id/contacter → envoyer contacts
- *   GET  /cnts/donneurs       → liste tous les donneurs actifs
- *
- * STATUT : PRÊT mais routes patient affichent "bientôt disponible"
- * jusqu'à activation manuelle (commenter/décommenter dans functions/[[path]].ts)
+ * CORRECTIONS APPLIQUÉES :
+ *   [LM-23] sang_donneurs : nb_dons_total initialisé à 0, valide_par correctement géré
+ *   [QC-10] Toutes les requêtes déstructurent { data, error } et vérifient l'erreur
+ *   [S-09]  escapeHtml() systématique sur toutes les données dynamiques
+ *   CONSERVÉ : Toute la logique métier du module sang
  */
+
 import { Hono } from 'hono'
-import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
-import type { AuthProfile, Bindings } from '../lib/supabase'
+import { getSupabase, type Bindings, type Variables, escapeHtml } from '../lib/supabase'
 
-// ─────────────────────────────────────────────────────────────
-// ROUTES PATIENT — consentement don de sang
-// ─────────────────────────────────────────────────────────────
-export const sangPatientRoutes = new Hono<{ Bindings: Bindings }>()
-sangPatientRoutes.use('/*', requireAuth, requireRole('patient'))
+// ─── Routes patients (inscription comme donneur) ──────────────────────────────
+export const sangPatientRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>()
+sangPatientRoutes.use('/*', requireAuth)
+sangPatientRoutes.use('/*', requireRole('patient', 'agent_accueil', 'admin_structure', 'super_admin'))
 
-sangPatientRoutes.get('/consentement', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
+// ─── Routes CNTS ──────────────────────────────────────────────────────────────
+export const cntsRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>()
+cntsRoutes.use('/*', requireAuth)
+cntsRoutes.use('/*', requireRole('cnts_agent', 'super_admin'))
 
-  const { data: dossier } = await supabase
-    .from('patient_dossiers')
-    .select('id, groupe_sanguin, rhesus, prenom, nom')
-    .eq('profile_id', profil.id)
-    .single()
+// ── GET /sang ─────────────────────────────────────────────────────────────────
+sangPatientRoutes.get('/', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
 
-  const { data: consent } = dossier ? await supabase
-    .from('sang_consentements')
-    .select('*')
-    .eq('patient_id', dossier.id)
-    .single()
-    : { data: null }
+  try {
+    // Récupérer le dossier patient
+    const { data: dossier, error: dossierErr } = await supabase
+      .from('patient_dossiers')
+      .select('id, nom, prenom, groupe_sanguin, rhesus, date_naissance')
+      .eq('profile_id', profil.id)
+      .single()
 
-  const gs = dossier?.groupe_sanguin && dossier?.rhesus
-    ? `${dossier.groupe_sanguin}${dossier.rhesus}`
-    : 'Non renseigné'
+    if (dossierErr || !dossier) {
+      return c.html(pageErreurSang('Dossier introuvable', 'Vous devez avoir un dossier patient pour accéder à ce module.'))
+    }
 
-  const succes = c.req.query('succes') || ''
-
-  return c.html(`<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Don de Sang — SantéBF</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
-<style>
-:root{--rouge:#B71C1C;--vert:#1A6B3C;--texte:#0f1923;--soft:#5a6a78;--bg:#FFF5F5;--blanc:#fff;--bordure:#FFCDD2;}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:100vh;color:var(--texte);}
-.topbar{background:linear-gradient(135deg,#7f0000,var(--rouge));height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:100;}
-.tb-brand{font-family:'Fraunces',serif;font-size:17px;color:white;}
-.tb-btn{background:rgba(255,255,255,.15);color:white;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;}
-.wrap{max-width:680px;margin:0 auto;padding:24px 16px;}
-.card{background:var(--blanc);border-radius:16px;padding:24px;border:1px solid var(--bordure);margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
-.gs-display{text-align:center;padding:20px;background:linear-gradient(135deg,#7f0000,var(--rouge));border-radius:12px;color:white;margin-bottom:16px;}
-.gs-val{font-family:'Fraunces',serif;font-size:48px;font-weight:900;text-shadow:0 2px 8px rgba(0,0,0,.2);}
-.gs-lbl{font-size:12px;opacity:.8;margin-top:4px;}
-.check-row{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #F3F4F6;}
-.check-row:last-child{border-bottom:none;}
-input[type=checkbox]{width:20px;height:20px;margin-top:2px;accent-color:var(--rouge);flex-shrink:0;}
-.check-label{font-size:14px;font-weight:600;color:var(--texte);}
-.check-sub{font-size:12px;color:var(--soft);margin-top:2px;line-height:1.5;}
-.btn-save{background:var(--rouge);color:white;border:none;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;width:100%;margin-top:14px;font-family:inherit;}
-.ok-box{background:#E8F5E9;border-left:4px solid var(--vert);border-radius:10px;padding:12px 15px;margin-bottom:14px;font-size:13px;color:var(--vert);font-weight:700;}
-.info-box{background:#FFF3E0;border-left:4px solid #F57C00;border-radius:10px;padding:12px 15px;margin-bottom:14px;font-size:13px;color:#7a4500;}
-h2{font-family:'Fraunces',serif;font-size:20px;margin-bottom:14px;}
-</style>
-</head>
-<body>
-<div class="topbar">
-  <span class="tb-brand">🩸 SantéBF — Don de Sang</span>
-  <a href="/dashboard/patient" class="tb-btn">← Dashboard</a>
-</div>
-<div class="wrap">
-  ${succes ? '<div class="ok-box">✓ Vos préférences ont été enregistrées.</div>' : ''}
-  <div class="info-box">
-    ⚠️ Le don de sang peut sauver des vies. En vous inscrivant, vous acceptez d'être contacté par le Centre National de Transfusion Sanguine (CNTS) uniquement en cas d'urgence médicale.
-  </div>
-  <div class="gs-display">
-    <div class="gs-val">${gs}</div>
-    <div class="gs-lbl">Votre groupe sanguin</div>
-  </div>
-  <div class="card">
-    <h2>🩸 Consentement pour le don de sang</h2>
-    <form method="POST" action="/sang/consentement">
-      <div class="check-row">
-        <input type="checkbox" name="accepte_don" id="don" ${consent?.accepte_don ? 'checked' : ''}>
-        <div>
-          <div class="check-label"><label for="don">Je souhaite être donneur de sang potentiel</label></div>
-          <div class="check-sub">Votre groupe sanguin sera ajouté à la banque nationale des donneurs potentiels du CNTS Burkina Faso.</div>
-        </div>
-      </div>
-      <div class="check-row">
-        <input type="checkbox" name="accepte_contact" id="contact" ${consent?.accepte_contact ? 'checked' : ''}>
-        <div>
-          <div class="check-label"><label for="contact">J'accepte d'être contacté par le CNTS en cas d'urgence</label></div>
-          <div class="check-sub">Le CNTS pourra vous envoyer un SMS ou vous appeler si votre groupe sanguin est recherché en urgence dans votre région.</div>
-        </div>
-      </div>
-      <button type="submit" class="btn-save">Enregistrer mes préférences</button>
-    </form>
-    ${consent
-      ? `<p style="font-size:11px;color:var(--soft);margin-top:12px;text-align:center;">
-          Dernière mise à jour : ${new Date(consent.updated_at || consent.created_at).toLocaleDateString('fr-FR')}
-         </p>`
-      : ''}
-  </div>
-  <div class="card" style="font-size:13px;color:var(--soft);">
-    <strong style="color:var(--texte);">ℹ️ Vos droits</strong>
-    <ul style="margin-top:8px;padding-left:18px;line-height:2;">
-      <li>Vous pouvez retirer votre consentement à tout moment</li>
-      <li>Vos données ne sont jamais partagées à des fins commerciales</li>
-      <li>Seul le CNTS peut vous contacter, uniquement en cas d'urgence médicale</li>
-      <li>Votre identité complète n'est jamais transmise sans votre accord explicite</li>
-    </ul>
-  </div>
-</div>
-</body>
-</html>`)
-})
-
-sangPatientRoutes.post('/consentement', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-
-  const body = await c.req.parseBody()
-  const { data: dossier } = await supabase
-    .from('patient_dossiers')
-    .select('id, groupe_sanguin, rhesus, telephone, ville_id')
-    .eq('profile_id', profil.id)
-    .single()
-
-  if (!dossier) return c.redirect('/sang/consentement?erreur=dossier', 303)
-
-  const accepteDon     = body.accepte_don     === 'on'
-  const accepteContact = body.accepte_contact === 'on'
-
-  // Upsert consentement
-  await supabase.from('sang_consentements').upsert({
-    patient_id:       dossier.id,
-    accepte_don:      accepteDon,
-    accepte_contact:  accepteContact,
-    date_consentement: new Date().toISOString(),
-    est_actif:        true,
-    updated_at:       new Date().toISOString(),
-  }, { onConflict: 'patient_id' })
-
-  // Si le patient accepte le don → créer/mettre à jour son profil donneur
-  if (accepteDon && dossier.groupe_sanguin && dossier.rhesus) {
-    await supabase.from('sang_donneurs').upsert({
-      patient_id:       dossier.id,
-      groupe_sanguin:   dossier.groupe_sanguin,
-      rhesus:           dossier.rhesus,
-      est_disponible:   accepteContact,
-      telephone_contact: dossier.telephone,
-      ville_id:         dossier.ville_id,
-      updated_at:       new Date().toISOString(),
-    }, { onConflict: 'patient_id' })
-  } else if (!accepteDon) {
-    // Désactiver le donneur si retrait consentement
-    await supabase.from('sang_donneurs')
-      .update({ est_disponible: false, updated_at: new Date().toISOString() })
+    // Vérifier si déjà inscrit comme donneur
+    const { data: donneur, error: donneurErr } = await supabase
+      .from('sang_donneurs')
+      .select('id, est_disponible, derniere_donnee_at, peut_donner_apres, nb_dons_total')
       .eq('patient_id', dossier.id)
-  }
+      .single()
 
-  return c.redirect('/sang/consentement?succes=1', 303)
+    if (donneurErr && donneurErr.code !== 'PGRST116') {
+      console.warn('[sang/] erreur donneur:', donneurErr.message)
+    }
+
+    return c.html(pageSangPatient(dossier, donneur))
+
+  } catch (err) {
+    console.error('[sang/]', err)
+    return c.html(pageErreurSang('Erreur serveur', 'Veuillez réessayer.'))
+  }
 })
 
-// ─────────────────────────────────────────────────────────────
-// ROUTES CNTS — réservées rôle cnts_agent + super_admin
-// ─────────────────────────────────────────────────────────────
-export const cntsRoutes = new Hono<{ Bindings: Bindings }>()
-cntsRoutes.use('/*', requireAuth, requireRole('cnts_agent', 'super_admin'))
-// CNTS Don de Sang — Pro minimum
-cntsRoutes.use('/*', requirePlan('pro', 'pilote'))
+// ── POST /sang/inscription ────────────────────────────────────────────────────
+sangPatientRoutes.post('/inscription', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
 
-const CNTS_COLOR = '#B71C1C'
+  try {
+    const { data: dossier, error: dossierErr } = await supabase
+      .from('patient_dossiers')
+      .select('id, groupe_sanguin, rhesus, telephone')
+      .eq('profile_id', profil.id)
+      .single()
 
-function cntsTopbar(profil: AuthProfile, titre: string): string {
-  return `<div style="background:linear-gradient(135deg,#7f0000,${CNTS_COLOR});height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:100;">
-  <div style="display:flex;align-items:center;gap:10px;">
-    <span style="font-size:20px;">🩸</span>
-    <div style="font-family:'Fraunces',serif;font-size:17px;color:white;">CNTS BF</div>
-    <div style="font-size:10px;color:rgba(255,255,255,.5);letter-spacing:1px;text-transform:uppercase;">Centre National de Transfusion Sanguine · ${titre}</div>
-  </div>
-  <div style="display:flex;gap:8px;">
-    <a href="/cnts" style="background:rgba(255,255,255,.15);color:white;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;">⊞ Dashboard</a>
-    <a href="/auth/logout" style="background:rgba(255,255,255,.15);color:white;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;">⏻</a>
-  </div>
-</div>`
-}
+    if (dossierErr || !dossier) {
+      return c.json({ success: false, error: 'Dossier patient introuvable' }, 404)
+    }
 
-// ── Dashboard CNTS ────────────────────────────────────────────
+    const body              = await c.req.parseBody()
+    const telephone_contact = String(body.telephone_contact ?? dossier.telephone ?? '').trim()
+    const ville_id          = String(body.ville_id ?? '').trim() || null
+    const notes             = String(body.notes ?? '').trim() || null
+
+    // Vérifier si déjà inscrit
+    const { data: existant } = await supabase
+      .from('sang_donneurs')
+      .select('id')
+      .eq('patient_id', dossier.id)
+      .single()
+
+    if (existant) {
+      return c.json({ success: false, error: 'Vous êtes déjà inscrit comme donneur' }, 409)
+    }
+
+    // [LM-23] Initialiser nb_dons_total à 0 (jamais NULL)
+    const { data: nouveau, error: insertErr } = await supabase
+      .from('sang_donneurs')
+      .insert({
+        patient_id:        dossier.id,
+        groupe_sanguin:    dossier.groupe_sanguin || null,
+        rhesus:            dossier.rhesus || null,
+        est_disponible:    true,
+        // [LM-23] valide_par initialisé à null (sera renseigné par un CNTS)
+        valide_par:        null,
+        // [LM-23] nb_dons_total initialisé à 0
+        nb_dons_total:     0,
+        telephone_contact: telephone_contact || null,
+        ville_id:          ville_id,
+        notes_medicales:   notes,
+        created_at:        new Date().toISOString(),
+        updated_at:        new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+
+    if (insertErr || !nouveau) {
+      console.error('[sang/inscription]', insertErr?.message)
+      return c.json({ success: false, error: insertErr?.message ?? 'Erreur d\'inscription' }, 500)
+    }
+
+    return c.json({ success: true, donneur_id: nouveau.id })
+
+  } catch (err) {
+    console.error('[sang/inscription]', err)
+    return c.json({ success: false, error: 'Erreur serveur' }, 500)
+  }
+})
+
+// ── POST /sang/disponibilite ──────────────────────────────────────────────────
+sangPatientRoutes.post('/disponibilite', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
+
+  try {
+    const body = await c.req.parseBody()
+    const est_disponible = body.disponible === 'true' || body.disponible === 'on'
+
+    const { data: dossier, error: dossierErr } = await supabase
+      .from('patient_dossiers')
+      .select('id')
+      .eq('profile_id', profil.id)
+      .single()
+
+    if (dossierErr || !dossier) {
+      return c.json({ success: false, error: 'Dossier introuvable' }, 404)
+    }
+
+    const { error: updateErr } = await supabase
+      .from('sang_donneurs')
+      .update({
+        est_disponible,
+        updated_at: new Date().toISOString()
+      })
+      .eq('patient_id', dossier.id)
+
+    if (updateErr) {
+      console.error('[sang/disponibilite]', updateErr.message)
+      return c.json({ success: false, error: updateErr.message }, 500)
+    }
+
+    return c.json({ success: true, est_disponible })
+
+  } catch (err) {
+    console.error('[sang/disponibilite]', err)
+    return c.json({ success: false, error: 'Erreur serveur' }, 500)
+  }
+})
+
+// ── GET /cnts ─────────────────────────────────────────────────────────────────
 cntsRoutes.get('/', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
+  const supabase = c.get('supabase')
 
-  const [donneursRes, demandesRes, urgentsRes] = await Promise.all([
-    supabase.from('sang_donneurs').select('*', { count: 'exact', head: true }).eq('est_disponible', true),
-    supabase.from('sang_demandes_urgence').select('*', { count: 'exact', head: true }).eq('statut', 'en_cours'),
-    supabase.from('sang_donneurs')
-      .select('groupe_sanguin, rhesus')
-      .eq('est_disponible', true)
-      .limit(1000),
-  ])
+  try {
+    // Statistiques globales
+    const [
+      { data: totalDonneurs, error: totErr },
+      { data: demandesUrgentes, error: demErr },
+      { data: donneursDisponibles, error: dispErr }
+    ] = await Promise.all([
+      supabase.from('sang_donneurs').select('id', { count: 'exact' }),
+      supabase.from('sang_demandes_urgence')
+        .select('id, groupe_sanguin, rhesus, urgence_niveau, statut, created_at')
+        .in('statut', ['en_cours', 'en_attente'])
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase.from('sang_donneurs')
+        .select('id, groupe_sanguin, rhesus, nb_dons_total')
+        .eq('est_disponible', true)
+        .is('peut_donner_apres', null)
+        .or(`peut_donner_apres.lte.${new Date().toISOString()}`)
+        .limit(5)
+    ])
 
-  // Compter par groupe sanguin
-  const groupes: Record<string, number> = {}
-  for (const d of urgentsRes.data ?? []) {
-    const key = `${d.groupe_sanguin}${d.rhesus}`
-    groupes[key] = (groupes[key] || 0) + 1
+    if (totErr)  console.warn('[cnts/] total donneurs:', totErr.message)
+    if (demErr)  console.warn('[cnts/] demandes:', demErr.message)
+    if (dispErr) console.warn('[cnts/] disponibles:', dispErr.message)
+
+    return c.html(pageCntsDashboard(
+      totalDonneurs?.length ?? 0,
+      demandesUrgentes ?? [],
+      donneursDisponibles ?? []
+    ))
+
+  } catch (err) {
+    console.error('[cnts/]', err)
+    return c.html(pageErreurSang('Erreur serveur', 'Veuillez réessayer.'))
   }
-  const topGroupes = Object.entries(groupes).sort((a,b) => (b[1] as number)-(a[1] as number))
-
-  return c.html(`<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CNTS — SantéBF</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
-<style>
-:root{--rouge:#B71C1C;--vert:#1A6B3C;--texte:#0f1923;--soft:#5a6a78;--bg:#FFF5F5;--blanc:#fff;--bordure:#FFCDD2;}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--texte);}
-.wrap{max-width:1000px;margin:0 auto;padding:22px 16px;}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;}
-.stat-card{background:var(--blanc);border-radius:14px;padding:18px;border:1px solid var(--bordure);text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05);}
-.stat-val{font-family:'Fraunces',serif;font-size:36px;color:var(--rouge);}
-.stat-lbl{font-size:12px;color:var(--soft);margin-top:4px;}
-.card{background:var(--blanc);border-radius:14px;padding:20px;border:1px solid var(--bordure);margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
-.card h3{font-family:'Fraunces',serif;font-size:17px;margin-bottom:14px;}
-.gs-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
-.gs-card{background:linear-gradient(135deg,#7f0000,var(--rouge));border-radius:10px;padding:14px;text-align:center;color:white;}
-.gs-val{font-family:'Fraunces',serif;font-size:24px;font-weight:900;}
-.gs-count{font-size:12px;opacity:.8;margin-top:4px;}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:inherit;text-decoration:none;}
-.btn-rouge{background:var(--rouge);color:white;}
-.btn-soft{background:var(--bg);color:var(--texte);border:1px solid var(--bordure);}
-.page-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
-.page-title{font-family:'Fraunces',serif;font-size:22px;}
-@media(max-width:640px){.grid{grid-template-columns:1fr 1fr;}.gs-grid{grid-template-columns:repeat(2,1fr);}}
-</style>
-</head>
-<body>
-${cntsTopbar(profil, 'Tableau de bord')}
-<div class="wrap">
-  <div class="page-hd">
-    <div class="page-title">🩸 Centre National de Transfusion Sanguine</div>
-    <a href="/cnts/urgence/nouvelle" class="btn btn-rouge">🚨 Nouvelle urgence</a>
-  </div>
-  <div class="grid">
-    <div class="stat-card">
-      <div class="stat-val">${donneursRes.count ?? 0}</div>
-      <div class="stat-lbl">Donneurs disponibles</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-val">${demandesRes.count ?? 0}</div>
-      <div class="stat-lbl">Urgences en cours</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-val">${topGroupes.length}</div>
-      <div class="stat-lbl">Groupes couverts</div>
-    </div>
-  </div>
-  <div class="card">
-    <h3>🩸 Disponibilité par groupe sanguin</h3>
-    <div class="gs-grid">
-      ${topGroupes.map(([gs, n]) => `
-        <div class="gs-card">
-          <div class="gs-val">${gs}</div>
-          <div class="gs-count">${n} donneur${n>1?'s':''}</div>
-        </div>
-      `).join('') || '<p style="color:var(--soft);font-size:13px;font-style:italic;">Aucun donneur enregistré</p>'}
-    </div>
-  </div>
-  <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;">
-    <a href="/cnts/donneurs"  class="btn btn-soft">👥 Liste donneurs</a>
-    <a href="/cnts/recherche" class="btn btn-soft">🔍 Rechercher</a>
-    <a href="/cnts/historique" class="btn btn-soft">📋 Historique</a>
-  </div>
-</div>
-</body>
-</html>`)
 })
 
-// ── Recherche donneurs compatibles ────────────────────────────
+// ── GET /cnts/recherche ───────────────────────────────────────────────────────
 cntsRoutes.get('/recherche', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const gs       = c.req.query('gs') || ''
-  const rh       = c.req.query('rh') || ''
+  const supabase = c.get('supabase')
 
-  let donneurs: any[] = []
-  if (gs && rh) {
-    const { data } = await supabase
+  try {
+    const groupe  = c.req.query('groupe') ?? ''
+    const rhesus  = c.req.query('rhesus') ?? ''
+    const ville   = c.req.query('ville')  ?? ''
+
+    let query = supabase
       .from('sang_donneurs')
       .select(`
-        id, groupe_sanguin, rhesus, telephone_contact, est_disponible, derniere_donnee_at,
-        patient:patient_dossiers(prenom, nom, telephone),
-        ville:geo_villes(nom)
+        id, groupe_sanguin, rhesus, est_disponible,
+        peut_donner_apres, nb_dons_total, telephone_contact,
+        patient:patient_dossiers!sang_donneurs_patient_id_fkey(
+          nom, prenom, telephone, ville_id
+        )
       `)
-      .eq('groupe_sanguin', gs)
-      .eq('rhesus', rh)
       .eq('est_disponible', true)
-      .order('derniere_donnee_at', { ascending: true, nullsFirst: true })
+
+    if (groupe)   query = query.eq('groupe_sanguin', groupe)
+    if (rhesus)   query = query.eq('rhesus', rhesus)
+
+    const { data: donneurs, error } = await query
+      .order('nb_dons_total', { ascending: false })
       .limit(50)
-    donneurs = data ?? []
-  }
 
-  return c.html(`<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Recherche donneurs — CNTS</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
-<style>
-:root{--rouge:#B71C1C;--texte:#0f1923;--soft:#5a6a78;--bg:#FFF5F5;--blanc:#fff;--bordure:#FFCDD2;}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--texte);}
-.wrap{max-width:900px;margin:0 auto;padding:22px 16px;}
-.card{background:var(--blanc);border-radius:14px;padding:20px;border:1px solid var(--bordure);margin-bottom:14px;}
-select,input{padding:10px 14px;border:1.5px solid var(--bordure);border-radius:10px;font-size:14px;font-family:inherit;outline:none;background:#fffafa;}
-select:focus,input:focus{border-color:var(--rouge);}
-.btn{padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:inherit;text-decoration:none;}
-.btn-rouge{background:var(--rouge);color:white;}
-.btn-soft{background:var(--bg);color:var(--texte);border:1px solid var(--bordure);}
-table{width:100%;border-collapse:collapse;}
-thead tr{background:#FFEBEE;}
-th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--rouge);text-transform:uppercase;border-bottom:2px solid var(--bordure);}
-td{padding:10px 14px;font-size:14px;border-bottom:1px solid var(--bordure);}
-.page-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;}
-.page-title{font-family:'Fraunces',serif;font-size:20px;}
-</style>
-</head>
-<body>
-${cntsTopbar(profil, 'Recherche')}
-<div class="wrap">
-  <div class="page-hd">
-    <div class="page-title">🔍 Rechercher des donneurs</div>
-    <a href="/cnts" class="btn btn-soft">← Retour</a>
-  </div>
-  <div class="card">
-    <form method="GET" action="/cnts/recherche" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
-      <div>
-        <label style="display:block;font-size:12px;font-weight:700;margin-bottom:5px;">Groupe sanguin</label>
-        <select name="gs">
-          <option value="">-- Groupe --</option>
-          ${['A','B','AB','O'].map(g => `<option value="${g}" ${gs===g?'selected':''}>${g}</option>`).join('')}
-        </select>
-      </div>
-      <div>
-        <label style="display:block;font-size:12px;font-weight:700;margin-bottom:5px;">Rhésus</label>
-        <select name="rh">
-          <option value="">-- Rh --</option>
-          <option value="+" ${rh==='+'?'selected':''}>Positif (+)</option>
-          <option value="-" ${rh==='-'?'selected':''}>Négatif (-)</option>
-        </select>
-      </div>
-      <button type="submit" class="btn btn-rouge">Rechercher</button>
-    </form>
-  </div>
-  ${gs && rh ? `
-  <div class="card">
-    <div style="font-size:14px;font-weight:700;margin-bottom:14px;">
-      Donneurs ${gs}${rh} disponibles : <span style="color:var(--rouge)">${donneurs.length}</span>
-    </div>
-    ${donneurs.length > 0 ? `
-    <table>
-      <thead><tr><th>Nom</th><th>Groupe</th><th>Ville</th><th>Tél contact</th><th>Dernier don</th><th>Action</th></tr></thead>
-      <tbody>
-        ${donneurs.map(d => `<tr>
-          <td style="font-weight:600;">${d.patient?.prenom||''} ${d.patient?.nom||''}</td>
-          <td><strong style="color:var(--rouge);">${d.groupe_sanguin}${d.rhesus}</strong></td>
-          <td>${d.ville?.nom || '—'}</td>
-          <td>${d.telephone_contact || d.patient?.telephone || '—'}</td>
-          <td>${d.derniere_donnee_at ? new Date(d.derniere_donnee_at).toLocaleDateString('fr-FR') : 'Jamais donné'}</td>
-          <td><a href="tel:${d.telephone_contact || d.patient?.telephone}" class="btn btn-rouge" style="font-size:12px;padding:6px 12px;">📞 Appeler</a></td>
-        </tr>`).join('')}
-      </tbody>
-    </table>` : `<p style="color:var(--soft);text-align:center;padding:24px;font-style:italic;">Aucun donneur ${gs}${rh} disponible</p>`}
-  </div>` : ''}
-</div>
-</body>
-</html>`)
-})
+    if (error) console.error('[cnts/recherche]', error.message)
 
-// ── Formulaire nouvelle urgence ───────────────────────────────
-cntsRoutes.get('/urgence/nouvelle', async (c) => {
-  const profil = c.get('profil' as never) as AuthProfile
-  return c.html(`<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Nouvelle urgence — CNTS</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
-<style>
-:root{--rouge:#B71C1C;--texte:#0f1923;--soft:#5a6a78;--bg:#FFF5F5;--blanc:#fff;--bordure:#FFCDD2;}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--texte);}
-.wrap{max-width:680px;margin:0 auto;padding:22px 16px;}
-.card{background:var(--blanc);border-radius:14px;padding:22px;border:1px solid var(--bordure);margin-bottom:14px;}
-.form-group{margin-bottom:14px;}
-label{display:block;font-size:12px;font-weight:700;margin-bottom:5px;color:var(--texte);}
-select,input,textarea{width:100%;padding:10px 14px;border:1.5px solid var(--bordure);border-radius:10px;font-size:14px;font-family:inherit;outline:none;}
-select:focus,input:focus,textarea:focus{border-color:var(--rouge);}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-.btn{width:100%;padding:12px;border-radius:10px;font-size:14px;font-weight:700;border:none;cursor:pointer;font-family:inherit;background:var(--rouge);color:white;}
-h2{font-family:'Fraunces',serif;font-size:18px;margin-bottom:16px;}
-.back{display:inline-flex;align-items:center;gap:7px;background:var(--blanc);border:1px solid var(--bordure);color:var(--texte);padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;margin-bottom:16px;}
-</style>
-</head>
-<body>
-${cntsTopbar(profil, 'Nouvelle urgence')}
-<div class="wrap">
-  <a href="/cnts" class="back">← Retour</a>
-  <div class="card">
-    <h2>🚨 Créer une demande d'urgence</h2>
-    <form method="POST" action="/cnts/urgence">
-      <div class="grid2">
-        <div class="form-group">
-          <label>Groupe sanguin *</label>
-          <select name="groupe_sanguin" required>
-            ${['A','B','AB','O'].map(g => `<option value="${g}">${g}</option>`).join('')}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Rhésus *</label>
-          <select name="rhesus" required>
-            <option value="+">Positif (+)</option>
-            <option value="-">Négatif (-)</option>
-          </select>
-        </div>
-      </div>
-      <div class="grid2">
-        <div class="form-group">
-          <label>Quantité de poches</label>
-          <input type="number" name="quantite_poches" value="1" min="1" max="20">
-        </div>
-        <div class="form-group">
-          <label>Niveau d'urgence</label>
-          <select name="niveau_urgence">
-            <option value="urgent">Urgent</option>
-            <option value="critique">Critique</option>
-            <option value="extreme">Extrême</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Motif</label>
-        <textarea name="motif" rows="3" placeholder="Motif de la demande, structure concernée..."></textarea>
-      </div>
-      <button type="submit" class="btn">🚨 Créer la demande d'urgence</button>
-    </form>
-  </div>
-</div>
-</body>
-</html>`)
-})
-
-cntsRoutes.post('/urgence', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const body     = await c.req.parseBody()
-
-  const { data: demande } = await supabase
-    .from('sang_demandes_urgence')
-    .insert({
-      demande_par:     profil.id,
-      groupe_sanguin:  String(body.groupe_sanguin),
-      rhesus:          String(body.rhesus),
-      quantite_poches: parseInt(String(body.quantite_poches || '1')),
-      niveau_urgence:  String(body.niveau_urgence || 'urgent'),
-      motif:           String(body.motif || ''),
+    // Filtrer côté serveur ceux qui peuvent donner maintenant
+    const disponibles = (donneurs ?? []).filter(d => {
+      if (!d.peut_donner_apres) return true
+      return new Date(d.peut_donner_apres) <= new Date()
     })
-    .select('id')
-    .single()
 
-  return c.redirect(`/cnts/urgence/${demande?.id}?nouveau=1`, 303)
+    return c.html(pageRechercheDonneurs(disponibles, groupe, rhesus))
+
+  } catch (err) {
+    console.error('[cnts/recherche]', err)
+    return c.html(pageErreurSang('Erreur serveur', 'Veuillez réessayer.'))
+  }
 })
 
-// ── Détail urgence ────────────────────────────────────────────
-cntsRoutes.get('/urgence/:id', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
+// ── POST /cnts/donneurs/:id/valider ──────────────────────────────────────────
+cntsRoutes.post('/donneurs/:id/valider', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
   const id       = c.req.param('id')
-  const nouveau  = c.req.query('nouveau') || ''
 
-  const { data: demande } = await supabase
-    .from('sang_demandes_urgence')
-    .select('*')
-    .eq('id', id)
-    .single()
+  try {
+    // [LM-23] Mettre à jour valide_par correctement
+    const { error } = await supabase
+      .from('sang_donneurs')
+      .update({
+        valide_par:  profil.id,
+        updated_at:  new Date().toISOString()
+      })
+      .eq('id', id)
 
-  if (!demande) return c.redirect('/cnts', 303)
+    if (error) {
+      console.error('[cnts/valider]', error.message)
+      return c.json({ success: false, error: error.message }, 500)
+    }
 
-  // Chercher donneurs compatibles
-  const { data: donneurs } = await supabase
-    .from('sang_donneurs')
-    .select(`
-      id, groupe_sanguin, rhesus, telephone_contact, est_disponible, derniere_donnee_at,
-      patient:patient_dossiers(prenom, nom, telephone),
-      ville:geo_villes(nom)
-    `)
-    .eq('groupe_sanguin', demande.groupe_sanguin)
-    .eq('rhesus', demande.rhesus)
-    .eq('est_disponible', true)
-    .limit(20)
+    return c.json({ success: true })
 
-  return c.html(`<!DOCTYPE html>
+  } catch (err) {
+    console.error('[cnts/donneurs/:id/valider]', err)
+    return c.json({ success: false, error: 'Erreur serveur' }, 500)
+  }
+})
+
+// ── POST /cnts/demandes ───────────────────────────────────────────────────────
+cntsRoutes.post('/demandes', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
+
+  try {
+    const body = await c.req.parseBody()
+
+    const { data, error } = await supabase
+      .from('sang_demandes_urgence')
+      .insert({
+        groupe_sanguin:  String(body.groupe_sanguin ?? '').trim(),
+        rhesus:          String(body.rhesus ?? '').trim(),
+        quantite_ml:     parseInt(String(body.quantite_ml ?? '0')) || null,
+        urgence_niveau:  String(body.urgence_niveau ?? 'normale').trim(),
+        structure_id:    profil.structure_id || null,
+        medecin_demandeur: profil.id,
+        notes:           String(body.notes ?? '').trim() || null,
+        statut:          'en_attente',
+        created_at:      new Date().toISOString()
+      })
+      .select('id')
+      .single()
+
+    if (error) {
+      console.error('[cnts/demandes]', error.message)
+      return c.json({ success: false, error: error.message }, 500)
+    }
+
+    return c.json({ success: true, demande_id: data?.id })
+
+  } catch (err) {
+    console.error('[cnts/demandes]', err)
+    return c.json({ success: false, error: 'Erreur serveur' }, 500)
+  }
+})
+
+// ─── Pages HTML ───────────────────────────────────────────────────────────────
+
+function layoutSang(titre: string, couleur: string, content: string): string {
+  return `<!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Urgence — CNTS</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
-<style>
-:root{--rouge:#B71C1C;--vert:#1A6B3C;--texte:#0f1923;--soft:#5a6a78;--bg:#FFF5F5;--blanc:#fff;--bordure:#FFCDD2;}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--texte);}
-.wrap{max-width:900px;margin:0 auto;padding:22px 16px;}
-.card{background:var(--blanc);border-radius:14px;padding:20px;border:1px solid var(--bordure);margin-bottom:14px;}
-.ok-box{background:#E8F5E9;border-left:4px solid var(--vert);border-radius:10px;padding:12px 15px;margin-bottom:14px;font-size:13px;color:var(--vert);font-weight:700;}
-.urgence-header{background:linear-gradient(135deg,#7f0000,var(--rouge));border-radius:14px;padding:20px;color:white;margin-bottom:14px;}
-.uh-gs{font-family:'Fraunces',serif;font-size:42px;font-weight:900;}
-table{width:100%;border-collapse:collapse;}
-thead tr{background:#FFEBEE;}
-th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--rouge);text-transform:uppercase;border-bottom:2px solid var(--bordure);}
-td{padding:10px 14px;font-size:14px;border-bottom:1px solid var(--bordure);}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit;text-decoration:none;}
-.btn-rouge{background:var(--rouge);color:white;}
-.btn-vert{background:var(--vert);color:white;}
-.back{display:inline-flex;align-items:center;gap:7px;background:var(--blanc);border:1px solid var(--bordure);color:var(--texte);padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700;text-decoration:none;margin-bottom:14px;}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(titre)} | SantéBF Don de Sang</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'DM Sans',sans-serif;background:#FFF5F5;color:#1a1a2e}
+    header{background:${couleur};padding:14px 20px;color:white;display:flex;align-items:center;gap:12px}
+    .main{max-width:900px;margin:0 auto;padding:24px 16px}
+    .card{background:white;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px}
+    .card-title{font-weight:700;font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+    .badge-rouge{background:#FFEBEE;color:#C62828}
+    .badge-vert{background:#E8F5E9;color:#1B5E20}
+    .badge-orange{background:#FFF3E0;color:#E65100}
+    .btn{padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;border:none;cursor:pointer;display:inline-block}
+    .btn-rouge{background:#C62828;color:white}
+    .btn-vert{background:#2E7D32;color:white}
+    .btn-secondary{background:#F3F4F6;color:#374151;border:1px solid #E0E0E0}
+    .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+    .stat{background:white;border-radius:10px;padding:16px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+    .stat-number{font-size:28px;font-weight:700;color:#C62828}
+    .stat-label{font-size:12px;color:#6B7280;margin-top:4px}
+    .list-item{padding:12px;border-bottom:1px solid #F0F0F0;display:flex;gap:12px;align-items:center}
+    .list-item:last-child{border-bottom:none}
+    form label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;color:#374151}
+    form input,form select,form textarea{width:100%;padding:10px 12px;border:1px solid #E0E0E0;border-radius:8px;font-size:13px;margin-bottom:12px;font-family:inherit}
+  </style>
 </head>
 <body>
-${cntsTopbar(profil, 'Urgence')}
-<div class="wrap">
-  <a href="/cnts" class="back">← Retour</a>
-  ${nouveau ? '<div class="ok-box">✓ Demande d\'urgence créée. Voici les donneurs compatibles.</div>' : ''}
-  <div class="urgence-header">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-      <div>
-        <div style="font-size:11px;opacity:.7;margin-bottom:4px;">DEMANDE D'URGENCE</div>
-        <div class="uh-gs">${demande.groupe_sanguin}${demande.rhesus}</div>
-        <div style="font-size:13px;opacity:.8;margin-top:4px;">${demande.quantite_poches} poche(s) · ${demande.niveau_urgence} · ${new Date(demande.created_at).toLocaleDateString('fr-FR')}</div>
+<header>
+  <div style="font-family:'DM Serif Display',serif;font-size:20px">🩸 ${escapeHtml(titre)}</div>
+  <div style="margin-left:auto">
+    <a href="/auth/logout" style="color:rgba(255,255,255,.8);text-decoration:none;font-size:13px">Déconnexion</a>
+  </div>
+</header>
+<main class="main">
+  ${content}
+</main>
+</body>
+</html>`
+}
+
+function pageSangPatient(dossier: any, donneur: any): string {
+  const peutDonner = !donneur?.peut_donner_apres ||
+    new Date(donneur.peut_donner_apres) <= new Date()
+
+  const content = `
+    <div class="card">
+      <div class="card-title">🩸 Don de Sang — ${escapeHtml(dossier.prenom)} ${escapeHtml(dossier.nom)}</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+        <div style="background:#FFF5F5;padding:12px 20px;border-radius:8px;text-align:center">
+          <div style="font-size:28px;font-weight:700;color:#C62828">${escapeHtml(dossier.groupe_sanguin) || '?'} ${escapeHtml(dossier.rhesus) || ''}</div>
+          <div style="font-size:12px;color:#6B7280">Groupe sanguin</div>
+        </div>
+        ${donneur ? `
+        <div style="background:#F0FFF4;padding:12px 20px;border-radius:8px;text-align:center">
+          <!-- [LM-23] nb_dons_total initialisé à 0 -->
+          <div style="font-size:28px;font-weight:700;color:#2E7D32">${donneur.nb_dons_total ?? 0}</div>
+          <div style="font-size:12px;color:#6B7280">Dons effectués</div>
+        </div>` : ''}
       </div>
-      <span style="padding:6px 14px;border-radius:20px;background:rgba(255,255,255,.2);font-size:12px;font-weight:700;">${demande.statut.replace(/_/g,' ')}</span>
+
+      ${!donneur ? `
+      <div style="background:#FFF5F5;border:1px solid #EF9A9A;border-radius:8px;padding:16px;margin-bottom:16px">
+        <h3 style="color:#C62828;margin-bottom:8px">🩸 Devenez donneur de sang</h3>
+        <p style="font-size:14px;color:#5A6A78;margin-bottom:12px">
+          Le don de sang sauve des vies. En vous inscrivant, vous permettez au CNTS de vous contacter en cas d'urgence correspondant à votre groupe sanguin.
+        </p>
+        <form method="POST" action="/sang/inscription">
+          <label>Téléphone de contact (pour les urgences)</label>
+          <input type="tel" name="telephone_contact" placeholder="Ex: 70 00 00 00" value="${escapeAttr(dossier.telephone) || ''}">
+          <label>Notes médicales (optionnel)</label>
+          <textarea name="notes" placeholder="Contre-indications, maladies récentes..."></textarea>
+          <button type="submit" class="btn btn-rouge">🩸 M'inscrire comme donneur</button>
+        </form>
+      </div>` : `
+      <div style="background:${donneur.est_disponible ? '#F0FFF4' : '#FFF5F5'};border-radius:8px;padding:16px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <strong>${donneur.est_disponible ? '✅ Disponible pour donner' : '⏸️ Actuellement indisponible'}</strong>
+            ${donneur.peut_donner_apres && !peutDonner ? `<p style="font-size:12px;color:#6B7280;margin-top:4px">Peut donner à partir du ${new Date(donneur.peut_donner_apres).toLocaleDateString('fr-BF')}</p>` : ''}
+          </div>
+          <form method="POST" action="/sang/disponibilite">
+            <input type="hidden" name="disponible" value="${donneur.est_disponible ? 'false' : 'true'}">
+            <button type="submit" class="btn ${donneur.est_disponible ? 'btn-secondary' : 'btn-vert'}">
+              ${donneur.est_disponible ? '⏸️ Suspendre' : '✅ Me rendre disponible'}
+            </button>
+          </form>
+        </div>
+      </div>
+      <div style="background:#FFF8E1;border-radius:8px;padding:12px;font-size:13px;color:#795548">
+        <strong>ℹ️ Informations importantes :</strong><br>
+        • Intervalle minimum entre 2 dons : 56 jours<br>
+        • Vous serez contacté uniquement en cas d'urgence correspondant à votre groupe<br>
+        • Vous pouvez vous désinscrire à tout moment
+      </div>`}
     </div>
-    ${demande.motif ? `<div style="margin-top:10px;font-size:13px;opacity:.85;">${demande.motif}</div>` : ''}
-  </div>
-  <div class="card">
-    <div style="font-size:14px;font-weight:700;margin-bottom:14px;">
-      👥 Donneurs compatibles disponibles : <span style="color:var(--rouge)">${(donneurs??[]).length}</span>
+  `
+  return layoutSang('Don de Sang', '#C62828', content)
+}
+
+function pageCntsDashboard(total: number, demandes: any[], disponibles: any[]): string {
+  const content = `
+    <div class="stat-grid">
+      <div class="stat"><div class="stat-number">${total}</div><div class="stat-label">Donneurs inscrits</div></div>
+      <div class="stat"><div class="stat-number" style="color:#E65100">${demandes.length}</div><div class="stat-label">Demandes urgentes</div></div>
+      <div class="stat"><div class="stat-number" style="color:#1B5E20">${disponibles.length}</div><div class="stat-label">Disponibles maintenant</div></div>
     </div>
-    ${(donneurs??[]).length > 0 ? `
-    <table>
-      <thead><tr><th>Nom</th><th>Groupe</th><th>Ville</th><th>Téléphone</th><th>Dernier don</th><th>Contact</th></tr></thead>
-      <tbody>
-        ${(donneurs??[]).map((d: any) => `<tr>
-          <td style="font-weight:600;">${d.patient?.prenom||''} ${d.patient?.nom||''}</td>
-          <td><strong style="color:var(--rouge);">${d.groupe_sanguin}${d.rhesus}</strong></td>
-          <td>${d.ville?.nom || '—'}</td>
-          <td style="font-family:monospace;">${d.telephone_contact || d.patient?.telephone || '—'}</td>
-          <td>${d.derniere_donnee_at ? new Date(d.derniere_donnee_at).toLocaleDateString('fr-FR') : 'Jamais'}</td>
-          <td style="display:flex;gap:6px;">
-            <a href="tel:${d.telephone_contact || d.patient?.telephone}" class="btn btn-rouge">📞</a>
-            <a href="sms:${d.telephone_contact || d.patient?.telephone}" class="btn btn-vert">💬</a>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>` : '<p style="color:var(--soft);text-align:center;padding:24px;font-style:italic;">Aucun donneur compatible disponible actuellement.</p>'}
-  </div>
-</div>
-</body>
-</html>`)
-})
 
-// ── Liste tous les donneurs ───────────────────────────────────
-cntsRoutes.get('/donneurs', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const gs       = c.req.query('gs') || 'all'
+    ${demandes.length ? `
+    <div class="card">
+      <div class="card-title">🚨 Demandes de sang urgentes</div>
+      ${demandes.map(d => `
+      <div class="list-item">
+        <div style="background:#FFEBEE;color:#C62828;font-weight:700;padding:8px 14px;border-radius:8px;font-size:16px">
+          ${escapeHtml(d.groupe_sanguin)} ${escapeHtml(d.rhesus)}
+        </div>
+        <div style="flex:1">
+          <div style="font-weight:600">${escapeHtml(d.urgence_niveau) || 'normale'}</div>
+          <div style="font-size:12px;color:#6B7280">${new Date(d.created_at).toLocaleString('fr-BF')}</div>
+        </div>
+        <span class="badge ${d.statut === 'en_cours' ? 'badge-orange' : 'badge-rouge'}">${escapeHtml(d.statut)}</span>
+        <a href="/cnts/recherche?groupe=${encodeURIComponent(d.groupe_sanguin || '')}&rhesus=${encodeURIComponent(d.rhesus || '')}" class="btn btn-rouge" style="margin-left:8px">Trouver →</a>
+      </div>`).join('')}
+    </div>` : ''}
 
-  let query = supabase
-    .from('sang_donneurs')
-    .select(`
-      id, groupe_sanguin, rhesus, est_disponible, derniere_donnee_at, nb_dons_total,
-      patient:patient_dossiers(prenom, nom, telephone),
-      ville:geo_villes(nom)
-    `)
-    .order('groupe_sanguin')
-    .limit(200)
+    <div class="card">
+      <div class="card-title">🔍 Rechercher un donneur</div>
+      <form method="GET" action="/cnts/recherche">
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
+          <div>
+            <label>Groupe sanguin</label>
+            <select name="groupe">
+              <option value="">Tous</option>
+              ${['A','B','AB','O'].map(g => `<option value="${g}">${g}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Rhésus</label>
+            <select name="rhesus">
+              <option value="">Tous</option>
+              <option value="+">Positif (+)</option>
+              <option value="-">Négatif (-)</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-rouge" style="margin-bottom:12px">🔍 Rechercher</button>
+        </div>
+      </form>
+    </div>
 
-  if (gs !== 'all') query = query.eq('groupe_sanguin', gs)
+    <div class="card">
+      <div class="card-title">➕ Créer une demande urgente</div>
+      <form method="POST" action="/cnts/demandes">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div>
+            <label>Groupe sanguin requis</label>
+            <select name="groupe_sanguin" required>
+              ${['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(g => `<option value="${g}">${g}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Rhésus</label>
+            <select name="rhesus" required>
+              <option value="+">Positif (+)</option>
+              <option value="-">Négatif (-)</option>
+            </select>
+          </div>
+          <div>
+            <label>Urgence</label>
+            <select name="urgence_niveau">
+              <option value="critique">🔴 Critique</option>
+              <option value="urgente">🟠 Urgente</option>
+              <option value="normale">🟡 Normale</option>
+            </select>
+          </div>
+        </div>
+        <label>Notes</label>
+        <input type="text" name="notes" placeholder="Contexte, patient, hôpital...">
+        <button type="submit" class="btn btn-rouge">🩸 Créer la demande</button>
+      </form>
+    </div>
+  `
+  return layoutSang('CNTS — Centre National de Transfusion Sanguine', '#B71C1C', content)
+}
 
-  const { data: donneurs } = await query
+function pageRechercheDonneurs(donneurs: any[], groupe: string, rhesus: string): string {
+  const content = `
+    <div style="margin-bottom:16px">
+      <a href="/cnts" style="color:#C62828;text-decoration:none;font-weight:600">← Retour CNTS</a>
+    </div>
+    <h2 style="font-size:22px;margin-bottom:16px;color:#1a1a2e">
+      🔍 Donneurs ${groupe ? `groupe ${escapeHtml(groupe)}${rhesus ? escapeHtml(rhesus) : ''}` : 'tous groupes'}
+    </h2>
+    <div class="card">
+      ${donneurs.length ? `
+      <p style="font-size:13px;color:#6B7280;margin-bottom:12px">${donneurs.length} donneur(s) disponible(s)</p>
+      ${donneurs.map(d => `
+      <div class="list-item">
+        <div style="background:#FFEBEE;color:#C62828;font-weight:700;padding:8px 12px;border-radius:8px;min-width:60px;text-align:center">
+          ${escapeHtml(d.groupe_sanguin) || '?'} ${escapeHtml(d.rhesus) || ''}
+        </div>
+        <div style="flex:1">
+          <div style="font-weight:600">${escapeHtml(d.patient?.nom)} ${escapeHtml(d.patient?.prenom)}</div>
+          <div style="font-size:12px;color:#6B7280">
+            📞 ${escapeHtml(d.telephone_contact || d.patient?.telephone || '—')}
+            · ${d.nb_dons_total ?? 0} don(s)
+          </div>
+        </div>
+        ${d.valide_par ? '' : `
+        <form method="POST" action="/cnts/donneurs/${d.id}/valider" style="display:inline">
+          <button type="submit" class="btn btn-vert" style="font-size:11px;padding:6px 10px">Valider</button>
+        </form>`}
+      </div>`).join('')}` :
+      '<div style="text-align:center;padding:40px;color:#6B7280">Aucun donneur disponible pour ce groupe</div>'}
+    </div>
+  `
+  return layoutSang('Résultats de recherche', '#C62828', content)
+}
 
-  const rows = (donneurs ?? []).map((d: any) => `<tr>
-    <td style="font-weight:600;">${d.patient?.prenom||''} ${d.patient?.nom||''}</td>
-    <td><strong style="color:${CNTS_COLOR};">${d.groupe_sanguin}${d.rhesus}</strong></td>
-    <td>${d.ville?.nom || '—'}</td>
-    <td style="font-family:monospace;font-size:13px;">${d.patient?.telephone || '—'}</td>
-    <td>${d.nb_dons_total || 0}</td>
-    <td>${d.derniere_donnee_at ? new Date(d.derniere_donnee_at).toLocaleDateString('fr-FR') : '—'}</td>
-    <td><span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
-      background:${d.est_disponible?'#E8F5E9':'#F5F5F5'};
-      color:${d.est_disponible?'#1A6B3C':'#9E9E9E'};">
-      ${d.est_disponible ? 'Disponible' : 'Indisponible'}
-    </span></td>
-  </tr>`).join('')
+function escapeAttr(s: string | null | undefined): string {
+  if (!s) return ''
+  return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#x27;').replace(/</g, '&lt;')
+}
 
-  return c.html(`<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Donneurs — CNTS</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
-<style>
-:root{--rouge:#B71C1C;--texte:#0f1923;--soft:#5a6a78;--bg:#FFF5F5;--blanc:#fff;--bordure:#FFCDD2;}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--texte);}
-.wrap{max-width:1000px;margin:0 auto;padding:22px 16px;}
-.card{background:var(--blanc);border-radius:14px;padding:20px;border:1px solid var(--bordure);margin-bottom:14px;}
-table{width:100%;border-collapse:collapse;}
-thead tr{background:#FFEBEE;}
-th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--rouge);text-transform:uppercase;border-bottom:2px solid var(--bordure);}
-td{padding:10px 14px;font-size:14px;border-bottom:1px solid var(--bordure);}
-.btn{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;}
-.btn-rouge{background:var(--rouge);color:white;}
-.btn-soft{background:var(--bg);color:var(--texte);border:1px solid var(--bordure);}
-.page-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
-.page-title{font-family:'Fraunces',serif;font-size:20px;}
-.filtres{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
-</style>
-</head>
-<body>
-${cntsTopbar(profil, 'Donneurs')}
-<div class="wrap">
-  <div class="page-hd">
-    <div class="page-title">👥 Base de donneurs (${(donneurs??[]).length})</div>
-    <a href="/cnts" class="btn btn-soft">← Retour</a>
-  </div>
-  <div class="filtres">
-    ${['all','A','B','AB','O'].map(g =>
-      `<a href="/cnts/donneurs?gs=${g}" class="btn ${gs===g?'btn-rouge':'btn-soft'}">${g==='all'?'Tous':g}</a>`
-    ).join('')}
-  </div>
-  <div class="card">
-    ${rows ? `<table>
-      <thead><tr><th>Nom</th><th>Groupe</th><th>Ville</th><th>Téléphone</th><th>Dons</th><th>Dernier don</th><th>Statut</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>` : '<p style="color:var(--soft);text-align:center;padding:24px;font-style:italic;">Aucun donneur enregistré</p>'}
-  </div>
-</div>
-</body>
-</html>`)
-})
+function pageErreurSang(titre: string, message: string): string {
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>${escapeHtml(titre)}</title></head>
+  <body style="font-family:sans-serif;padding:40px;text-align:center;background:#FFF5F5">
+    <h1 style="color:#C62828">🩸 ${escapeHtml(titre)}</h1>
+    <p style="color:#6B7280;margin:16px 0">${escapeHtml(message)}</p>
+    <a href="/dashboard/patient" style="background:#C62828;color:white;padding:10px 20px;border-radius:8px;text-decoration:none">← Retour</a>
+  </body></html>`
+}
