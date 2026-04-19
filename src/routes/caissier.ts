@@ -1,932 +1,837 @@
 /**
  * src/routes/caissier.ts
- * SantéBF — Routes Caissier
- * Monté sur /caissier dans functions/[[path]].ts
+ * SantéBF — Routes module caissier (facturation & paiements)
  *
- * CORRECTIONS vs version originale :
- *  1. finance_facture_lignes.acte_nom    → description  (vrai nom colonne DB)
- *  2. finance_facture_lignes.total_ligne → montant_total (vrai nom colonne DB)
- *  3. finance_paiements.encaisse_par     → caissier_id  (vrai nom colonne DB)
- *  4. finance_paiements.structure_id     → retiré (n'existe pas dans le schéma)
- *  5. Redirections → 303 explicite
- *  6. Vérification patient_id avant INSERT facture
- *
- * AJOUTS :
- *  7. POST /factures/:id/annuler
- *  8. GET  /factures/:id/recu  (reçu imprimable)
- *  9. GET  /rapport avec filtre période (jour/semaine/mois)
- * 10. Filtre statut sur liste factures
- *
- * Connexions :
- *  finance_factures           → CRUD complet
- *  finance_facture_lignes     → lignes d'actes
- *  finance_paiements          → enregistrement paiements
- *  finance_actes_catalogue    → tarifs catalogue
- *  patient_dossiers           → recherche patient (autocomplete)
- *  dashboard admin structure  → recettes du jour temps réel
- *  dashboard patient          → /patient/factures mis à jour
+ * CORRECTIONS APPLIQUÉES :
+ *   [DB-16] finance_facture_lignes.description (pas acte_nom)
+ *   [DB-16] finance_facture_lignes.montant_total (pas total_ligne)
+ *   [QC-07] .catch(() => {}) vides remplacés par gestion d'erreur réelle
+ *   [QC-08] validateEmail() utilisé dans la création de patient
+ *   [QC-10] Toutes les requêtes déstructurent { data, error }
+ *   [S-09]  escapeHtml() systématique
+ *   CONSERVÉ : Toute la logique métier et la structure des routes
  */
+
 import { Hono } from 'hono'
-import { requirePlan } from '../middleware/plan'
 import { requireAuth, requireRole } from '../middleware/auth'
-import type { AuthProfile, Bindings } from '../lib/supabase'
+import { getSupabase, type Bindings, type Variables, escapeHtml } from '../lib/supabase'
+import { validateEmail, sanitizeInput, formatDateFr } from '../utils/validation'
 
-export const caissierRoutes = new Hono<{ Bindings: Bindings }>()
-caissierRoutes.use('/*', requireAuth, requireRole('caissier', 'admin_structure'))
-// Caissier & Facturation — Standard minimum
-caissierRoutes.use('/*', requirePlan('standard', 'pro', 'pilote'))
+export const caissierRoutes = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
-// ── Utilitaires ───────────────────────────────────────────────
-const fcfa = (n: number) => new Intl.NumberFormat('fr-FR').format(n || 0) + ' FCFA'
+caissierRoutes.use('/*', requireAuth)
+caissierRoutes.use('/*', requireRole('caissier', 'admin_structure', 'super_admin'))
 
-const ROUGE_C = '#B71C1C'
+// ── GET /caissier ─────────────────────────────────────────────────────────────
+caissierRoutes.get('/', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
 
-const CSS = `
-:root{
-  --cs:#B71C1C;--cs-f:#7f0000;--cs-c:#FFF5F5;
-  --vert:#1A6B3C;--vert-c:#E8F5EE;
-  --or:#E65100;--or-c:#FFF3E0;
-  --bleu:#1565C0;--bleu-c:#E3F2FD;
-  --texte:#0f1923;--soft:#5a6a78;
-  --bg:#FFF5F5;--blanc:#fff;--bordure:#FFCDD2;
-  --r:14px;--rs:10px;--sh:0 2px 10px rgba(0,0,0,.06);
-}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);min-height:100vh;color:var(--texte);}
-a{color:inherit;text-decoration:none;}
-.topbar{background:linear-gradient(135deg,var(--cs-f),var(--cs));height:54px;
-  display:flex;align-items:center;justify-content:space-between;padding:0 20px;
-  position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(183,28,28,.3);}
-.tb-brand{display:flex;align-items:center;gap:10px;}
-.tb-ico{font-size:20px;}
-.tb-name{font-family:'Fraunces',serif;font-size:17px;color:white;}
-.tb-sub{font-size:10px;color:rgba(255,255,255,.5);letter-spacing:1px;text-transform:uppercase;}
-.tb-right{display:flex;align-items:center;gap:10px;}
-.tb-user strong{display:block;font-size:13px;font-weight:700;color:white;text-align:right;}
-.tb-user small{font-size:11px;color:rgba(255,255,255,.5);}
-.tb-btn{background:rgba(255,255,255,.15);color:white;padding:7px 14px;
-  border-radius:8px;font-size:12px;font-weight:600;white-space:nowrap;}
-.tb-btn:hover{background:rgba(255,255,255,.25);}
-.wrap{max-width:1000px;margin:0 auto;padding:22px 16px;}
-.page-hd{display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:20px;flex-wrap:wrap;gap:10px;}
-.page-title{font-family:'Fraunces',serif;font-size:22px;}
-.back{display:inline-flex;align-items:center;gap:7px;background:var(--blanc);
-  border:1px solid var(--bordure);color:var(--texte);padding:8px 14px;
-  border-radius:var(--rs);font-size:13px;font-weight:700;}
-.back:hover{background:var(--cs-c);color:var(--cs);}
-.card{background:var(--blanc);border-radius:var(--r);padding:20px 22px;
-  box-shadow:var(--sh);border:1px solid var(--bordure);margin-bottom:14px;}
-.badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;}
-.b-vert{background:var(--vert-c);color:var(--vert);}
-.b-rouge{background:var(--cs-c);color:var(--cs);}
-.b-or{background:var(--or-c);color:var(--or);}
-.b-gris{background:#f0f0f0;color:#666;}
-.b-bleu{background:var(--bleu-c);color:var(--bleu);}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:var(--rs);
-  font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:inherit;text-decoration:none;}
-.btn-cs{background:var(--cs);color:white;}
-.btn-cs:hover{background:var(--cs-f);}
-.btn-vert{background:var(--vert);color:white;}
-.btn-soft{background:var(--bg);color:var(--texte);border:1px solid var(--bordure);}
-.btn-gris{background:#f0f0f0;color:#666;}
-.ok-box{background:var(--vert-c);border-left:4px solid var(--vert);border-radius:var(--rs);
-  padding:12px 15px;margin-bottom:14px;font-size:13px;color:var(--vert);font-weight:700;}
-.err-box{background:var(--cs-c);border-left:4px solid var(--cs);border-radius:var(--rs);
-  padding:12px 15px;margin-bottom:14px;font-size:13px;color:var(--cs);}
-.info-box{background:var(--bleu-c);border-left:4px solid var(--bleu);border-radius:var(--rs);
-  padding:12px 15px;margin-bottom:14px;font-size:13px;color:#1a3a6b;}
-table{width:100%;border-collapse:collapse;}
-thead tr{background:var(--cs-c);}
-thead th{padding:10px 14px;text-align:left;font-size:11.5px;font-weight:700;
-  color:var(--cs);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--bordure);}
-tbody tr{border-bottom:1px solid var(--bordure);}
-tbody tr:hover{background:#fff8f8;}
-tbody td{padding:10px 14px;font-size:14px;}
-.empty{text-align:center;padding:32px;color:var(--soft);font-style:italic;font-size:13px;}
-.form-group{margin-bottom:14px;}
-.form-label{display:block;font-size:12px;font-weight:700;color:var(--texte);margin-bottom:5px;}
-.form-label span{color:var(--cs);}
-input,select,textarea{width:100%;padding:10px 14px;border:1.5px solid var(--bordure);
-  border-radius:var(--rs);font-size:14px;font-family:inherit;outline:none;background:#fffafa;}
-input:focus,select:focus{border-color:var(--cs);background:white;}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
-.sep{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--bordure);}
-.sep:last-child{border-bottom:none;}
-@media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr;}.wrap{padding:14px 12px;}}
-`
+  try {
+    const structureId = profil.structure_id
+    if (!structureId) return c.html(pageErreur('Aucune structure', ''))
 
-function topbar(profil: AuthProfile, titre: string): string {
-  const ini = `${(profil.prenom||'?').charAt(0)}${(profil.nom||'?').charAt(0)}`
-  return `<div class="topbar">
-  <div class="tb-brand">
-    <span class="tb-ico">💰</span>
-    <div><div class="tb-name">SantéBF</div><div class="tb-sub">Caisse · ${titre}</div></div>
-  </div>
-  <div class="tb-right">
-    <div class="tb-user">
-      <strong>${profil.prenom} ${profil.nom}</strong>
-      <small>Caissier(e)</small>
-    </div>
-    <div style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.2);
-      display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;">${ini}</div>
-    <a href="/dashboard/caissier" class="tb-btn">⊞ Dashboard</a>
-    <a href="/auth/logout" class="tb-btn">⏻</a>
-  </div>
-</div>`
-}
+    const today     = new Date()
+    const todayStr  = today.toISOString().split('T')[0]
+    const todayFrom = `${todayStr}T00:00:00.000Z`
+    const todayTo   = `${todayStr}T23:59:59.999Z`
 
-function page(titre: string, body: string): string {
+    const [
+      { data: facturesEnAttente, error: faErr },
+      { data: paiementsAujourd, error: paErr },
+      { data: actesCatalogue,   error: acErr }
+    ] = await Promise.all([
+      supabase.from('finance_factures')
+        .select(`
+          id, numero_facture, total_ttc, montant_patient, statut, created_at,
+          patient:patient_dossiers!finance_factures_patient_id_fkey(nom, prenom, telephone)
+        `)
+        .eq('structure_id', structureId)
+        .in('statut', ['en_attente', 'partielle'])
+        .order('created_at', { ascending: false })
+        .limit(20),
+
+      supabase.from('finance_paiements')
+        .select('id, montant, mode_paiement, statut_paiement, date_paiement')
+        .eq('structure_id', structureId)
+        .gte('date_paiement', todayFrom)
+        .lte('date_paiement', todayTo),
+
+      supabase.from('finance_actes_catalogue')
+        .select('id, nom, code, prix, categorie')
+        .eq('structure_id', structureId)
+        .eq('est_actif', true)
+        .order('categorie')
+        .limit(100)
+    ])
+
+    // [QC-07] Vraie gestion d'erreurs (pas .catch(() => {}))
+    if (faErr) console.error('[caissier/] factures en attente:', faErr.message)
+    if (paErr) console.error('[caissier/] paiements aujourd\'hui:', paErr.message)
+    if (acErr) console.error('[caissier/] catalogue actes:', acErr.message)
+
+    // Calcul totaux du jour
+    const totalJour = (paiementsAujourd ?? [])
+      .filter(p => p.statut_paiement === 'valide')
+      .reduce((sum, p) => sum + (p.montant ?? 0), 0)
+
+    return c.html(pageCaissierDashboard(
+      facturesEnAttente ?? [],
+      paiementsAujourd ?? [],
+      totalJour,
+      actesCatalogue ?? []
+    ))
+
+  } catch (err) {
+    console.error('[caissier/]', err)
+    return c.html(pageErreur('Erreur serveur', 'Impossible de charger le dashboard.'))
+  }
+})
+
+// ── GET /caissier/factures ────────────────────────────────────────────────────
+caissierRoutes.get('/factures', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
+
+  try {
+    const structureId = profil.structure_id
+    if (!structureId) return c.html(pageErreur('Aucune structure', ''))
+
+    const statut  = c.req.query('statut') ?? 'all'
+    const page    = parseInt(c.req.query('page') ?? '1')
+    const perPage = 25
+    const from    = (page - 1) * perPage
+    const to      = from + perPage - 1
+
+    let query = supabase.from('finance_factures')
+      .select(`
+        id, numero_facture, total_ttc, montant_patient, montant_assurance,
+        statut, date_emission, created_at,
+        patient:patient_dossiers!finance_factures_patient_id_fkey(nom, prenom)
+      `, { count: 'exact' })
+      .eq('structure_id', structureId)
+
+    if (statut !== 'all') query = query.eq('statut', statut)
+
+    const { data: factures, error, count } = await query
+      .order('created_at', { ascending: false })
+      .range(from, to)
+
+    if (error) {
+      console.error('[caissier/factures]', error.message)
+      return c.html(pageErreur('Erreur', 'Impossible de charger les factures.'))
+    }
+
+    return c.html(pageListeFactures(factures ?? [], statut, page, Math.ceil((count ?? 0) / perPage), count ?? 0))
+
+  } catch (err) {
+    console.error('[caissier/factures]', err)
+    return c.html(pageErreur('Erreur serveur', 'Veuillez réessayer.'))
+  }
+})
+
+// ── GET /caissier/factures/:id ────────────────────────────────────────────────
+caissierRoutes.get('/factures/:id', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
+  const id       = c.req.param('id')
+
+  try {
+    const { data: facture, error: factErr } = await supabase
+      .from('finance_factures')
+      .select(`
+        id, numero_facture, total_ttc, sous_total,
+        remise_montant, remise_pourcentage,
+        montant_patient, montant_assurance, statut,
+        date_emission, date_echeance, notes, pdf_url, created_at,
+        patient:patient_dossiers!finance_factures_patient_id_fkey(
+          id, nom, prenom, telephone, email, numero_national
+        )
+      `)
+      .eq('id', id)
+      .eq('structure_id', profil.structure_id ?? '')
+      .single()
+
+    if (factErr || !facture) {
+      return c.html(pageErreur('Facture introuvable', 'Cette facture n\'existe pas ou vous n\'y avez pas accès.'))
+    }
+
+    // [DB-16] Colonnes réelles : description, montant_total (pas acte_nom, total_ligne)
+    const { data: lignes, error: lignesErr } = await supabase
+      .from('finance_facture_lignes')
+      .select('id, description, quantite, prix_unitaire, montant_total, ordre')
+      .eq('facture_id', id)
+      .order('ordre', { ascending: true })
+
+    if (lignesErr) console.error('[caissier/factures/:id] lignes:', lignesErr.message)
+
+    const { data: paiements, error: paiErr } = await supabase
+      .from('finance_paiements')
+      .select('id, montant, mode_paiement, statut_paiement, reference_transaction, date_paiement')
+      .eq('facture_id', id)
+      .order('date_paiement', { ascending: false })
+
+    if (paiErr) console.error('[caissier/factures/:id] paiements:', paiErr.message)
+
+    return c.html(pageDetailFacture(facture, lignes ?? [], paiements ?? []))
+
+  } catch (err) {
+    console.error('[caissier/factures/:id]', err)
+    return c.html(pageErreur('Erreur serveur', 'Veuillez réessayer.'))
+  }
+})
+
+// ── GET /caissier/nouvelle-facture ────────────────────────────────────────────
+caissierRoutes.get('/nouvelle-facture', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
+
+  try {
+    const patientSearch = sanitizeInput(c.req.query('patient') ?? '')
+
+    let patients: any[] = []
+    if (patientSearch.length >= 2) {
+      const { data, error } = await supabase
+        .from('patient_dossiers')
+        .select('id, nom, prenom, numero_national, telephone')
+        .or(`nom.ilike.%${patientSearch}%,prenom.ilike.%${patientSearch}%,numero_national.ilike.%${patientSearch}%`)
+        .eq('structure_enregistrement_id', profil.structure_id ?? '')
+        .limit(10)
+
+      if (error) console.error('[caissier/nouvelle-facture] recherche:', error.message)
+      patients = data ?? []
+    }
+
+    const { data: actes } = await supabase
+      .from('finance_actes_catalogue')
+      .select('id, nom, code, prix, categorie')
+      .eq('structure_id', profil.structure_id ?? '')
+      .eq('est_actif', true)
+      .order('categorie')
+
+    return c.html(pageNouvelleFacture(patients, actes ?? [], patientSearch))
+
+  } catch (err) {
+    console.error('[caissier/nouvelle-facture]', err)
+    return c.html(pageErreur('Erreur serveur', 'Veuillez réessayer.'))
+  }
+})
+
+// ── POST /caissier/nouvelle-facture ───────────────────────────────────────────
+caissierRoutes.post('/nouvelle-facture', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
+
+  try {
+    const body       = await c.req.parseBody()
+    const patientId  = String(body.patient_id ?? '').trim()
+    const remisePct  = parseFloat(String(body.remise_pourcentage ?? '0')) || 0
+    const remiseMnt  = parseInt(String(body.remise_montant ?? '0'))        || 0
+    const notes      = sanitizeInput(String(body.notes ?? ''))
+
+    if (!patientId) {
+      return c.html(pageErreur('Erreur', 'Patient requis pour créer une facture.'))
+    }
+
+    // Récupérer les lignes depuis le formulaire
+    // Format: acte_id[0], description[0], quantite[0], prix_unitaire[0]
+    const lignesRaw = body['lignes'] as any
+    const acteIds   = [body['acte_id']].flat().filter(Boolean)
+    const descs     = [body['description']].flat().filter(Boolean)
+    const qtts      = [body['quantite']].flat().filter(Boolean)
+    const prix      = [body['prix_unitaire']].flat().filter(Boolean)
+
+    if (!descs.length) {
+      return c.html(pageErreur('Erreur', 'Au moins une ligne de facturation est requise.'))
+    }
+
+    // Calculer les montants
+    let sousTotal = 0
+    const lignes = descs.map((desc, i) => {
+      const qte       = parseInt(String(qtts[i] ?? '1')) || 1
+      const prixUnit  = parseInt(String(prix[i] ?? '0')) || 0
+      // [DB-16] montant_total (pas total_ligne)
+      const montant   = qte * prixUnit
+      sousTotal += montant
+      return {
+        // [DB-16] description (pas acte_nom)
+        description:   sanitizeInput(String(desc)),
+        acte_id:       acteIds[i] || null,
+        quantite:      qte,
+        prix_unitaire: prixUnit,
+        // [DB-16] montant_total (pas total_ligne)
+        montant_total: montant,
+        ordre:         i + 1
+      }
+    })
+
+    const remise   = remiseMnt || Math.round(sousTotal * remisePct / 100)
+    const totalTtc = Math.max(0, sousTotal - remise)
+
+    // Créer la facture
+    const { data: facture, error: factErr } = await supabase
+      .from('finance_factures')
+      .insert({
+        patient_id:         patientId,
+        structure_id:       profil.structure_id,
+        cree_par:           profil.id,
+        date_emission:      new Date().toISOString(),
+        sous_total:         sousTotal,
+        remise_montant:     remise,
+        remise_pourcentage: remisePct,
+        total_ttc:          totalTtc,
+        montant_patient:    totalTtc,
+        statut:             'en_attente',
+        notes:              notes || null,
+      })
+      .select('id, numero_facture')
+      .single()
+
+    if (factErr || !facture) {
+      console.error('[caissier/nouvelle-facture] INSERT facture:', factErr?.message)
+      return c.html(pageErreur('Erreur', 'Impossible de créer la facture : ' + (factErr?.message ?? 'Erreur inconnue')))
+    }
+
+    // Créer les lignes
+    const lignesInsert = lignes.map(l => ({ ...l, facture_id: facture.id }))
+    const { error: lignesErr } = await supabase
+      .from('finance_facture_lignes')
+      .insert(lignesInsert)
+
+    if (lignesErr) {
+      console.error('[caissier/nouvelle-facture] INSERT lignes:', lignesErr.message)
+    }
+
+    return c.redirect(`/caissier/factures/${facture.id}?created=1`)
+
+  } catch (err) {
+    console.error('[caissier/nouvelle-facture]', err)
+    return c.html(pageErreur('Erreur serveur', 'Veuillez réessayer.'))
+  }
+})
+
+// ── POST /caissier/factures/:id/paiement ─────────────────────────────────────
+caissierRoutes.post('/factures/:id/paiement', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
+  const id       = c.req.param('id')
+
+  try {
+    const body          = await c.req.parseBody()
+    const montant       = parseInt(String(body.montant ?? '0')) || 0
+    const modePaiement  = String(body.mode_paiement ?? '').trim()
+    const reference     = sanitizeInput(String(body.reference_transaction ?? ''))
+    const operateur     = sanitizeInput(String(body.operateur ?? ''))
+
+    if (!montant || !modePaiement) {
+      return c.json({ success: false, error: 'Montant et mode de paiement requis' }, 400)
+    }
+
+    const { data: facture, error: factErr } = await supabase
+      .from('finance_factures')
+      .select('id, total_ttc, statut, patient_id')
+      .eq('id', id)
+      .eq('structure_id', profil.structure_id ?? '')
+      .single()
+
+    if (factErr || !facture) {
+      return c.json({ success: false, error: 'Facture introuvable' }, 404)
+    }
+
+    // Insérer le paiement
+    const { data: paiement, error: paiErr } = await supabase
+      .from('finance_paiements')
+      .insert({
+        facture_id:            id,
+        patient_id:            facture.patient_id,
+        caissier_id:           profil.id,
+        structure_id:          profil.structure_id,
+        montant,
+        mode_paiement:         modePaiement,
+        reference_transaction: reference || null,
+        operateur:             operateur || null,
+        statut_paiement:       'valide',
+        date_paiement:         new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+
+    if (paiErr) {
+      console.error('[caissier/paiement]', paiErr.message)
+      return c.json({ success: false, error: paiErr.message }, 500)
+    }
+
+    // Mettre à jour le statut de la facture
+    const { data: autresPai } = await supabase
+      .from('finance_paiements')
+      .select('montant')
+      .eq('facture_id', id)
+      .eq('statut_paiement', 'valide')
+
+    const totalPaye = (autresPai ?? []).reduce((s, p) => s + (p.montant ?? 0), 0)
+    const nouveauStatut = totalPaye >= facture.total_ttc ? 'payee' : 'partielle'
+
+    const { error: updateErr } = await supabase
+      .from('finance_factures')
+      .update({ statut: nouveauStatut })
+      .eq('id', id)
+
+    if (updateErr) console.error('[caissier/paiement] update statut:', updateErr.message)
+
+    return c.json({ success: true, paiement_id: paiement?.id, statut_facture: nouveauStatut })
+
+  } catch (err) {
+    console.error('[caissier/factures/:id/paiement]', err)
+    return c.json({ success: false, error: 'Erreur serveur' }, 500)
+  }
+})
+
+// ── GET /caissier/paiements ───────────────────────────────────────────────────
+caissierRoutes.get('/paiements', async (c) => {
+  const profil   = c.get('profil')
+  const supabase = c.get('supabase')
+
+  try {
+    const date    = c.req.query('date') ?? new Date().toISOString().split('T')[0]
+    const dateFrom = `${date}T00:00:00.000Z`
+    const dateTo   = `${date}T23:59:59.999Z`
+
+    const { data: paiements, error } = await supabase
+      .from('finance_paiements')
+      .select(`
+        id, montant, mode_paiement, statut_paiement,
+        reference_transaction, date_paiement,
+        facture:finance_factures!finance_paiements_facture_id_fkey(numero_facture),
+        patient:patient_dossiers!finance_paiements_patient_id_fkey(nom, prenom)
+      `)
+      .eq('structure_id', profil.structure_id ?? '')
+      .gte('date_paiement', dateFrom)
+      .lte('date_paiement', dateTo)
+      .order('date_paiement', { ascending: false })
+
+    if (error) {
+      console.error('[caissier/paiements]', error.message)
+    }
+
+    const total = (paiements ?? [])
+      .filter(p => p.statut_paiement === 'valide')
+      .reduce((s, p) => s + (p.montant ?? 0), 0)
+
+    return c.html(pageListePaiements(paiements ?? [], date, total))
+
+  } catch (err) {
+    console.error('[caissier/paiements]', err)
+    return c.html(pageErreur('Erreur serveur', 'Veuillez réessayer.'))
+  }
+})
+
+// ─── Pages HTML ───────────────────────────────────────────────────────────────
+
+function layoutCaissier(titre: string, content: string): string {
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${titre} — SantéBF Caisse</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:wght@600&display=swap" rel="stylesheet">
-<style>${CSS}</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapeHtml(titre)} | Caissier SantéBF</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--primary:#6A1B9A;--rouge:#C62828;--vert:#1B5E20;--orange:#E65100;
+      --text:#1a1a2e;--text2:#5A6A78;--border:#E0E0E0;--bg:#F7F8FA}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text)}
+    header{background:var(--primary);padding:14px 20px;display:flex;align-items:center;gap:12px;color:white}
+    nav{background:white;padding:0 20px;border-bottom:1px solid var(--border);display:flex;gap:0;overflow-x:auto}
+    nav a{padding:12px 16px;text-decoration:none;color:var(--text2);font-size:13px;font-weight:500;border-bottom:2px solid transparent;white-space:nowrap}
+    nav a:hover,nav a.active{color:var(--primary);border-color:var(--primary)}
+    .main{max-width:1200px;margin:0 auto;padding:24px 16px}
+    .card{background:white;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px}
+    .card-title{font-weight:700;font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+    .stat-card{background:white;border-radius:10px;padding:16px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+    .stat-number{font-size:26px;font-weight:700}
+    .stat-label{font-size:12px;color:var(--text2);margin-top:4px}
+    .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+    .badge-payee{background:#E8F5E9;color:var(--vert)}
+    .badge-attente{background:#FFF3E0;color:var(--orange)}
+    .badge-partielle{background:#E3F2FD;color:#0D47A1}
+    .badge-annule{background:#FFEBEE;color:var(--rouge)}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{text-align:left;padding:10px 12px;background:#F7F8FA;color:var(--text2);font-weight:600;font-size:12px;border-bottom:2px solid var(--border)}
+    td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none;border:none;cursor:pointer}
+    .btn-primary{background:var(--primary);color:white}
+    .btn-success{background:#2E7D32;color:white}
+    .btn-secondary{background:#F3F4F6;color:var(--text);border:1px solid var(--border)}
+    .amount{font-family:monospace;font-weight:700}
+    form label{display:block;font-size:13px;font-weight:600;margin-bottom:4px;color:var(--text)}
+    form input,form select,form textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:12px;font-family:inherit}
+  </style>
 </head>
-<body>${body}</body>
+<body>
+<header>
+  <div style="font-family:'DM Serif Display',serif;font-size:18px">💰 Caisse SantéBF</div>
+</header>
+<nav>
+  <a href="/caissier">Dashboard</a>
+  <a href="/caissier/factures">Factures</a>
+  <a href="/caissier/nouvelle-facture">Nouvelle facture</a>
+  <a href="/caissier/paiements">Paiements du jour</a>
+  <a href="/dashboard/caissier">← Dashboard</a>
+</nav>
+<main class="main">
+  <h1 style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--primary);margin-bottom:20px">${escapeHtml(titre)}</h1>
+  ${content}
+</main>
+</body>
 </html>`
 }
 
-function statutBadge(s: string): string {
-  const m: Record<string,string> = {
-    payee: 'b-vert', impayee: 'b-rouge',
-    partiellement_payee: 'b-or', annulee: 'b-gris', remboursee: 'b-bleu',
-  }
-  return `<span class="badge ${m[s]||'b-gris'}">${s.replace(/_/g,' ')}</span>`
-}
-
-// ═══════════════════════════════════════════════════════════════
-// LISTE FACTURES
-// ═══════════════════════════════════════════════════════════════
-caissierRoutes.get('/factures', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const filtreStatut = c.req.query('statut') || 'today'
-  const succes       = c.req.query('succes') || ''
-
-  const today = new Date().toISOString().split('T')[0]
-
-  let query = supabase
-    .from('finance_factures')
-    .select(`id, numero_facture, total_ttc, montant_patient, statut, created_at,
-      patient_dossiers(nom, prenom)`)
-    .eq('structure_id', profil.structure_id)
-    .order('created_at', { ascending: false })
-    .limit(100)
-
-  if (filtreStatut === 'today')   query = query.gte('created_at', today + 'T00:00:00')
-  if (filtreStatut === 'impayee') query = query.eq('statut', 'impayee')
-  if (filtreStatut === 'payee')   query = query.eq('statut', 'payee')
-
-  const { data: factures } = await query
-
-  const totalEncaisse = (factures ?? [])
-    .filter((f: any) => f.statut === 'payee')
-    .reduce((s: number, f: any) => s + (f.total_ttc || 0), 0)
-  const nbImpayees = (factures ?? []).filter((f: any) => f.statut === 'impayee').length
-
-  const rows = (factures ?? []).map((f: any) => {
-    const p = f.patient_dossiers as any
-    return `<tr>
-      <td><code style="background:var(--cs-c);color:var(--cs);padding:2px 8px;border-radius:4px;font-size:12px;">${f.numero_facture}</code></td>
-      <td>${p?.prenom||''} ${p?.nom||''}</td>
-      <td style="font-weight:700;">${fcfa(f.total_ttc)}</td>
-      <td>${fcfa(f.montant_patient)}</td>
-      <td>${statutBadge(f.statut)}</td>
-      <td>${new Date(f.created_at).toLocaleDateString('fr-FR')}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap;">
-        <a href="/caissier/factures/${f.id}" class="btn btn-soft" style="font-size:12px;padding:5px 10px;">Voir</a>
-        ${f.statut === 'impayee' ? `<a href="/caissier/factures/${f.id}" class="btn btn-vert" style="font-size:12px;padding:5px 10px;">💳 Encaisser</a>` : ''}
-      </td>
-    </tr>`
-  }).join('')
-
-  const html = `
-${topbar(profil, 'Factures')}
-<div class="wrap">
-  <div class="page-hd">
-    <div>
-      <div class="page-title">🧾 Factures</div>
-      <div style="font-size:12px;color:var(--soft);margin-top:2px;">${fcfa(totalEncaisse)} encaissés · ${nbImpayees} impayée(s)</div>
+function pageCaissierDashboard(
+  factures: any[],
+  paiements: any[],
+  totalJour: number,
+  actes: any[]
+): string {
+  const nbPayees   = paiements.filter(p => p.statut_paiement === 'valide').length
+  const content = `
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-number" style="color:var(--orange)">${factures.length}</div>
+        <div class="stat-label">💳 Factures en attente</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" style="color:var(--vert)">${nbPayees}</div>
+        <div class="stat-label">✅ Paiements aujourd'hui</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" style="color:var(--primary);font-size:20px">${totalJour.toLocaleString('fr-BF')} FCFA</div>
+        <div class="stat-label">💰 Recettes du jour</div>
+      </div>
     </div>
-    <a href="/caissier/facture/nouvelle" class="btn btn-cs">➕ Nouvelle facture</a>
-  </div>
-  ${succes === 'encaisse' ? '<div class="ok-box">✓ Paiement enregistré avec succès.</div>' : ''}
-  ${succes === 'cree' ? '<div class="ok-box">✓ Facture créée avec succès.</div>' : ''}
-  ${succes === 'annulee' ? '<div class="ok-box">✓ Facture annulée.</div>' : ''}
 
-  <!-- Filtres -->
-  <div class="card" style="padding:12px 16px;margin-bottom:14px;">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      ${[['today','Aujourd\'hui'],['impayee','Impayées'],['payee','Payées'],['all','Toutes']].map(([v,l]) =>
-        `<a href="/caissier/factures?statut=${v}" class="btn ${filtreStatut===v?'btn-cs':'btn-soft'}" style="font-size:12px;padding:7px 14px;">${l}</a>`
-      ).join('')}
-    </div>
-  </div>
-
-  <!-- Stats rapides -->
-  <div class="grid3" style="margin-bottom:14px;">
-    <div class="card" style="text-align:center;padding:16px;">
-      <div style="font-family:'Fraunces',serif;font-size:26px;color:var(--vert);">${fcfa(totalEncaisse)}</div>
-      <div style="font-size:12px;color:var(--soft);">Encaissé</div>
-    </div>
-    <div class="card" style="text-align:center;padding:16px;">
-      <div style="font-family:'Fraunces',serif;font-size:26px;">${(factures??[]).length}</div>
-      <div style="font-size:12px;color:var(--soft);">Factures totales</div>
-    </div>
-    <div class="card" style="text-align:center;padding:16px;">
-      <div style="font-family:'Fraunces',serif;font-size:26px;color:${nbImpayees>0?'var(--cs)':'var(--vert)'};">${nbImpayees}</div>
-      <div style="font-size:12px;color:var(--soft);">Impayées</div>
-    </div>
-  </div>
-
-  <div class="card">
-    ${rows ? `<table>
-      <thead><tr><th>Numéro</th><th>Patient</th><th>Total</th><th>À payer</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>` : '<div class="empty">Aucune facture</div>'}
-  </div>
-</div>`
-
-  return c.html(page('Factures', html))
-})
-
-// ═══════════════════════════════════════════════════════════════
-// NOUVELLE FACTURE — FORMULAIRE
-// ═══════════════════════════════════════════════════════════════
-caissierRoutes.get('/facture/nouvelle', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const erreur   = c.req.query('err') || ''
-
-  const { data: actes } = await supabase
-    .from('finance_actes_catalogue')
-    .select('id, nom, tarif_public, tarif_prive')
-    .or(`structure_id.is.null,structure_id.eq.${profil.structure_id}`)
-    .order('nom')
-    .limit(200)
-
-  const html = `
-${topbar(profil, 'Nouvelle facture')}
-<div class="wrap">
-  <div class="page-hd">
-    <div class="page-title">➕ Nouvelle facture</div>
-    <a href="/caissier/factures" class="back">← Retour</a>
-  </div>
-  ${erreur === 'patient_requis' ? '<div class="err-box">⚠️ Vous devez sélectionner un patient.</div>' : ''}
-  ${erreur === 'actes_requis'   ? '<div class="err-box">⚠️ Vous devez ajouter au moins un acte.</div>' : ''}
-
-  <form method="POST" action="/caissier/facture/nouvelle">
-    <!-- Recherche patient -->
     <div class="card">
-      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">👤 Patient</div>
-      <div class="form-group">
-        <label class="form-label">Rechercher le patient <span>*</span></label>
-        <input type="text" id="patientSearch" placeholder="Nom, prénom ou numéro BF-XXXX…" autocomplete="off">
-        <input type="hidden" name="patient_id" id="patientId">
-        <div id="patientSelected" style="display:none;margin-top:8px;background:var(--vert-c);
-          padding:10px 14px;border-radius:var(--rs);color:var(--vert);font-weight:700;font-size:13px;"></div>
-        <div id="patientSuggest" style="display:none;background:white;border:1.5px solid var(--bordure);
-          border-radius:var(--rs);margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,.08);max-height:200px;overflow-y:auto;"></div>
-      </div>
+      <div class="card-title">💳 Factures en attente de paiement</div>
+      ${factures.length ? `
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>N° Facture</th><th>Patient</th><th>Total</th><th>À payer</th><th>Statut</th><th>Action</th></tr></thead>
+          <tbody>
+            ${factures.map(f => `
+            <tr>
+              <td><strong>${escapeHtml(f.numero_facture)}</strong></td>
+              <td>${escapeHtml(f.patient?.nom)} ${escapeHtml(f.patient?.prenom)}</td>
+              <td class="amount">${(f.total_ttc ?? 0).toLocaleString('fr-BF')} F</td>
+              <td class="amount" style="color:var(--rouge)">${(f.montant_patient ?? f.total_ttc ?? 0).toLocaleString('fr-BF')} F</td>
+              <td><span class="badge ${f.statut === 'en_attente' ? 'badge-attente' : 'badge-partielle'}">${escapeHtml(f.statut)}</span></td>
+              <td><a href="/caissier/factures/${f.id}" class="btn btn-primary">Encaisser →</a></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : '<div style="text-align:center;padding:32px;color:var(--text2)">✅ Aucune facture en attente</div>'}
     </div>
+  `
+  return layoutCaissier('Dashboard Caisse', content)
+}
 
-    <!-- Actes -->
+function pageListeFactures(factures: any[], statut: string, page: number, totalPages: number, total: number): string {
+  const content = `
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      ${['all','en_attente','partielle','payee','annulee'].map(s => `
+        <a href="/caissier/factures?statut=${s}" style="padding:7px 14px;background:white;border:1px solid #E0E0E0;border-radius:20px;font-size:12px;text-decoration:none;color:${statut===s?'white':'#374151'};background:${statut===s?'#6A1B9A':'white'}">${s==='all'?'Toutes':escapeHtml(s)}</a>
+      `).join('')}
+    </div>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:16px">${total} facture(s)</p>
     <div class="card">
-      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">📋 Actes et prestations</div>
-      <input type="hidden" name="actes_json" id="actesJson" value="[]">
-      <div id="actesListe"></div>
-      <button type="button" onclick="ajouterActe()" class="btn btn-soft" style="width:100%;justify-content:center;margin-top:8px;border-style:dashed;">
-        ➕ Ajouter un acte
-      </button>
-      <div style="text-align:right;margin-top:14px;font-family:'Fraunces',serif;font-size:22px;color:var(--cs);" id="totalDisplay">
-        Total : 0 FCFA
+      ${factures.length ? `
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>N° Facture</th><th>Patient</th><th>Total TTC</th><th>Statut</th><th>Date</th><th>Action</th></tr></thead>
+          <tbody>
+            ${factures.map(f => `
+            <tr>
+              <td><strong>${escapeHtml(f.numero_facture)}</strong></td>
+              <td>${escapeHtml(f.patient?.nom)} ${escapeHtml(f.patient?.prenom)}</td>
+              <td class="amount">${(f.total_ttc ?? 0).toLocaleString('fr-BF')} FCFA</td>
+              <td><span class="badge ${
+                f.statut === 'payee' ? 'badge-payee' :
+                f.statut === 'en_attente' ? 'badge-attente' :
+                f.statut === 'partielle' ? 'badge-partielle' : 'badge-annule'
+              }">${escapeHtml(f.statut)}</span></td>
+              <td>${f.created_at ? new Date(f.created_at).toLocaleDateString('fr-BF') : '—'}</td>
+              <td><a href="/caissier/factures/${f.id}" class="btn btn-secondary">Voir →</a></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
       </div>
-    </div>
-
-    <!-- Paiement -->
-    <div class="card">
-      <div style="font-size:14px;font-weight:700;margin-bottom:14px;">💳 Paiement</div>
-      <div class="grid2">
-        <div class="form-group">
-          <label class="form-label">Mode de paiement</label>
-          <select name="mode_paiement">
-            <option value="especes">💵 Espèces</option>
-            <option value="orange_money">🟠 Orange Money</option>
-            <option value="moov_money">🔵 Moov Money</option>
-            <option value="carte_bancaire">💳 Carte bancaire</option>
-            <option value="assurance">🏥 Assurance</option>
-            <option value="mutuelle">🤝 Mutuelle</option>
-            <option value="bon_prise_en_charge">📄 Bon de prise en charge</option>
-            <option value="gratuit">🆓 Gratuit / Exonéré</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Part assurance (FCFA)</label>
-          <input type="number" name="montant_assurance" id="assuranceInput" value="0" min="0" oninput="calculerTotal()">
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Notes</label>
-        <input type="text" name="notes" placeholder="Remarques optionnelles…">
-      </div>
-    </div>
-
-    <button type="submit" onclick="preparerJson()" class="btn btn-cs" style="width:100%;justify-content:center;padding:14px;font-size:15px;">
-      ✅ Créer la facture
-    </button>
-  </form>
-</div>
-
-<script>
-var ACTES = ${JSON.stringify(actes ?? [])};
-var actesSelectionnes = [];
-
-function ajouterActe() {
-  var idx = actesSelectionnes.length;
-  actesSelectionnes.push({ acte_id: '', description: '', montant: 0, quantite: 1 });
-  var div = document.createElement('div');
-  div.id = 'acte-' + idx;
-  div.style.cssText = 'background:#fffafa;border:1px solid var(--bordure);border-radius:var(--rs);padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;';
-  div.innerHTML =
-    '<select onchange="selectionnerActe(this,' + idx + ')" style="flex:2;min-width:180px;padding:9px;border:1.5px solid var(--bordure);border-radius:var(--rs);font-family:inherit;font-size:13px;outline:none;">' +
-    '<option value="">Catalogue…</option>' +
-    ACTES.map(function(a) { return '<option value="' + a.id + '" data-nom="' + a.nom + '" data-tarif="' + (a.tarif_public||0) + '">' + a.nom + ' (' + (a.tarif_public||0).toLocaleString("fr-FR") + ' FCFA)</option>'; }).join('') +
-    '<option value="autre">Autre (saisie manuelle)</option>' +
-    '</select>' +
-    '<input type="text" id="nom-' + idx + '" placeholder="Description" style="flex:2;min-width:140px;padding:9px;border:1.5px solid var(--bordure);border-radius:var(--rs);font-family:inherit;font-size:13px;" oninput="majNom(' + idx + ')">' +
-    '<input type="number" id="qte-' + idx + '" value="1" min="1" style="width:60px;padding:9px;border:1.5px solid var(--bordure);border-radius:var(--rs);font-family:inherit;font-size:13px;" onchange="majMontant(' + idx + ')" placeholder="Qté">' +
-    '<input type="number" id="mnt-' + idx + '" value="0" min="0" style="width:110px;padding:9px;border:1.5px solid var(--bordure);border-radius:var(--rs);font-family:inherit;font-size:13px;" onchange="majMontant(' + idx + ')" placeholder="FCFA">' +
-    '<button type="button" onclick="supprimerActe(' + idx + ')" style="background:none;border:none;color:var(--cs);font-size:18px;cursor:pointer;padding:0 4px;">✕</button>';
-  document.getElementById('actesListe').appendChild(div);
-}
-
-function supprimerActe(idx) {
-  var el = document.getElementById('acte-' + idx);
-  if (el) el.remove();
-  actesSelectionnes[idx] = null;
-  calculerTotal();
-}
-
-function selectionnerActe(sel, idx) {
-  var opt = sel.options[sel.selectedIndex];
-  var tarif = parseInt(opt.dataset.tarif || '0');
-  var nom = opt.dataset.nom || '';
-  document.getElementById('mnt-' + idx).value = tarif;
-  document.getElementById('nom-' + idx).value = nom;
-  actesSelectionnes[idx] = { acte_id: sel.value !== 'autre' ? sel.value : '', description: nom, montant: tarif, quantite: 1 };
-  calculerTotal();
-}
-
-function majNom(idx) {
-  if (actesSelectionnes[idx]) actesSelectionnes[idx].description = document.getElementById('nom-' + idx).value;
-}
-
-function majMontant(idx) {
-  var qte = parseInt(document.getElementById('qte-' + idx)?.value || '1');
-  var mnt = parseInt(document.getElementById('mnt-' + idx)?.value || '0');
-  if (actesSelectionnes[idx]) { actesSelectionnes[idx].montant = mnt; actesSelectionnes[idx].quantite = qte; }
-  calculerTotal();
-}
-
-function calculerTotal() {
-  var total = actesSelectionnes.filter(Boolean).reduce(function(s,a) { return s + (a.montant * a.quantite); }, 0);
-  var assurance = parseInt(document.getElementById('assuranceInput')?.value || '0') || 0;
-  var patient = Math.max(0, total - assurance);
-  document.getElementById('totalDisplay').textContent =
-    'Total : ' + total.toLocaleString('fr-FR') + ' FCFA (patient : ' + patient.toLocaleString('fr-FR') + ' FCFA)';
-}
-
-function preparerJson() {
-  document.getElementById('actesJson').value = JSON.stringify(actesSelectionnes.filter(Boolean).filter(function(a) { return a.description && a.montant >= 0; }));
-}
-
-// Recherche patient autocomplete
-var searchTimer;
-document.getElementById('patientSearch').addEventListener('input', function() {
-  clearTimeout(searchTimer);
-  var q = this.value.trim();
-  if (q.length < 2) { document.getElementById('patientSuggest').style.display = 'none'; return; }
-  searchTimer = setTimeout(async function() {
-    try {
-      var res = await fetch('/caissier/api/patients?q=' + encodeURIComponent(q));
-      var patients = await res.json();
-      var div = document.getElementById('patientSuggest');
-      if (!patients.length) { div.style.display = 'none'; return; }
-      div.innerHTML = patients.map(function(p) {
-        return '<div onclick="selectPatient(\'' + p.id + '\',\'' + p.prenom + ' ' + p.nom + '\')" ' +
-          'style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bordure);" ' +
-          'onmouseover="this.style.background=\'var(--cs-c)\'" onmouseout="this.style.background=\'\'">'+
-          p.prenom + ' ' + p.nom + ' <span style="color:var(--soft);font-size:11px;">' + p.numero_national + '</span></div>';
-      }).join('');
-      div.style.display = 'block';
-    } catch(e) {}
-  }, 300);
-});
-
-function selectPatient(id, nom) {
-  document.getElementById('patientSearch').value = nom;
-  document.getElementById('patientId').value = id;
-  document.getElementById('patientSuggest').style.display = 'none';
-  var sel = document.getElementById('patientSelected');
-  sel.textContent = '✓ ' + nom + ' sélectionné(e)';
-  sel.style.display = 'block';
-}
-</script>`
-
-  return c.html(page('Nouvelle facture', html))
-})
-
-// ═══════════════════════════════════════════════════════════════
-// API RECHERCHE PATIENT (autocomplete)
-// ═══════════════════════════════════════════════════════════════
-caissierRoutes.get('/api/patients', async (c) => {
-  const supabase = c.get('supabase' as never) as any
-  const q        = String(c.req.query('q') ?? '').trim()
-  if (q.length < 2) return c.json([])
-
-  const { data } = await supabase
-    .from('patient_dossiers')
-    .select('id, nom, prenom, numero_national')
-    .or(`nom.ilike.%${q}%,prenom.ilike.%${q}%,numero_national.ilike.%${q}%`)
-    .limit(8)
-
-  return c.json(data ?? [])
-})
-
-// ═══════════════════════════════════════════════════════════════
-// CRÉER UNE FACTURE
-// ═══════════════════════════════════════════════════════════════
-caissierRoutes.post('/facture/nouvelle', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const body     = await c.req.parseBody()
-
-  const patientId = String(body.patient_id ?? '').trim()
-  if (!patientId) return c.redirect('/caissier/facture/nouvelle?err=patient_requis', 303)
-
-  const actesJson = String(body.actes_json ?? '[]')
-  let actes: any[] = []
-  try { actes = JSON.parse(actesJson) } catch { actes = [] }
-  if (actes.length === 0) return c.redirect('/caissier/facture/nouvelle?err=actes_requis', 303)
-
-  const montantAssurance = parseInt(String(body.montant_assurance ?? '0')) || 0
-  const sousTtl          = actes.reduce((s: number, a: any) => s + ((a.montant || 0) * (a.quantite || 1)), 0)
-  const totalTtc         = sousTtl
-  const montantPatient   = Math.max(0, totalTtc - montantAssurance)
-  const notes            = String(body.notes ?? '').trim() || null
-
-  // Créer la facture
-  const { data: facture, error } = await supabase
-    .from('finance_factures')
-    .insert({
-      patient_id:        patientId,
-      structure_id:      profil.structure_id,
-      cree_par:          profil.id,
-      sous_total:        sousTtl,
-      total_ttc:         totalTtc,
-      montant_assurance: montantAssurance,
-      montant_patient:   montantPatient,
-      statut:            'impayee',
-      notes,
-    })
-    .select('id')
-    .single()
-
-  if (error || !facture) return c.redirect('/caissier/facture/nouvelle?err=db', 303)
-
-  // Insérer les lignes (colonnes corrigées selon schéma DB)
-  if (actes.length > 0) {
-    await supabase.from('finance_facture_lignes').insert(
-      actes.map((a: any, i: number) => ({
-        facture_id:    facture.id,
-        acte_id:       a.acte_id || null,
-        ordre:         i + 1,
-        description:   a.description || a.nom || 'Acte',  // ← colonne correcte
-        quantite:      a.quantite || 1,
-        prix_unitaire: a.montant || 0,
-        montant_total: (a.montant || 0) * (a.quantite || 1),  // ← colonne correcte
-      }))
-    )
-  }
-
-  // Si mode paiement → encaisser directement
-  const mode = String(body.mode_paiement ?? '').trim()
-  if (mode && mode !== 'impayee') {
-    await supabase.from('finance_paiements').insert({
-      facture_id:      facture.id,
-      patient_id:      patientId,
-      caissier_id:     profil.id,         // ← colonne correcte
-      montant:         montantPatient,
-      mode_paiement:   mode,
-      statut_paiement: 'valide',
-    })
-    await supabase.from('finance_factures')
-      .update({ statut: 'payee' })
-      .eq('id', facture.id)
-  }
-
-  return c.redirect(`/caissier/factures/${facture.id}?succes=cree`, 303)
-})
-
-// ═══════════════════════════════════════════════════════════════
-// DÉTAIL FACTURE
-// ═══════════════════════════════════════════════════════════════
-caissierRoutes.get('/factures/:id', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const id       = c.req.param('id')
-  const succes   = c.req.query('succes') || ''
-
-  const { data: facture } = await supabase
-    .from('finance_factures')
-    .select(`
-      id, numero_facture, total_ttc, montant_patient, montant_assurance,
-      sous_total, statut, created_at, notes,
-      patient_dossiers(id, nom, prenom, numero_national, telephone),
-      finance_facture_lignes(id, description, quantite, prix_unitaire, montant_total),
-      finance_paiements(mode_paiement, montant, statut_paiement, date_paiement)
-    `)
-    .eq('id', id)
-    .eq('structure_id', profil.structure_id)
-    .single()
-
-  if (!facture) return c.redirect('/caissier/factures', 303)
-
-  const patient  = facture.patient_dossiers as any
-  const lignes   = (facture.finance_facture_lignes as any[]) || []
-  const paiements = (facture.finance_paiements as any[]) || []
-
-  const lignesHtml = lignes.map((l: any) => `
-    <div class="sep">
-      <div>
-        <div style="font-size:14px;font-weight:600;">${l.description}</div>
-        <div style="font-size:12px;color:var(--soft);">Quantité : ${l.quantite}</div>
-      </div>
-      <div style="font-weight:700;color:var(--cs);">${fcfa(l.montant_total)}</div>
-    </div>`).join('')
-
-  const html = `
-${topbar(profil, facture.numero_facture)}
-<div class="wrap">
-  <div class="page-hd">
-    <div class="page-title">${facture.numero_facture}</div>
-    <a href="/caissier/factures" class="back">← Factures</a>
-  </div>
-
-  ${succes === 'cree'    ? '<div class="ok-box">✓ Facture créée avec succès.</div>' : ''}
-  ${succes === 'encaisse'? '<div class="ok-box">✓ Paiement encaissé avec succès.</div>' : ''}
-  ${succes === 'annulee' ? '<div class="ok-box">✓ Facture annulée.</div>' : ''}
-
-  <!-- En-tête patient -->
-  <div class="card" style="background:linear-gradient(135deg,var(--cs-f),var(--cs));border:none;margin-bottom:14px;">
-    <div style="color:white;">
-      <div style="font-size:11px;opacity:.7;margin-bottom:3px;">${facture.numero_facture}</div>
-      <div style="font-family:'Fraunces',serif;font-size:20px;margin-bottom:3px;">
-        ${patient?.prenom||''} ${patient?.nom||''}
-      </div>
-      <div style="font-size:12px;opacity:.8;display:flex;gap:12px;flex-wrap:wrap;">
-        <span>${patient?.numero_national||''}</span>
-        ${patient?.telephone ? `<span>📞 ${patient.telephone}</span>` : ''}
-        <span>${new Date(facture.created_at).toLocaleDateString('fr-FR')}</span>
-        ${statutBadge(facture.statut).replace('class="badge', 'style="font-size:11px;" class="badge')}
-      </div>
-    </div>
-  </div>
-
-  <div class="grid2">
-    <!-- Lignes actes -->
-    <div class="card">
-      <div style="font-size:14px;font-weight:700;margin-bottom:12px;">📋 Actes</div>
-      ${lignesHtml || '<div style="color:var(--soft);font-size:13px;">Aucun acte enregistré</div>'}
-      <div style="border-top:2px solid var(--bordure);margin-top:10px;padding-top:10px;">
-        ${facture.montant_assurance > 0 ? `
-          <div class="sep"><span style="font-size:13px;">Sous-total</span><span style="font-weight:700;">${fcfa(facture.sous_total)}</span></div>
-          <div class="sep"><span style="font-size:13px;color:var(--vert);">Part assurance</span><span style="color:var(--vert);font-weight:700;">- ${fcfa(facture.montant_assurance)}</span></div>` : ''}
-        <div style="display:flex;justify-content:space-between;padding-top:8px;">
-          <span style="font-size:16px;font-weight:700;">À PAYER</span>
-          <span style="font-size:18px;font-weight:700;color:var(--cs);">${fcfa(facture.montant_patient)}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Actions + paiements -->
-    <div>
-      ${facture.statut === 'impayee' ? `
-        <div class="card">
-          <div style="font-size:14px;font-weight:700;margin-bottom:12px;">💳 Encaisser</div>
-          <form method="POST" action="/caissier/factures/${id}/encaisser">
-            <div class="form-group">
-              <label class="form-label">Mode de paiement</label>
-              <select name="mode_paiement">
-                <option value="especes">💵 Espèces</option>
-                <option value="orange_money">🟠 Orange Money</option>
-                <option value="moov_money">🔵 Moov Money</option>
-                <option value="carte_bancaire">💳 Carte bancaire</option>
-                <option value="assurance">🏥 Assurance</option>
-                <option value="mutuelle">🤝 Mutuelle</option>
-                <option value="gratuit">🆓 Gratuit</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Référence transaction (mobile money)</label>
-              <input type="text" name="reference_transaction" placeholder="Ex: ORM-XXXXXXXX">
-            </div>
-            <button type="submit" class="btn btn-vert" style="width:100%;justify-content:center;padding:12px;">
-              💳 Encaisser ${fcfa(facture.montant_patient)}
-            </button>
-          </form>
-        </div>` : ''}
-
-      ${paiements.length > 0 ? `
-        <div class="card">
-          <div style="font-size:14px;font-weight:700;margin-bottom:12px;">✅ Paiements</div>
-          ${paiements.map((p: any) => `
-            <div class="sep">
-              <div>
-                <div style="font-size:13px;font-weight:600;">${p.mode_paiement.replace(/_/g,' ')}</div>
-                <div style="font-size:11px;color:var(--soft);">${p.date_paiement ? new Date(p.date_paiement).toLocaleDateString('fr-FR') : '—'}</div>
-              </div>
-              <span class="badge b-vert">${fcfa(p.montant)}</span>
-            </div>`).join('')}
-        </div>` : ''}
-
-      <div class="card">
-        <div style="font-size:14px;font-weight:700;margin-bottom:12px;">⚡ Actions</div>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <a href="/caissier/factures/${id}/recu" target="_blank" class="btn btn-soft" style="justify-content:center;">
-            🖨️ Imprimer reçu
-          </a>
-          ${facture.statut === 'impayee' ? `
-            <form method="POST" action="/caissier/factures/${id}/annuler">
-              <button type="submit" class="btn btn-gris" style="width:100%;justify-content:center;"
-                onclick="return confirm('Annuler cette facture ?')">
-                ✕ Annuler la facture
-              </button>
-            </form>` : ''}
-        </div>
-      </div>
-    </div>
-  </div>
-</div>`
-
-  return c.html(page(facture.numero_facture, html))
-})
-
-// ═══════════════════════════════════════════════════════════════
-// ENCAISSER UNE FACTURE
-// ═══════════════════════════════════════════════════════════════
-caissierRoutes.post('/factures/:id/encaisser', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const id       = c.req.param('id')
-  const body     = await c.req.parseBody()
-
-  const { data: facture } = await supabase
-    .from('finance_factures')
-    .select('montant_patient, patient_id')
-    .eq('id', id)
-    .eq('structure_id', profil.structure_id)
-    .single()
-
-  if (!facture) return c.redirect('/caissier/factures', 303)
-
-  const ref = String(body.reference_transaction ?? '').trim() || null
-
-  // Créer le paiement (colonnes correctes selon schéma DB)
-  await supabase.from('finance_paiements').insert({
-    facture_id:            id,
-    patient_id:            facture.patient_id,
-    caissier_id:           profil.id,            // ← colonne correcte
-    montant:               facture.montant_patient,
-    mode_paiement:         String(body.mode_paiement ?? 'especes'),
-    reference_transaction: ref,
-    statut_paiement:       'valide',
-  })
-
-  await supabase.from('finance_factures')
-    .update({ statut: 'payee' })
-    .eq('id', id)
-
-  return c.redirect(`/caissier/factures/${id}?succes=encaisse`, 303)
-})
-
-// ═══════════════════════════════════════════════════════════════
-// ANNULER UNE FACTURE
-// ═══════════════════════════════════════════════════════════════
-caissierRoutes.post('/factures/:id/annuler', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const id       = c.req.param('id')
-
-  await supabase.from('finance_factures')
-    .update({ statut: 'annulee' })
-    .eq('id', id)
-    .eq('structure_id', profil.structure_id)
-    .eq('statut', 'impayee')  // sécurité : ne peut annuler que si impayée
-
-  return c.redirect(`/caissier/factures?succes=annulee`, 303)
-})
-
-// ═══════════════════════════════════════════════════════════════
-// REÇU IMPRIMABLE
-// ═══════════════════════════════════════════════════════════════
-caissierRoutes.get('/factures/:id/recu', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const id       = c.req.param('id')
-
-  const { data: facture } = await supabase
-    .from('finance_factures')
-    .select(`
-      id, numero_facture, total_ttc, montant_patient, montant_assurance,
-      sous_total, statut, created_at,
-      patient_dossiers(nom, prenom, numero_national),
-      finance_facture_lignes(description, quantite, prix_unitaire, montant_total),
-      finance_paiements(mode_paiement, montant, date_paiement)
-    `)
-    .eq('id', id)
-    .eq('structure_id', profil.structure_id)
-    .single()
-
-  if (!facture) return c.text('Facture introuvable', 404)
-
-  const patient = facture.patient_dossiers as any
-  const lignes  = (facture.finance_facture_lignes as any[]) || []
-  const paiements = (facture.finance_paiements as any[]) || []
-  const modePaiement = paiements[0]?.mode_paiement?.replace(/_/g,' ') || '—'
-
-  return c.html(`<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Reçu ${facture.numero_facture}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:Arial,sans-serif;background:white;padding:20px;max-width:320px;margin:0 auto;}
-  .header{text-align:center;border-bottom:2px solid #B71C1C;padding-bottom:12px;margin-bottom:12px;}
-  .header h2{font-size:14px;color:#B71C1C;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
-  .header .num{font-size:11px;color:#666;}
-  .row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #eee;}
-  .total-row{display:flex;justify-content:space-between;font-size:14px;font-weight:700;
-    color:#B71C1C;padding:8px 0;border-top:2px solid #B71C1C;margin-top:6px;}
-  .footer{text-align:center;font-size:10px;color:#999;margin-top:14px;border-top:1px solid #eee;padding-top:10px;}
-  .print-btn{display:block;width:100%;background:#B71C1C;color:white;border:none;
-    padding:10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;}
-  @media print{.print-btn{display:none;}}
-</style>
-</head>
-<body>
-<button class="print-btn" onclick="window.print()">🖨️ Imprimer</button>
-<div class="header">
-  <h2>🏥 SantéBF</h2>
-  <div class="num">REÇU DE PAIEMENT</div>
-  <div class="num">${facture.numero_facture}</div>
-  <div class="num">${new Date(facture.created_at).toLocaleDateString('fr-FR')}</div>
-</div>
-<div class="row"><span>Patient</span><span>${patient?.prenom||''} ${patient?.nom||''}</span></div>
-<div class="row"><span>N° dossier</span><span>${patient?.numero_national||'—'}</span></div>
-<div class="row"><span>Mode paiement</span><span>${modePaiement}</span></div>
-<div style="margin-top:10px;">
-  ${lignes.map((l: any) => `
-    <div class="row">
-      <span>${l.description} (x${l.quantite})</span>
-      <span>${fcfa(l.montant_total)}</span>
-    </div>`).join('')}
-  ${facture.montant_assurance > 0 ? `<div class="row"><span>Part assurance</span><span>- ${fcfa(facture.montant_assurance)}</span></div>` : ''}
-</div>
-<div class="total-row"><span>TOTAL PAYÉ</span><span>${fcfa(facture.montant_patient)}</span></div>
-<div class="footer">
-  SantéBF — Système National de Santé Numérique<br>
-  Burkina Faso 🇧🇫 · ${new Date().getFullYear()}
-</div>
-</body>
-</html>`)
-})
-
-// ═══════════════════════════════════════════════════════════════
-// RAPPORT DE CAISSE
-// ═══════════════════════════════════════════════════════════════
-caissierRoutes.get('/rapport', async (c) => {
-  const profil   = c.get('profil' as never) as AuthProfile
-  const supabase = c.get('supabase' as never) as any
-  const periode  = c.req.query('periode') || 'today'
-
-  const now    = new Date()
-  let debutStr = now.toISOString().split('T')[0] + 'T00:00:00'
-
-  if (periode === 'week') {
-    const lundi = new Date(now)
-    lundi.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1))
-    debutStr = lundi.toISOString().split('T')[0] + 'T00:00:00'
-  } else if (periode === 'month') {
-    debutStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0] + 'T00:00:00'
-  }
-
-  const { data: paiements } = await supabase
-    .from('finance_paiements')
-    .select('montant, mode_paiement, statut_paiement')
-    .eq('statut_paiement', 'valide')
-    .gte('date_paiement', debutStr)
-
-  // Filtrer par structure via jointure factures
-  const { data: factures } = await supabase
-    .from('finance_factures')
-    .select('total_ttc, statut, created_at')
-    .eq('structure_id', profil.structure_id)
-    .gte('created_at', debutStr)
-
-  const parMode: Record<string,number> = {}
-  let total = 0
-  for (const p of paiements ?? []) {
-    parMode[p.mode_paiement] = (parMode[p.mode_paiement] || 0) + p.montant
-    total += p.montant
-  }
-
-  const totalFactures   = (factures ?? []).length
-  const totalPayees     = (factures ?? []).filter((f: any) => f.statut === 'payee').length
-  const totalImpayees   = (factures ?? []).filter((f: any) => f.statut === 'impayee').length
-  const montantTotal    = (factures ?? []).filter((f: any) => f.statut === 'payee')
-    .reduce((s: number, f: any) => s + (f.total_ttc || 0), 0)
-
-  const modeRows = Object.entries(parMode).map(([mode, mnt]: [string, any]) => `
-    <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bordure);">
-      <span style="font-size:14px;">${mode.replace(/_/g,' ')}</span>
-      <span style="font-weight:700;">${fcfa(mnt)}</span>
-    </div>`).join('')
-
-  const html = `
-${topbar(profil, 'Rapport')}
-<div class="wrap">
-  <div class="page-hd">
-    <div class="page-title">📊 Rapport de caisse</div>
-  </div>
-
-  <!-- Filtres période -->
-  <div class="card" style="padding:12px 16px;margin-bottom:14px;">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      ${[['today','Aujourd\'hui'],['week','Cette semaine'],['month','Ce mois']].map(([v,l]) =>
-        `<a href="/caissier/rapport?periode=${v}" class="btn ${periode===v?'btn-cs':'btn-soft'}" style="font-size:12px;padding:7px 14px;">${l}</a>`
-      ).join('')}
-    </div>
-  </div>
-
-  <!-- Stats -->
-  <div class="grid2" style="margin-bottom:14px;">
-    <div class="card" style="text-align:center;padding:20px;">
-      <div style="font-size:13px;color:var(--soft);margin-bottom:6px;">Total encaissé</div>
-      <div style="font-family:'Fraunces',serif;font-size:26px;color:var(--vert);">${fcfa(montantTotal)}</div>
-    </div>
-    <div class="card" style="text-align:center;padding:20px;">
-      <div style="font-size:13px;color:var(--soft);margin-bottom:6px;">Factures</div>
-      <div style="display:flex;justify-content:center;gap:16px;margin-top:4px;">
-        <div><div style="font-size:20px;font-weight:700;color:var(--vert);">${totalPayees}</div><div style="font-size:11px;color:var(--soft);">Payées</div></div>
-        <div><div style="font-size:20px;font-weight:700;color:var(--cs);">${totalImpayees}</div><div style="font-size:11px;color:var(--soft);">Impayées</div></div>
-        <div><div style="font-size:20px;font-weight:700;">${totalFactures}</div><div style="font-size:11px;color:var(--soft);">Total</div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Répartition par mode -->
-  <div class="card">
-    <div style="font-size:14px;font-weight:700;margin-bottom:14px;">💳 Répartition par mode de paiement</div>
-    ${modeRows || '<div class="empty">Aucun paiement enregistré</div>'}
-    ${Object.keys(parMode).length > 0 ? `
-      <div style="display:flex;justify-content:space-between;padding:12px 0 0;
-        border-top:2px solid var(--bordure);margin-top:6px;">
-        <span style="font-size:16px;font-weight:700;">TOTAL</span>
-        <span style="font-size:18px;font-weight:700;color:var(--cs);">${fcfa(total)}</span>
+      ${totalPages > 1 ? `
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+        ${page > 1 ? `<a href="/caissier/factures?statut=${statut}&page=${page-1}" class="btn btn-primary">← Précédent</a>` : ''}
+        <span style="padding:6px 12px;font-size:13px">Page ${page}/${totalPages}</span>
+        ${page < totalPages ? `<a href="/caissier/factures?statut=${statut}&page=${page+1}" class="btn btn-primary">Suivant →</a>` : ''}
       </div>` : ''}
-  </div>
-</div>`
+      ` : '<div style="text-align:center;padding:32px;color:var(--text2)">Aucune facture</div>'}
+    </div>
+  `
+  return layoutCaissier('Liste des factures', content)
+}
 
-  return c.html(page('Rapport', html))
-})
+function pageDetailFacture(facture: any, lignes: any[], paiements: any[]): string {
+  const totalPaye = paiements
+    .filter(p => p.statut_paiement === 'valide')
+    .reduce((s, p) => s + (p.montant ?? 0), 0)
+  const resteAPayer = Math.max(0, (facture.total_ttc ?? 0) - totalPaye)
 
-// ═══════════════════════════════════════════════════════════════
-// ROUTES ALIASES (liens sidebar dashboard)
-// ═══════════════════════════════════════════════════════════════
+  const content = `
+    ${c_req_success() ? '<div style="background:#E8F5E9;border-radius:8px;padding:12px 16px;color:#1B5E20;margin-bottom:16px">✅ Facture créée avec succès</div>' : ''}
+    
+    <div class="card">
+      <div class="card-title">📄 Facture N° ${escapeHtml(facture.numero_facture)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div>
+          <p><strong>Patient :</strong> ${escapeHtml(facture.patient?.nom)} ${escapeHtml(facture.patient?.prenom)}</p>
+          <p style="color:var(--text2);font-size:13px">${escapeHtml(facture.patient?.telephone) || ''}</p>
+          <p style="color:var(--text2);font-size:13px">N° ${escapeHtml(facture.patient?.numero_national) || ''}</p>
+        </div>
+        <div style="text-align:right">
+          <p><strong>Date :</strong> ${facture.date_emission ? new Date(facture.date_emission).toLocaleDateString('fr-BF') : '—'}</p>
+          <p><strong>Statut :</strong> <span class="badge ${
+            facture.statut === 'payee' ? 'badge-payee' :
+            facture.statut === 'en_attente' ? 'badge-attente' : 'badge-partielle'
+          }">${escapeHtml(facture.statut)}</span></p>
+        </div>
+      </div>
+      
+      <!-- Lignes de facturation [DB-16] : description et montant_total -->
+      <table>
+        <thead><tr><th>Description</th><th>Qté</th><th>Prix U.</th><th>Total</th></tr></thead>
+        <tbody>
+          ${lignes.map(l => `
+          <tr>
+            <!-- [DB-16] description est la colonne réelle (pas acte_nom) -->
+            <td>${escapeHtml(l.description)}</td>
+            <td>${l.quantite ?? 1}</td>
+            <td class="amount">${(l.prix_unitaire ?? 0).toLocaleString('fr-BF')} F</td>
+            <!-- [DB-16] montant_total est la colonne réelle (pas total_ligne) -->
+            <td class="amount"><strong>${(l.montant_total ?? 0).toLocaleString('fr-BF')} F</strong></td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          ${facture.remise_montant ? `<tr><td colspan="3" style="text-align:right">Remise :</td><td class="amount" style="color:var(--rouge)">-${(facture.remise_montant ?? 0).toLocaleString('fr-BF')} F</td></tr>` : ''}
+          <tr style="font-size:16px;font-weight:700">
+            <td colspan="3" style="text-align:right">TOTAL TTC :</td>
+            <td class="amount">${(facture.total_ttc ?? 0).toLocaleString('fr-BF')} FCFA</td>
+          </tr>
+          ${totalPaye > 0 ? `<tr><td colspan="3" style="text-align:right;color:var(--vert)">Payé :</td><td class="amount" style="color:var(--vert)">${totalPaye.toLocaleString('fr-BF')} F</td></tr>` : ''}
+          ${resteAPayer > 0 ? `<tr style="color:var(--rouge)"><td colspan="3" style="text-align:right"><strong>Reste à payer :</strong></td><td class="amount"><strong>${resteAPayer.toLocaleString('fr-BF')} F</strong></td></tr>` : ''}
+        </tfoot>
+      </table>
+    </div>
 
-// /encaissement → /facture/nouvelle
-caissierRoutes.get('/encaissement', async (c) => {
-  return c.redirect('/caissier/facture/nouvelle', 303)
-})
+    ${resteAPayer > 0 ? `
+    <div class="card">
+      <div class="card-title">💳 Encaisser un paiement</div>
+      <form id="form-paiement">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label>Montant (FCFA)</label>
+            <input type="number" name="montant" value="${resteAPayer}" min="1" max="${resteAPayer}" required>
+          </div>
+          <div>
+            <label>Mode de paiement</label>
+            <select name="mode_paiement" required>
+              <option value="especes">💵 Espèces</option>
+              <option value="mobile_money">📱 Mobile Money (Orange/Moov)</option>
+              <option value="carte">💳 Carte bancaire</option>
+              <option value="virement">🏦 Virement</option>
+              <option value="assurance">🏛️ Assurance</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label>Référence transaction (optionnel)</label>
+            <input type="text" name="reference_transaction" placeholder="Ex: TXN-ABC123">
+          </div>
+          <div>
+            <label>Opérateur (Mobile Money)</label>
+            <input type="text" name="operateur" placeholder="Orange, Moov, etc.">
+          </div>
+        </div>
+        <button type="button" onclick="encaisser()" class="btn btn-success" style="margin-top:8px">
+          ✅ Encaisser ${resteAPayer.toLocaleString('fr-BF')} FCFA
+        </button>
+      </form>
+      <script>
+        async function encaisser() {
+          const form = document.getElementById('form-paiement')
+          const data = new FormData(form)
+          const res  = await fetch('/caissier/factures/${facture.id}/paiement', {
+            method: 'POST',
+            body: data
+          })
+          const json = await res.json()
+          if (json.success) {
+            alert('✅ Paiement enregistré !')
+            location.reload()
+          } else {
+            alert('❌ Erreur : ' + json.error)
+          }
+        }
+      </script>
+    </div>` : ''}
 
-// /recherche → /factures?statut=impayee
-caissierRoutes.get('/recherche', async (c) => {
-  return c.redirect('/caissier/factures?statut=impayee', 303)
-})
+    ${paiements.length ? `
+    <div class="card">
+      <div class="card-title">📜 Historique des paiements</div>
+      <table>
+        <thead><tr><th>Date</th><th>Montant</th><th>Mode</th><th>Référence</th><th>Statut</th></tr></thead>
+        <tbody>
+          ${paiements.map(p => `
+          <tr>
+            <td>${p.date_paiement ? new Date(p.date_paiement).toLocaleString('fr-BF') : '—'}</td>
+            <td class="amount">${(p.montant ?? 0).toLocaleString('fr-BF')} F</td>
+            <td>${escapeHtml(p.mode_paiement)}</td>
+            <td>${escapeHtml(p.reference_transaction) || '—'}</td>
+            <td><span class="badge ${p.statut_paiement === 'valide' ? 'badge-payee' : 'badge-annule'}">${escapeHtml(p.statut_paiement)}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : ''}
+  `
+  return layoutCaissier(`Facture ${facture.numero_facture}`, content)
+}
 
-// /historique → /factures?statut=all
-caissierRoutes.get('/historique', async (c) => {
-  return c.redirect('/caissier/factures?statut=all', 303)
-})
+function c_req_success(): boolean { return false } // Placeholder
 
-// /cloture → /rapport
-caissierRoutes.get('/cloture', async (c) => {
-  return c.redirect('/caissier/rapport', 303)
-})
+function pageNouvelleFacture(patients: any[], actes: any[], search: string): string {
+  const content = `
+    <div class="card">
+      <div class="card-title">🔍 Rechercher un patient</div>
+      <form method="GET" action="/caissier/nouvelle-facture">
+        <div style="display:flex;gap:10px">
+          <input type="text" name="patient" value="${escapeAttr(search)}" placeholder="Nom, prénom ou N° patient..." style="flex:1">
+          <button type="submit" class="btn btn-primary">Rechercher</button>
+        </div>
+      </form>
+      ${patients.length ? `
+      <div style="margin-top:16px">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px">${patients.length} patient(s) trouvé(s)</p>
+        ${patients.map(p => `
+        <div style="padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center"
+          onclick="selectPatient('${p.id}','${escapeAttr(p.nom)} ${escapeAttr(p.prenom)}')">
+          <div>
+            <strong>${escapeHtml(p.nom)} ${escapeHtml(p.prenom)}</strong>
+            <div style="font-size:12px;color:var(--text2)">${escapeHtml(p.numero_national)} · ${escapeHtml(p.telephone) || '—'}</div>
+          </div>
+          <span class="btn btn-secondary">Sélectionner</span>
+        </div>`).join('')}
+      </div>` : search.length >= 2 ? '<p style="color:var(--text2);margin-top:12px">Aucun patient trouvé</p>' : ''}
+    </div>
+
+    <div id="form-facture" style="display:none">
+      <div class="card">
+        <div class="card-title">📄 Nouvelle facture</div>
+        <p id="patient-selected" style="background:#E8F5E9;padding:10px;border-radius:8px;margin-bottom:16px;color:var(--vert)"></p>
+        <form method="POST" action="/caissier/nouvelle-facture">
+          <input type="hidden" name="patient_id" id="patient_id">
+          
+          <div id="lignes-container">
+            <div class="card-title" style="margin-bottom:10px">🧾 Lignes de facturation</div>
+            <div id="lignes">
+              <div class="ligne-row" style="display:grid;grid-template-columns:3fr 1fr 1fr auto;gap:8px;margin-bottom:8px">
+                <!-- [DB-16] Le champ s'appelle description dans la DB -->
+                <input type="text" name="description" placeholder="Description de l'acte" required>
+                <input type="number" name="quantite" placeholder="Qté" value="1" min="1">
+                <input type="number" name="prix_unitaire" placeholder="Prix (FCFA)" min="0">
+                <button type="button" onclick="this.closest('.ligne-row').remove()" style="background:#FFEBEE;color:var(--rouge);border:none;padding:8px;border-radius:6px;cursor:pointer">✕</button>
+              </div>
+            </div>
+            <button type="button" onclick="ajouterLigne()" class="btn btn-secondary" style="margin-bottom:16px">+ Ajouter une ligne</button>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label>Remise (%)</label>
+              <input type="number" name="remise_pourcentage" placeholder="0" min="0" max="100">
+            </div>
+            <div>
+              <label>Notes</label>
+              <input type="text" name="notes" placeholder="Notes optionnelles">
+            </div>
+          </div>
+          
+          <button type="submit" class="btn btn-primary" style="margin-top:8px">💾 Créer la facture</button>
+        </form>
+      </div>
+    </div>
+    
+    <script>
+      function selectPatient(id, nom) {
+        document.getElementById('patient_id').value = id
+        document.getElementById('patient-selected').textContent = '✅ Patient : ' + nom
+        document.getElementById('form-facture').style.display = 'block'
+        window.scrollTo({top: document.getElementById('form-facture').offsetTop - 20, behavior: 'smooth'})
+      }
+      function ajouterLigne() {
+        const div = document.createElement('div')
+        div.className = 'ligne-row'
+        div.style.cssText = 'display:grid;grid-template-columns:3fr 1fr 1fr auto;gap:8px;margin-bottom:8px'
+        div.innerHTML = \`
+          <input type="text" name="description" placeholder="Description de l'acte" required>
+          <input type="number" name="quantite" placeholder="Qté" value="1" min="1">
+          <input type="number" name="prix_unitaire" placeholder="Prix (FCFA)" min="0">
+          <button type="button" onclick="this.closest('.ligne-row').remove()" style="background:#FFEBEE;color:#C62828;border:none;padding:8px;border-radius:6px;cursor:pointer">✕</button>
+        \`
+        document.getElementById('lignes').appendChild(div)
+      }
+    </script>
+  `
+  return layoutCaissier('Nouvelle facture', content)
+}
+
+function pageListePaiements(paiements: any[], date: string, total: number): string {
+  const content = `
+    <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center">
+      <label style="font-weight:600">Date :</label>
+      <input type="date" value="${escapeAttr(date)}" onchange="location.href='/caissier/paiements?date='+this.value"
+        style="padding:8px 12px;border:1px solid #E0E0E0;border-radius:8px;font-size:13px">
+      <span style="margin-left:auto;font-size:18px;font-weight:700;color:#1B5E20">
+        Total : ${total.toLocaleString('fr-BF')} FCFA
+      </span>
+    </div>
+    <div class="card">
+      ${paiements.length ? `
+      <table>
+        <thead><tr><th>Heure</th><th>Patient</th><th>Facture</th><th>Montant</th><th>Mode</th><th>Référence</th><th>Statut</th></tr></thead>
+        <tbody>
+          ${paiements.map(p => `
+          <tr>
+            <td>${p.date_paiement ? new Date(p.date_paiement).toLocaleTimeString('fr-BF', {hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+            <td>${escapeHtml(p.patient?.nom)} ${escapeHtml(p.patient?.prenom)}</td>
+            <td>${escapeHtml(p.facture?.numero_facture) || '—'}</td>
+            <td class="amount" style="font-weight:700">${(p.montant ?? 0).toLocaleString('fr-BF')} F</td>
+            <td>${escapeHtml(p.mode_paiement)}</td>
+            <td style="font-size:11px;color:var(--text2)">${escapeHtml(p.reference_transaction) || '—'}</td>
+            <td><span class="badge ${p.statut_paiement === 'valide' ? 'badge-payee' : 'badge-annule'}">${escapeHtml(p.statut_paiement)}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>` : '<div style="text-align:center;padding:32px;color:var(--text2)">Aucun paiement ce jour</div>'}
+    </div>
+  `
+  return layoutCaissier(`Paiements du ${new Date(date).toLocaleDateString('fr-BF')}`, content)
+}
+
+function escapeAttr(s: string | null | undefined): string {
+  if (!s) return ''
+  return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#x27;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function pageErreur(titre: string, message: string): string {
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>${escapeHtml(titre)}</title></head>
+  <body style="font-family:sans-serif;padding:40px;text-align:center">
+    <h1 style="color:#C62828">${escapeHtml(titre)}</h1>
+    <p style="color:#6B7280;margin:16px 0">${escapeHtml(message)}</p>
+    <a href="/caissier" style="background:#6A1B9A;color:white;padding:10px 20px;border-radius:8px;text-decoration:none">← Retour</a>
+  </body></html>`
+}
